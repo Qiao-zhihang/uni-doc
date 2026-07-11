@@ -1,0 +1,115 @@
+{
+  "data": [
+    {
+      "id": "page-editor-light",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1782543000000,
+      "title": "编辑器主界面（浅色）",
+      "group": 1,
+      "pageIndex": 1,
+      "canvasData": {
+        "x": 0,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/editor-light.html"
+      }
+    },
+    {
+      "id": "page-editor-dark",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1782543001000,
+      "title": "编辑器主界面（深色）",
+      "group": 1,
+      "pageIndex": 2,
+      "canvasData": {
+        "x": 12,
+        "y": 504,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/editor-dark.html"
+      }
+    },
+    {
+      "id": "page-ai-floating-expanded",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1782543002000,
+      "title": "AI 浮窗（展开态）",
+      "group": 2,
+      "pageIndex": 3,
+      "canvasData": {
+        "x": 588,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/ai-floating-expanded.html"
+      }
+    },
+    {
+      "id": "page-ai-floating-minimized",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1782543003000,
+      "title": "AI 浮窗（最小化态）",
+      "group": 2,
+      "pageIndex": 4,
+      "canvasData": {
+        "x": 600,
+        "y": 504,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/ai-floating-minimized.html"
+      }
+    },
+    {
+      "id": "page-file-explorer",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1782543004000,
+      "title": "文件浏览器",
+      "group": 3,
+      "pageIndex": 5,
+      "canvasData": {
+        "x": 612,
+        "y": 984,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/file-explorer.html"
+      }
+    },
+    {
+      "id": "page-outline-panel",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1782543005000,
+      "title": "大纲面板（高亮态）",
+      "group": 4,
+      "pageIndex": 6,
+      "canvasData": {
+        "x": 3100,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/outline-panel.html"
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": false,
+    "deviceType": "desktop",
+    "designLibrary": null,
+    "windowSize": {
+      "width": 800,
+      "height": 600
+    }
+  }
+}

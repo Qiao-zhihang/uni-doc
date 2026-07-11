@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UniDoc 大纲面板</title>
+    <style id="theme-vars">
+/*
+ * UniDoc Redesign — Brand Design Tokens
+ * Based on Pinguo design tokens, Apple-inspired, restrained elegant
+ * Extended with layout dimension tokens per UI redesign spec
+ */
+
+/* @group-priority: brand, background, text, icon, state-success, state-error */
+
+:root {
+  /* ===== PRIMITIVE PALETTE ===== */
+
+  /* brand */
+  --brand-50: #e8f2ff;
+  --brand-100: #cfe5ff;
+  --brand-200: #9fcbff;
+  --brand-300: #66abff;
+  --brand-400: #2e8dff;
+  --brand-500: #007aff;
+  --brand-600: #0064d6;
+  --brand-700: #004fad;
+  --brand-800: #003b82;
+  --brand-900: #00275a;
+
+  /* background */
+  --background-50: #ffffff;
+  --background-100: #f7f7fa;
+  --background-200: #f2f2f7;
+  --background-300: #e5e5ea;
+  --background-400: #d1d1d6;
+  --background-500: #aeaeb2;
+  --background-600: #8e8e93;
+  --background-700: #3a3a3c;
+  --background-800: #1c1c1e;
+  --background-900: #000000;
+
+  /* text */
+  --text-50: #f5f5f7;
+  --text-100: #e3e3e8;
+  --text-200: #c7c7cc;
+  --text-300: #aeaeb2;
+  --text-400: #8e8e93;
+  --text-500: #6e6e73;
+  --text-600: #48484a;
+  --text-700: #3c3c43;
+  --text-800: #1d1d1f;
+  --text-900: #000000;
+
+  /* icon */
+  --icon-50: #f5f5f7;
+  --icon-100: #e5e5ea;
+  --icon-200: #d1d1d6;
+  --icon-300: #c7c7cc;
+  --icon-400: #aeaeb2;
+  --icon-500: #8e8e93;
+  --icon-600: #6e6e73;
+  --icon-700: #48484a;
+  --icon-800: #2c2c2e;
+  --icon-900: #1d1d1f;
+
+  /* state-success */
+  --state-success: #34c759;
+  --state-success-dark: #30d158;
+  --state-success-surface: #e9f9ee;
+  --state-success-foreground: #ffffff;
+
+  /* state-error */
+  --state-error: #ff3b30;
+  --state-error-dark: #ff453a;
+  --state-error-surface: #ffecea;
+  --state-error-foreground: #ffffff;
+
+  /* ===== SEMANTIC ROLES ===== */
+
+  --background: var(--background-50);
+  --foreground: var(--text-800);
+  --card: var(--background-50);
+  --card-foreground: var(--text-800);
+  --popover: var(--background-50);
+  --popover-foreground: var(--text-900);
+
+  --primary: var(--brand-500);
+  --primary-foreground: var(--background-50);
+  --secondary: var(--background-200);
+  --secondary-foreground: var(--text-800);
+  --muted: var(--background-200);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-100);
+  --accent-foreground: var(--text-800);
+  --destructive: var(--state-error);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-300);
+  --input: var(--background-400);
+  --ring: var(--brand-500);
+
+  --icon: var(--icon-900);
+  --icon-muted: var(--icon-500);
+
+  /* sidebar */
+  --sidebar: var(--background-200);
+  --sidebar-foreground: var(--text-800);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: var(--background-50);
+  --sidebar-accent: var(--background-300);
+  --sidebar-accent-foreground: var(--text-800);
+  --sidebar-border: var(--background-300);
+  --sidebar-ring: var(--brand-500);
+
+  /* TYPOGRAPHY */
+  --font-sans: "Noto Sans CJK SC", "Noto Sans", sans-serif;
+  --font-serif: DM Sans, ui-sans-serif, sans-serif, system-ui;
+  --font-mono: JetBrains Mono, monospace;
+  --tracking-normal: 0em;
+
+  /* RADIUS */
+  --radius: 1.2rem;
+  --radius-compact: 8px;
+
+  /* SHADOWS */
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.05);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.10), 0 8px 16px -8px rgba(0, 0, 0, 0.06);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.12);
+
+  /* SPACING */
+  --spacing: 0.24rem;
+
+  /* ===== LAYOUT DIMENSIONS (per UI redesign spec) ===== */
+  --ribbon-width: 48px;
+  --file-explorer-width: 220px;
+  --outline-panel-width: 240px;
+  --titlebar-height: 32px;
+  --statusbar-height: 24px;
+  --tabbar-height: 32px;
+  --toolbar-height: 40px;
+  --layout-gap: 0px;
+  --editor-padding: 24px;
+}
+
+/* ===== SEMANTIC ROLES - dark ===== */
+.dark {
+  --background: var(--background-900);
+  --foreground: var(--text-50);
+  --card: var(--background-800);
+  --card-foreground: var(--text-50);
+  --popover: var(--background-700);
+  --popover-foreground: var(--text-50);
+
+  --primary: var(--brand-400);
+  --primary-foreground: var(--background-900);
+  --secondary: var(--background-800);
+  --secondary-foreground: var(--text-50);
+  --muted: var(--background-800);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-700);
+  --accent-foreground: var(--text-50);
+  --destructive: var(--state-error-dark);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success-dark);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-700);
+  --input: var(--background-700);
+  --ring: var(--brand-400);
+
+  --icon: var(--icon-50);
+  --icon-muted: var(--icon-500);
+
+  --sidebar: var(--background-800);
+  --sidebar-foreground: var(--text-50);
+  --sidebar-primary: var(--brand-400);
+  --sidebar-primary-foreground: var(--background-900);
+  --sidebar-accent: var(--background-700);
+  --sidebar-accent-foreground: var(--text-50);
+  --sidebar-border: var(--background-700);
+  --sidebar-ring: var(--brand-400);
+
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.30);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.36), 0 1px 3px -1px rgba(0, 0, 0, 0.36);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.40), 0 1px 2px -1px rgba(0, 0, 0, 0.36);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.44), 0 2px 4px -2px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.50), 0 4px 8px -4px rgba(0, 0, 0, 0.40);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.55), 0 8px 16px -8px rgba(0, 0, 0, 0.44);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.60);
+}
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-foreground: var(--card-foreground);
+  }
+  @layer base {
+    body { background: var(--card-background); color: var(--card-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+    <main class="min-h-screen flex items-start justify-center pt-16 pb-12" style="background: var(--background-100);">
+      <div class="w-full max-w-6xl mx-auto px-6">
+        <!-- Page Header -->
+        <div class="mb-10">
+          <h1 class="text-2xl font-medium mb-1" style="color: var(--foreground); font-family: var(--font-sans);">大纲面板</h1>
+          <p class="text-sm" style="color: var(--muted-foreground);">高亮态与交互状态展示</p>
+        </div>
+
+        <!-- Two-column layout: Left = 大纲, Right = 标签 + 信息 stacked -->
+        <div class="flex gap-8 flex-wrap lg:flex-nowrap">
+
+          <!-- Left Panel: 大纲 Tab (Active Heading + Hover State) -->
+          <div class="shrink-0">
+            <p class="text-xs font-medium mb-3 tracking-wide uppercase" style="color: var(--muted-foreground);">大纲 Tab — 高亮态 &amp; 悬浮态</p>
+            <div class="overflow-hidden" style="width: var(--outline-panel-width); border: 1px solid var(--sidebar-border); border-radius: calc(var(--radius) * 0.8);">
+              <div style="background: var(--sidebar);">
+                <!-- Tab Bar -->
+                <div class="flex" style="border-bottom: 1px solid var(--sidebar-border);">
+                  <button class="flex items-center gap-1.5 px-3 py-2 text-xs font-medium" style="color: var(--brand-500); border-bottom: 2px solid var(--brand-500); background: transparent;">
+                    <i data-lucide="bookmark" class="w-3.5 h-3.5"></i>
+                    大纲
+                  </button>
+                  <button class="flex items-center gap-1.5 px-3 py-2 text-xs" style="color: var(--muted-foreground); background: transparent;">
+                    <i data-lucide="tags" class="w-3.5 h-3.5"></i>
+                    标签
+                  </button>
+                  <button class="flex items-center gap-1.5 px-3 py-2 text-xs" style="color: var(--muted-foreground); background: transparent;">
+                    <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                    信息
+                  </button>
+                </div>
+
+                <!-- Outline Tree -->
+                <div class="py-1" style="min-height: 380px;">
+                  <!-- H1: 一、项目概述 (normal) -->
+                  <div class="flex items-center gap-2 py-1.5 cursor-pointer" style="padding-left: 12px; padding-right: 8px;">
+                    <span class="shrink-0 rounded-full" style="width: 4px; height: 4px; background: var(--muted-foreground);"></span>
+                    <span class="truncate" style="color: var(--sidebar-foreground); font-size: 14px; font-weight: 400;">一、项目概述</span>
+                  </div>
+
+                  <!-- H2: 1.1 背景 -->
+                  <div class="flex items-center gap-2 py-1 cursor-pointer" style="padding-left: 28px; padding-right: 8px;">
+                    <span class="shrink-0 rounded-full" style="width: 4px; height: 4px; background: var(--muted-foreground);"></span>
+                    <span class="truncate" style="color: var(--sidebar-foreground); font-size: 13px; font-weight: 400;">1.1 背景</span>
+                  </div>
+
+                  <!-- H2: 1.2 目标 -->
+                  <div class="flex items-center gap-2 py-1 cursor-pointer" style="padding-left: 28px; padding-right: 8px;">
+                    <span class="shrink-0 rounded-full" style="width: 4px; height: 4px; background: var(--muted-foreground);"></span>
+                    <span class="truncate" style="color: var(--sidebar-foreground); font-size: 13px; font-weight: 400;">1.2 目标</span>
+                  </div>
+
+                  <!-- H1: 二、技术方案 (normal) -->
+                  <div class="flex items-center gap-2 py-1 cursor-pointer" style="padding-left: 10px; padding-right: 8px;">
+                    <span class="shrink-0 rounded-full" style="width: 4px; height: 4px; background: var(--muted-foreground);"></span>
+                    <span class="truncate" style="color: var(--sidebar-foreground); font-size: 14px; font-weight: 500;">二、技术方案</span>
+                  </div>
+
+                  <!-- H2: 2.1 架构 (ACTIVE / HIGHLIGHTED — demonstrates indented active state) -->
+                  <div class="flex items-center gap-2 py-1.5 cursor-pointer" style="padding-left: 28px; padding-right: 8px; background: var(--sidebar-accent); border-left: 2px solid var(--brand-500);">
+                    <span class="shrink-0 rounded-full" style="width: 4px; height: 4px; background: var(--brand-500);"></span>
+                    <span class="truncate" style="color: var(--brand-500); font-size: 13px; font-weight: 500;">2.1 架构</span>
+                  </div>
+
+                  <!-- H3: 2.1.1 前端 -->
+                  <div class="flex items-center gap-2 py-1 cursor-pointer" style="padding-left: 44px; padding-right: 8px;">
+                    <span class="shrink-0 rounded-full" style="width: 4px; height: 4px; background: var(--muted-foreground);"></span>
+                    <span class="truncate" style="color: var(--sidebar-foreground); font-size: 12px; font-weight: 400;">2.1.1 前端</span>
+                  </div>
+
+                  <!-- H2: 2.2 数据层 -->
+                  <div class="flex items-center gap-2 py-1 cursor-pointer" style="padding-left: 28px; padding-right: 8px;">
+                    <span class="shrink-0 rounded-full" style="width: 4px; height: 4px; background: var(--muted-foreground);"></span>
+                    <span class="truncate" style="color: var(--sidebar-foreground); font-size: 13px; font-weight: 400;">2.2 数据层</span>
+                  </div>
+
+                  <!-- H1: 三、实施计划 (HOVER state — always visible as demo) -->
+                  <div class="flex items-center gap-2 py-1.5 cursor-pointer" style="padding-left: 12px; padding-right: 8px; background: var(--muted); border-radius: 0 6px 6px 0;">
+                    <span class="shrink-0 rounded-full" style="width: 4px; height: 4px; background: var(--muted-foreground);"></span>
+                    <span class="truncate flex-1 min-w-0" style="color: var(--sidebar-foreground); font-size: 14px; font-weight: 400;">三、实施计划</span>
+                    <span class="shrink-0 flex items-center gap-1" style="font-size: 11px; color: var(--brand-500);">
+                      <i data-lucide="edit-3" class="w-3 h-3"></i>
+                      <span>编辑</span>
+                    </span>
+                  </div>
+
+                  <!-- H2: 3.1 Q3 目标 -->
+                  <div class="flex items-center gap-2 py-1 cursor-pointer" style="padding-left: 28px; padding-right: 8px;">
+                    <span class="shrink-0 rounded-full" style="width: 4px; height: 4px; background: var(--muted-foreground);"></span>
+                    <span class="truncate" style="color: var(--sidebar-foreground); font-size: 13px; font-weight: 400;">3.1 Q3 目标</span>
+                  </div>
+
+                  <!-- H2: 3.2 里程碑 -->
+                  <div class="flex items-center gap-2 py-1 cursor-pointer" style="padding-left: 28px; padding-right: 8px;">
+                    <span class="shrink-0 rounded-full" style="width: 4px; height: 4px; background: var(--muted-foreground);"></span>
+                    <span class="truncate" style="color: var(--sidebar-foreground); font-size: 13px; font-weight: 400;">3.2 里程碑</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Panel: 标签 Tab (top) + 信息 Tab (bottom) stacked -->
+          <div class="flex flex-col gap-6">
+            <!-- 标签 Tab Panel -->
+            <div class="shrink-0">
+              <p class="text-xs font-medium mb-3 tracking-wide uppercase" style="color: var(--muted-foreground);">标签 Tab</p>
+              <div class="overflow-hidden" style="width: var(--outline-panel-width); border: 1px solid var(--sidebar-border); border-radius: calc(var(--radius) * 0.8);">
+                <div style="background: var(--sidebar);">
+                  <!-- Tab Bar -->
+                  <div class="flex" style="border-bottom: 1px solid var(--sidebar-border);">
+                    <button class="flex items-center gap-1.5 px-3 py-2 text-xs" style="color: var(--muted-foreground); background: transparent;">
+                      <i data-lucide="bookmark" class="w-3.5 h-3.5"></i>
+                      大纲
+                    </button>
+                    <button class="flex items-center gap-1.5 px-3 py-2 text-xs font-medium" style="color: var(--brand-500); border-bottom: 2px solid var(--brand-500); background: transparent;">
+                      <i data-lucide="tags" class="w-3.5 h-3.5"></i>
+                      标签
+                    </button>
+                    <button class="flex items-center gap-1.5 px-3 py-2 text-xs" style="color: var(--muted-foreground); background: transparent;">
+                      <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                      信息
+                    </button>
+                  </div>
+
+                  <!-- 标签 Content -->
+                  <div class="px-3 py-3">
+                    <p class="text-xs font-medium mb-3" style="color: var(--foreground);">标签</p>
+                    <div class="flex flex-wrap gap-2 mb-4">
+                      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 whitespace-nowrap" style="background: var(--secondary); font-size: 13px; color: var(--secondary-foreground);">#产品规划</span>
+                      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 whitespace-nowrap" style="background: var(--secondary); font-size: 13px; color: var(--secondary-foreground);">#技术</span>
+                      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 whitespace-nowrap" style="background: var(--secondary); font-size: 13px; color: var(--secondary-foreground);">#Q3</span>
+                      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 whitespace-nowrap" style="background: var(--secondary); font-size: 13px; color: var(--secondary-foreground);">#目标</span>
+                      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 whitespace-nowrap" style="background: var(--secondary); font-size: 13px; color: var(--secondary-foreground);">#架构</span>
+                      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 whitespace-nowrap" style="background: var(--secondary); font-size: 13px; color: var(--secondary-foreground);">#前端</span>
+                    </div>
+                    <div class="flex items-center gap-2 rounded-md px-2 py-1.5" style="background: var(--background-50); border: 1px solid var(--border);">
+                      <i data-lucide="plus" class="w-3 h-3 shrink-0" style="color: var(--muted-foreground);"></i>
+                      <span style="color: var(--muted-foreground); font-size: 13px;">添加标签...</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 信息 Tab Panel -->
+            <div class="shrink-0">
+              <p class="text-xs font-medium mb-3 tracking-wide uppercase" style="color: var(--muted-foreground);">信息 Tab</p>
+              <div class="overflow-hidden" style="width: var(--outline-panel-width); border: 1px solid var(--sidebar-border); border-radius: calc(var(--radius) * 0.8);">
+                <div style="background: var(--sidebar);">
+                  <!-- Tab Bar -->
+                  <div class="flex" style="border-bottom: 1px solid var(--sidebar-border);">
+                    <button class="flex items-center gap-1.5 px-3 py-2 text-xs" style="color: var(--muted-foreground); background: transparent;">
+                      <i data-lucide="bookmark" class="w-3.5 h-3.5"></i>
+                      大纲
+                    </button>
+                    <button class="flex items-center gap-1.5 px-3 py-2 text-xs" style="color: var(--muted-foreground); background: transparent;">
+                      <i data-lucide="tags" class="w-3.5 h-3.5"></i>
+                      标签
+                    </button>
+                    <button class="flex items-center gap-1.5 px-3 py-2 text-xs font-medium" style="color: var(--brand-500); border-bottom: 2px solid var(--brand-500); background: transparent;">
+                      <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                      信息
+                    </button>
+                  </div>
+
+                  <!-- 信息 Content -->
+                  <div class="px-3 py-3">
+                    <p class="text-xs font-medium mb-3" style="color: var(--foreground);">文档信息</p>
+                    <div>
+                      <div class="flex justify-between items-center py-2.5" style="border-bottom: 0.5px solid var(--sidebar-border);">
+                        <span class="text-xs whitespace-nowrap" style="color: var(--muted-foreground);">字数</span>
+                        <span class="text-xs font-medium" style="color: var(--foreground);">1,247</span>
+                      </div>
+                      <div class="flex justify-between items-center py-2.5" style="border-bottom: 0.5px solid var(--sidebar-border);">
+                        <span class="text-xs whitespace-nowrap" style="color: var(--muted-foreground);">区块数</span>
+                        <span class="text-xs font-medium" style="color: var(--foreground);">23</span>
+                      </div>
+                      <div class="flex justify-between items-center py-2.5" style="border-bottom: 0.5px solid var(--sidebar-border);">
+                        <span class="text-xs whitespace-nowrap" style="color: var(--muted-foreground);">创建时间</span>
+                        <span class="text-xs font-medium" style="color: var(--foreground);">2026-06-27</span>
+                      </div>
+                      <div class="flex justify-between items-center py-2.5" style="border-bottom: 0.5px solid var(--sidebar-border);">
+                        <span class="text-xs whitespace-nowrap" style="color: var(--muted-foreground);">修改时间</span>
+                        <span class="text-xs font-medium" style="color: var(--foreground);">2026-06-27 19:38</span>
+                      </div>
+                      <div class="flex justify-between items-center py-2.5" style="border-bottom: 0.5px solid var(--sidebar-border);">
+                        <span class="text-xs whitespace-nowrap" style="color: var(--muted-foreground);">文件大小</span>
+                        <span class="text-xs font-medium" style="color: var(--foreground);">28.5 KB</span>
+                      </div>
+                      <div class="flex justify-between items-center py-2">
+                        <span class="text-xs whitespace-nowrap" style="color: var(--muted-foreground);">语言</span>
+                        <span class="text-xs font-medium" style="color: var(--foreground);">中文</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </main>
+    <style>
+      .fe-item { transition: background-color 0.12s ease; }
+      .fe-item:hover { background: var(--sidebar-accent); }
+      @media (prefers-reduced-motion: reduce) {
+        .fe-item { transition: none; }
+      }
+    </style>
+    <script>lucide.createIcons();</script>
+</body>
+</html>

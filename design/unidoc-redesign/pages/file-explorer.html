@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UniDoc 文件浏览器</title>
+    <style id="theme-vars">
+/*
+ * UniDoc Redesign — Brand Design Tokens
+ * Based on Pinguo design tokens, Apple-inspired, restrained elegant
+ * Extended with layout dimension tokens per UI redesign spec
+ */
+
+/* @group-priority: brand, background, text, icon, state-success, state-error */
+
+:root {
+  /* ===== PRIMITIVE PALETTE ===== */
+
+  /* brand */
+  --brand-50: #e8f2ff;
+  --brand-100: #cfe5ff;
+  --brand-200: #9fcbff;
+  --brand-300: #66abff;
+  --brand-400: #2e8dff;
+  --brand-500: #007aff;
+  --brand-600: #0064d6;
+  --brand-700: #004fad;
+  --brand-800: #003b82;
+  --brand-900: #00275a;
+
+  /* background */
+  --background-50: #ffffff;
+  --background-100: #f7f7fa;
+  --background-200: #f2f2f7;
+  --background-300: #e5e5ea;
+  --background-400: #d1d1d6;
+  --background-500: #aeaeb2;
+  --background-600: #8e8e93;
+  --background-700: #3a3a3c;
+  --background-800: #1c1c1e;
+  --background-900: #000000;
+
+  /* text */
+  --text-50: #f5f5f7;
+  --text-100: #e3e3e8;
+  --text-200: #c7c7cc;
+  --text-300: #aeaeb2;
+  --text-400: #8e8e93;
+  --text-500: #6e6e73;
+  --text-600: #48484a;
+  --text-700: #3c3c43;
+  --text-800: #1d1d1f;
+  --text-900: #000000;
+
+  /* icon */
+  --icon-50: #f5f5f7;
+  --icon-100: #e5e5ea;
+  --icon-200: #d1d1d6;
+  --icon-300: #c7c7cc;
+  --icon-400: #aeaeb2;
+  --icon-500: #8e8e93;
+  --icon-600: #6e6e73;
+  --icon-700: #48484a;
+  --icon-800: #2c2c2e;
+  --icon-900: #1d1d1f;
+
+  /* state-success */
+  --state-success: #34c759;
+  --state-success-dark: #30d158;
+  --state-success-surface: #e9f9ee;
+  --state-success-foreground: #ffffff;
+
+  /* state-error */
+  --state-error: #ff3b30;
+  --state-error-dark: #ff453a;
+  --state-error-surface: #ffecea;
+  --state-error-foreground: #ffffff;
+
+  /* ===== SEMANTIC ROLES ===== */
+
+  --background: var(--background-50);
+  --foreground: var(--text-800);
+  --card: var(--background-50);
+  --card-foreground: var(--text-800);
+  --popover: var(--background-50);
+  --popover-foreground: var(--text-900);
+
+  --primary: var(--brand-500);
+  --primary-foreground: var(--background-50);
+  --secondary: var(--background-200);
+  --secondary-foreground: var(--text-800);
+  --muted: var(--background-200);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-100);
+  --accent-foreground: var(--text-800);
+  --destructive: var(--state-error);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-300);
+  --input: var(--background-400);
+  --ring: var(--brand-500);
+
+  --icon: var(--icon-900);
+  --icon-muted: var(--icon-500);
+
+  /* sidebar */
+  --sidebar: var(--background-200);
+  --sidebar-foreground: var(--text-800);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: var(--background-50);
+  --sidebar-accent: var(--background-300);
+  --sidebar-accent-foreground: var(--text-800);
+  --sidebar-border: var(--background-300);
+  --sidebar-ring: var(--brand-500);
+
+  /* TYPOGRAPHY */
+  --font-sans: "Noto Sans CJK SC", "Noto Sans", sans-serif;
+  --font-serif: DM Sans, ui-sans-serif, sans-serif, system-ui;
+  --font-mono: JetBrains Mono, monospace;
+  --tracking-normal: 0em;
+
+  /* RADIUS */
+  --radius: 1.2rem;
+  --radius-compact: 8px;
+
+  /* SHADOWS */
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.05);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.10), 0 8px 16px -8px rgba(0, 0, 0, 0.06);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.12);
+
+  /* SPACING */
+  --spacing: 0.24rem;
+
+  /* ===== LAYOUT DIMENSIONS (per UI redesign spec) ===== */
+  --ribbon-width: 48px;
+  --file-explorer-width: 220px;
+  --outline-panel-width: 240px;
+  --titlebar-height: 32px;
+  --statusbar-height: 24px;
+  --tabbar-height: 32px;
+  --toolbar-height: 40px;
+  --layout-gap: 0px;
+  --editor-padding: 24px;
+}
+
+/* ===== SEMANTIC ROLES - dark ===== */
+.dark {
+  --background: var(--background-900);
+  --foreground: var(--text-50);
+  --card: var(--background-800);
+  --card-foreground: var(--text-50);
+  --popover: var(--background-700);
+  --popover-foreground: var(--text-50);
+
+  --primary: var(--brand-400);
+  --primary-foreground: var(--background-900);
+  --secondary: var(--background-800);
+  --secondary-foreground: var(--text-50);
+  --muted: var(--background-800);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-700);
+  --accent-foreground: var(--text-50);
+  --destructive: var(--state-error-dark);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success-dark);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-700);
+  --input: var(--background-700);
+  --ring: var(--brand-400);
+
+  --icon: var(--icon-50);
+  --icon-muted: var(--icon-500);
+
+  --sidebar: var(--background-800);
+  --sidebar-foreground: var(--text-50);
+  --sidebar-primary: var(--brand-400);
+  --sidebar-primary-foreground: var(--background-900);
+  --sidebar-accent: var(--background-700);
+  --sidebar-accent-foreground: var(--text-50);
+  --sidebar-border: var(--background-700);
+  --sidebar-ring: var(--brand-400);
+
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.30);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.36), 0 1px 3px -1px rgba(0, 0, 0, 0.36);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.40), 0 1px 2px -1px rgba(0, 0, 0, 0.36);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.44), 0 2px 4px -2px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.50), 0 4px 8px -4px rgba(0, 0, 0, 0.40);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.55), 0 8px 16px -8px rgba(0, 0, 0, 0.44);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.60);
+}
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-foreground: var(--card-foreground);
+  }
+  @layer base {
+    body { background: var(--card-background); color: var(--card-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+    <main class="min-h-screen" style="background: var(--background-100)">
+      <div class="max-w-[1200px] mx-auto px-4 py-8 sm:px-6 md:px-10">
+
+        <!-- Page header -->
+        <h1 class="text-2xl font-semibold mb-1" style="color: var(--foreground); font-family: var(--font-sans)">文件浏览器</h1>
+        <p class="text-sm mb-8" style="color: var(--text-500)">展开态与折叠态对照展示</p>
+
+        <!-- Two panels side by side -->
+        <div class="flex flex-col lg:flex-row gap-8">
+
+          <!-- ===== LEFT PANEL: FileExplorer EXPANDED ===== -->
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-medium mb-3" style="color: var(--text-500); letter-spacing: 0.04em">展开态</p>
+            <div class="flex rounded-lg overflow-hidden" style="height: 540px; box-shadow: var(--shadow-lg)">
+
+              <!-- Ribbon (48px) -->
+              <div class="flex flex-col items-center py-2 gap-0.5" style="width: 48px; background: var(--sidebar); border-right: 1px solid var(--sidebar-border)">
+                <!-- File icon - ACTIVE -->
+                <div class="flex items-center justify-center relative" style="width: 48px; height: 36px; color: var(--brand-500)">
+                  <div class="absolute left-0 top-1 bottom-1" style="width: 2px; background: var(--brand-500); border-radius: 0 1px 1px 0"></div>
+                  <i data-lucide="file-text" style="width: 18px; height: 18px"></i>
+                </div>
+                <!-- Search -->
+                <div class="flex items-center justify-center" style="width: 48px; height: 36px; color: var(--icon-500)">
+                  <i data-lucide="search" style="width: 18px; height: 18px"></i>
+                </div>
+                <!-- Outline -->
+                <div class="flex items-center justify-center" style="width: 48px; height: 36px; color: var(--icon-500)">
+                  <i data-lucide="list" style="width: 18px; height: 18px"></i>
+                </div>
+                <!-- AI -->
+                <div class="flex items-center justify-center" style="width: 48px; height: 36px; color: var(--icon-500)">
+                  <i data-lucide="sparkles" style="width: 18px; height: 18px"></i>
+                </div>
+                <div class="flex-1"></div>
+                <!-- Theme -->
+                <div class="flex items-center justify-center" style="width: 48px; height: 36px; color: var(--icon-500)">
+                  <i data-lucide="sun" style="width: 18px; height: 18px"></i>
+                </div>
+                <!-- Settings -->
+                <div class="flex items-center justify-center" style="width: 48px; height: 36px; color: var(--icon-500)">
+                  <i data-lucide="settings" style="width: 18px; height: 18px"></i>
+                </div>
+              </div>
+
+              <!-- FileExplorer (220px) -->
+              <div class="flex flex-col" style="width: 220px; background: var(--sidebar); border-right: 1px solid var(--sidebar-border)">
+                <!-- Header -->
+                <div class="flex items-center justify-between px-3" style="height: 32px; border-bottom: 1px solid var(--sidebar-border)">
+                  <span class="text-xs font-medium truncate" style="color: var(--sidebar-foreground)">UniDoc</span>
+                  <div class="flex items-center gap-0.5">
+                    <div class="flex items-center justify-center" style="width: 24px; height: 24px; color: var(--icon-500)">
+                      <i data-lucide="plus" style="width: 14px; height: 14px"></i>
+                    </div>
+                    <div class="flex items-center justify-center" style="width: 24px; height: 24px; color: var(--icon-500)">
+                      <i data-lucide="folder-plus" style="width: 14px; height: 14px"></i>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- File tree (semantic ul/li for accessibility) -->
+                <ul class="flex-1 overflow-y-auto py-1 px-1 no-scrollbar" role="tree" style="list-style: none; margin: 0; padding: 0;">
+
+                  <!-- Root: UniDoc folder (expanded) -->
+                  <li role="treeitem" aria-expanded="true">
+                    <div class="fe-item flex items-center gap-1.5 px-1.5 rounded" style="height: 28px; cursor: pointer">
+                      <i data-lucide="chevron-down" class="shrink-0" style="width: 12px; height: 12px; color: var(--icon-500)"></i>
+                      <i data-lucide="folder-open" class="shrink-0" style="width: 14px; height: 14px; color: var(--brand-500)"></i>
+                      <span class="truncate" style="font-size: 13px; font-weight: 500; color: var(--sidebar-foreground)">UniDoc</span>
+                    </div>
+                    <ul role="group" style="list-style: none; margin: 0; padding: 0;">
+                      <li role="treeitem">
+                        <div class="fe-item flex items-center gap-1.5 rounded" style="height: 26px; padding-left: 20px; padding-right: 6px; cursor: pointer">
+                          <i data-lucide="file-text" class="shrink-0" style="width: 14px; height: 14px; color: var(--icon-400)"></i>
+                          <span class="truncate" style="font-size: 13px; color: var(--sidebar-foreground)">欢迎文档.md</span>
+                        </div>
+                      </li>
+                      <li role="treeitem">
+                        <div class="fe-item flex items-center gap-1.5 rounded" style="height: 26px; padding-left: 20px; padding-right: 6px; cursor: pointer">
+                          <i data-lucide="file-text" class="shrink-0" style="width: 14px; height: 14px; color: var(--icon-400)"></i>
+                          <span class="truncate" style="font-size: 13px; color: var(--sidebar-foreground)">会议记录.md</span>
+                        </div>
+                      </li>
+                      <!-- 笔记 folder (expanded) -->
+                      <li role="treeitem" aria-expanded="true">
+                        <div class="fe-item flex items-center gap-1.5 rounded" style="height: 26px; padding-left: 8px; padding-right: 6px; cursor: pointer">
+                          <i data-lucide="chevron-down" class="shrink-0" style="width: 12px; height: 12px; color: var(--icon-500)"></i>
+                          <i data-lucide="folder-open" class="shrink-0" style="width: 14px; height: 14px; color: var(--brand-500)"></i>
+                          <span class="truncate" style="font-size: 13px; font-weight: 500; color: var(--sidebar-foreground)">笔记</span>
+                        </div>
+                        <ul role="group" style="list-style: none; margin: 0; padding: 0;">
+                          <li role="treeitem">
+                            <div class="fe-item flex items-center gap-1.5 rounded" style="height: 26px; padding-left: 32px; padding-right: 6px; cursor: pointer">
+                              <i data-lucide="file-text" class="shrink-0" style="width: 14px; height: 14px; color: var(--icon-400)"></i>
+                              <span class="truncate" style="font-size: 13px; color: var(--sidebar-foreground)">数学笔记.md</span>
+                            </div>
+                          </li>
+                          <li role="treeitem">
+                            <div class="fe-item flex items-center gap-1.5 rounded" style="height: 26px; padding-left: 32px; padding-right: 6px; cursor: pointer">
+                              <i data-lucide="file-text" class="shrink-0" style="width: 14px; height: 14px; color: var(--icon-400)"></i>
+                              <span class="truncate" style="font-size: 13px; color: var(--sidebar-foreground)">物理笔记.md</span>
+                            </div>
+                          </li>
+                          <li role="treeitem">
+                            <div class="fe-item flex items-center gap-1.5 rounded" style="height: 26px; padding-left: 32px; padding-right: 6px; cursor: pointer">
+                              <i data-lucide="file-text" class="shrink-0" style="width: 14px; height: 14px; color: var(--icon-400)"></i>
+                              <span class="truncate" style="font-size: 13px; color: var(--sidebar-foreground)">编程笔记.md</span>
+                            </div>
+                          </li>
+                        </ul>
+                      </li>
+                      <!-- 项目 folder (expanded) -->
+                      <li role="treeitem" aria-expanded="true">
+                        <div class="fe-item flex items-center gap-1.5 rounded" style="height: 26px; padding-left: 8px; padding-right: 6px; cursor: pointer">
+                          <i data-lucide="chevron-down" class="shrink-0" style="width: 12px; height: 12px; color: var(--icon-500)"></i>
+                          <i data-lucide="folder-open" class="shrink-0" style="width: 14px; height: 14px; color: var(--brand-500)"></i>
+                          <span class="truncate" style="font-size: 13px; font-weight: 500; color: var(--sidebar-foreground)">项目</span>
+                        </div>
+                        <ul role="group" style="list-style: none; margin: 0; padding: 0;">
+                          <!-- 产品规划方案.md - ACTIVE -->
+                          <li role="treeitem">
+                            <div class="fe-item fe-active flex items-center gap-1.5 rounded relative" style="height: 26px; padding-left: 32px; padding-right: 6px; cursor: pointer; background: var(--sidebar-accent)">
+                              <div class="absolute left-0 top-1/2 -translate-y-1/2" style="width: 2px; height: 14px; background: var(--brand-500); border-radius: 0 1px 1px 0"></div>
+                              <i data-lucide="file-text" class="shrink-0" style="width: 14px; height: 14px; color: var(--brand-500)"></i>
+                              <span class="truncate" style="font-size: 13px; font-weight: 500; color: var(--brand-500)">产品规划方案.md</span>
+                            </div>
+                          </li>
+                        </ul>
+                      </li>
+                      <li role="treeitem">
+                        <div class="fe-item flex items-center gap-1.5 rounded" style="height: 26px; padding-left: 20px; padding-right: 6px; cursor: pointer">
+                          <i data-lucide="file-text" class="shrink-0" style="width: 14px; height: 14px; color: var(--icon-400)"></i>
+                          <span class="truncate" style="font-size: 13px; color: var(--sidebar-foreground)">草稿.md</span>
+                        </div>
+                      </li>
+                      <li role="treeitem">
+                        <div class="fe-item flex items-center gap-1.5 rounded" style="height: 26px; padding-left: 20px; padding-right: 6px; cursor: pointer">
+                          <i data-lucide="file-text" class="shrink-0" style="width: 14px; height: 14px; color: var(--icon-400)"></i>
+                          <span class="truncate" style="font-size: 13px; color: var(--sidebar-foreground)">模板.md</span>
+                        </div>
+                      </li>
+                    </ul>
+                  </li>
+
+                </ul>
+              </div>
+
+              <!-- Editor placeholder -->
+              <div class="flex-1 flex flex-col" style="background: var(--background)">
+                <div class="flex items-center px-4" style="height: 32px; border-bottom: 1px solid var(--border)">
+                  <div class="flex items-center gap-1.5">
+                    <i data-lucide="file-text" style="width: 14px; height: 14px; color: var(--icon-500)"></i>
+                    <span class="truncate text-xs" style="color: var(--text-500)">产品规划方案.md</span>
+                  </div>
+                </div>
+                <div class="flex-1 p-6">
+                  <div class="space-y-3">
+                    <div style="width: 55%; height: 18px; background: var(--text-800); border-radius: 2px; opacity: 0.75"></div>
+                    <div style="width: 88%; height: 11px; background: var(--text-300); border-radius: 2px; opacity: 0.25"></div>
+                    <div style="width: 72%; height: 11px; background: var(--text-300); border-radius: 2px; opacity: 0.25"></div>
+                    <div style="width: 82%; height: 11px; background: var(--text-300); border-radius: 2px; opacity: 0.25"></div>
+                    <div class="pt-2" style="width: 38%; height: 15px; background: var(--text-800); border-radius: 2px; opacity: 0.55"></div>
+                    <div style="width: 92%; height: 11px; background: var(--text-300); border-radius: 2px; opacity: 0.25"></div>
+                    <div style="width: 78%; height: 11px; background: var(--text-300); border-radius: 2px; opacity: 0.25"></div>
+                    <div style="width: 65%; height: 11px; background: var(--text-300); border-radius: 2px; opacity: 0.25"></div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- ===== RIGHT PANEL: FileExplorer COLLAPSED ===== -->
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-medium mb-3" style="color: var(--text-500); letter-spacing: 0.04em">折叠态</p>
+            <div class="flex overflow-hidden" style="height: 540px; box-shadow: var(--shadow-xl); border-radius: calc(var(--radius) * 0.8);">
+
+              <!-- Ribbon (48px) - file icon INACTIVE -->
+              <div class="flex flex-col items-center py-2 gap-0.5" style="width: 48px; background: var(--sidebar); border-right: 1px solid var(--sidebar-border)">
+                <div class="flex items-center justify-center" style="width: 48px; height: 36px; color: var(--icon-500)">
+                  <i data-lucide="file-text" style="width: 18px; height: 18px"></i>
+                </div>
+                <div class="flex items-center justify-center" style="width: 48px; height: 36px; color: var(--icon-500)">
+                  <i data-lucide="search" style="width: 18px; height: 18px"></i>
+                </div>
+                <div class="flex items-center justify-center" style="width: 48px; height: 36px; color: var(--icon-500)">
+                  <i data-lucide="list" style="width: 18px; height: 18px"></i>
+                </div>
+                <div class="flex items-center justify-center" style="width: 48px; height: 36px; color: var(--icon-500)">
+                  <i data-lucide="sparkles" style="width: 18px; height: 18px"></i>
+                </div>
+                <div class="flex-1"></div>
+                <div class="flex items-center justify-center" style="width: 48px; height: 36px; color: var(--icon-500)">
+                  <i data-lucide="sun" style="width: 18px; height: 18px"></i>
+                </div>
+                <div class="flex items-center justify-center" style="width: 48px; height: 36px; color: var(--icon-500)">
+                  <i data-lucide="settings" style="width: 18px; height: 18px"></i>
+                </div>
+              </div>
+
+              <!-- Dimmed editor area with overlay -->
+              <div class="flex-1 flex flex-col" style="background: var(--background)">
+                <div class="flex items-center px-4" style="height: 32px; border-bottom: 1px solid var(--border); opacity: 0.4">
+                  <div class="flex items-center gap-1.5">
+                    <i data-lucide="file-text" style="width: 14px; height: 14px; color: var(--icon-500)"></i>
+                    <span class="truncate text-xs" style="color: var(--text-500)">产品规划方案.md</span>
+                  </div>
+                </div>
+                <div class="flex-1 p-6 opacity-[0.15]">
+                  <div class="space-y-3">
+                    <div style="width: 55%; height: 18px; background: var(--text-800); border-radius: 2px"></div>
+                    <div style="width: 88%; height: 11px; background: var(--text-300); border-radius: 2px"></div>
+                    <div style="width: 72%; height: 11px; background: var(--text-300); border-radius: 2px"></div>
+                    <div style="width: 82%; height: 11px; background: var(--text-300); border-radius: 2px"></div>
+                    <div class="pt-2" style="width: 38%; height: 15px; background: var(--text-800); border-radius: 2px"></div>
+                    <div style="width: 92%; height: 11px; background: var(--text-300); border-radius: 2px"></div>
+                    <div style="width: 78%; height: 11px; background: var(--text-300); border-radius: 2px"></div>
+                  </div>
+                </div>
+                <!-- Overlay message -->
+                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style="background: var(--background); background: color-mix(in srgb, var(--background) 92%, transparent)">
+                  <i data-lucide="panel-left-close" style="width: 20px; height: 20px; color: var(--icon-400)"></i>
+                  <p class="mt-2 text-sm font-medium" style="color: var(--text-500)">文件浏览器已收起</p>
+                  <p class="mt-1 text-xs" style="color: var(--text-400)">点击左侧图标或按 Ctrl+\ 展开</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Annotations: state indicators -->
+        <div class="mt-10">
+          <h2 class="text-sm font-semibold mb-4" style="color: var(--text-600)">文件浏览器 — 展开态 / 折叠态</h2>
+          <div class="flex flex-col sm:flex-row gap-4">
+
+            <!-- Hover state -->
+            <div class="flex items-center gap-3 p-3 rounded-lg shrink-0" style="background: var(--card); border: 1px solid var(--border)">
+              <div class="flex items-center gap-1.5 rounded px-2 py-1" style="background: var(--sidebar-accent)">
+                <i data-lucide="file-text" style="width: 12px; height: 12px; color: var(--icon-500)"></i>
+                <span style="font-size: 13px; color: var(--sidebar-foreground)">文件名.md</span>
+              </div>
+              <span class="text-xs" style="color: var(--text-500)">悬停态</span>
+            </div>
+
+            <!-- Active state -->
+            <div class="flex items-center gap-3 p-3 rounded-lg shrink-0" style="background: var(--card); border: 1px solid var(--border)">
+              <div class="flex items-center gap-1.5 rounded px-2 py-1 relative" style="background: var(--sidebar-accent)">
+                <div class="absolute left-0 top-0.5 bottom-0.5" style="width: 2px; background: var(--brand-500); border-radius: 0 1px 1px 0"></div>
+                <i data-lucide="file-text" style="width: 12px; height: 12px; color: var(--brand-500)"></i>
+                <span style="font-size: 13px; font-weight: 500; color: var(--brand-500)">文件名.md</span>
+              </div>
+              <span class="text-xs" style="color: var(--text-500)">激活态</span>
+            </div>
+
+            <!-- Folder expanded state -->
+            <div class="flex items-center gap-3 p-3 rounded-lg shrink-0" style="background: var(--card); border: 1px solid var(--border)">
+              <div class="flex items-center gap-1.5 px-2 py-1">
+                <i data-lucide="chevron-down" style="width: 12px; height: 12px; color: var(--icon-500)"></i>
+                <i data-lucide="folder-open" style="width: 14px; height: 14px; color: var(--brand-500)"></i>
+                <span style="font-size: 13px; font-weight: 500; color: var(--sidebar-foreground)">文件夹</span>
+              </div>
+              <span class="text-xs" style="color: var(--text-500)">展开态</span>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- Custom styles for file explorer interactions -->
+    <style>
+      .fe-item { transition: background-color 0.12s ease; }
+      .fe-item:hover { background: var(--sidebar-accent); }
+      .fe-item.fe-active:hover {
+        background: var(--sidebar-accent);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .fe-item { transition: none; }
+      }
+    </style>
+
+    <script>lucide.createIcons();</script>
+</body>
+</html>

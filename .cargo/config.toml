@@ -1,0 +1,8 @@
+# Cargo 本地配置
+# 将 target 目录设为纯 ASCII 路径,避免 Windows 用户名含中文字符(乔一峰)
+# 导致 build script 进程创建失败的 Rust 已知问题(Rust 1.96.0 + Windows zh-CN locale)
+#
+# 注意:通过 npx tauri dev 启动时,TRAE 沙箱可能阻止写入此路径。
+# 解决方案:手动分两步启动 — 先 npm run dev,再 cargo run --manifest-path src-tauri\Cargo.toml
+[build]
+target-dir = "C:\\temp\\unidoc-target"

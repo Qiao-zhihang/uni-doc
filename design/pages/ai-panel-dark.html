@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 配置 — UniDoc</title>
+    <style id="theme-vars">
+/*
+ * Pinguo design tokens
+ * Brand: Pinguo
+ * Domain: Consumer imaging product
+ * Style: Restrained, elegant, Apple-inspired
+ * Theme mode: light-dark
+ * Source language: zh
+ * Output language: en
+ *
+ * Color architecture (two layers):
+ *   1. Primitive palette - six categories. brand / background / text / icon
+ *      are each a 10-step scale (50 lightest to 900 darkest). state-success and
+ *      state-error are functional colors anchored on Apple system colors.
+ *      Anchors follow Apple Human Interface Guidelines system colors
+ *      (System Blue #007AFF, System Green #34C759, System Red #FF3B30,
+ *      system grays / label / background colors).
+ *   2. Semantic tokens - :root (light) and .dark map roles onto primitives.
+ *      Components and UI kits must only consume the semantic tokens below.
+ */
+
+/* @group-priority: brand, background, text, icon, state-success, state-error */
+
+:root {
+  /* ===== PRIMITIVE PALETTE ===== */
+
+  /* brand */
+  --brand-50: #e8f2ff;
+  --brand-100: #cfe5ff;
+  --brand-200: #9fcbff;
+  --brand-300: #66abff;
+  --brand-400: #2e8dff;
+  --brand-500: #007aff; /* @primary */
+  --brand-600: #0064d6;
+  --brand-700: #004fad;
+  --brand-800: #003b82;
+  --brand-900: #00275a;
+
+  /* background */
+  --background-50: #ffffff;
+  --background-100: #f7f7fa;
+  --background-200: #f2f2f7;
+  --background-300: #e5e5ea;
+  --background-400: #d1d1d6;
+  --background-500: #aeaeb2;
+  --background-600: #8e8e93;
+  --background-700: #3a3a3c;
+  --background-800: #1c1c1e;
+  --background-900: #000000;
+
+  /* text */
+  --text-50: #f5f5f7;
+  --text-100: #e3e3e8;
+  --text-200: #c7c7cc;
+  --text-300: #aeaeb2;
+  --text-400: #8e8e93;
+  --text-500: #6e6e73;
+  --text-600: #48484a;
+  --text-700: #3c3c43;
+  --text-800: #1d1d1f;
+  --text-900: #000000;
+
+  /* icon */
+  --icon-50: #f5f5f7;
+  --icon-100: #e5e5ea;
+  --icon-200: #d1d1d6;
+  --icon-300: #c7c7cc;
+  --icon-400: #aeaeb2;
+  --icon-500: #8e8e93;
+  --icon-600: #6e6e73;
+  --icon-700: #48484a;
+  --icon-800: #2c2c2e;
+  --icon-900: #1d1d1f;
+
+  /* state-success */
+  --state-success: #34c759; /* @primary */
+  --state-success-dark: #30d158;
+  --state-success-surface: #e9f9ee;
+  --state-success-foreground: #ffffff;
+
+  /* state-error */
+  --state-error: #ff3b30; /* @primary */
+  --state-error-dark: #ff453a;
+  --state-error-surface: #ffecea;
+  --state-error-foreground: #ffffff;
+
+  /* ===== SEMANTIC ROLES ===== */
+
+  /* semantic */
+  --background: var(--background-50);
+  --foreground: var(--text-800);
+  --card: var(--background-50);
+  --card-foreground: var(--text-800);
+  --popover: var(--background-50);
+  --popover-foreground: var(--text-900);
+
+  --primary: var(--brand-500);
+  --primary-foreground: var(--background-50);
+  --secondary: var(--background-200);
+  --secondary-foreground: var(--text-800);
+  --muted: var(--background-200);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-100);
+  --accent-foreground: var(--text-800);
+  --destructive: var(--state-error);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-300);
+  --input: var(--background-400);
+  --ring: var(--brand-500);
+
+  --icon: var(--icon-900);
+  --icon-muted: var(--icon-500);
+
+  /* chart */
+  --chart-1: var(--state-success);
+  --chart-2: var(--brand-500);
+  --chart-3: #ff9500;
+  --chart-4: #5856d6;
+  --chart-5: #af52de;
+
+  /* sidebar */
+  --sidebar: var(--background-200);
+  --sidebar-foreground: var(--text-800);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: var(--background-50);
+  --sidebar-accent: var(--background-300);
+  --sidebar-accent-foreground: var(--text-800);
+  --sidebar-border: var(--background-300);
+  --sidebar-ring: var(--brand-500);
+
+  /* TYPOGRAPHY */
+  --font-sans: "Noto Sans CJK SC", "Noto Sans", sans-serif;
+  --font-serif: DM Sans, ui-sans-serif, sans-serif, system-ui;
+  --font-mono: JetBrains Mono, monospace;
+  --tracking-normal: 0em;
+
+  /* RADIUS */
+  --radius: 1.2rem;
+
+  /* SHADOWS */
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.04); /* Hairline */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04); /* Subtle */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.05); /* Card */
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.05); /* Raised */
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05); /* Card Hover */
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.05); /* Float */
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.10), 0 8px 16px -8px rgba(0, 0, 0, 0.06); /* Overlay */
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.12); /* Modal */
+
+  /* SPACING */
+  --spacing: 0.24rem;
+}
+
+/* ===== SEMANTIC ROLES - dark (primitive palette inherited) ===== */
+.dark {
+  --background: var(--background-900);
+  --foreground: var(--text-50);
+  --card: var(--background-800);
+  --card-foreground: var(--text-50);
+  --popover: var(--background-700);
+  --popover-foreground: var(--text-50);
+
+  --primary: var(--brand-400);
+  --primary-foreground: var(--background-900);
+  --secondary: var(--background-800);
+  --secondary-foreground: var(--text-50);
+  --muted: var(--background-800);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-700);
+  --accent-foreground: var(--text-50);
+  --destructive: var(--state-error-dark);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success-dark);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-700);
+  --input: var(--background-700);
+  --ring: var(--brand-400);
+
+  --icon: var(--icon-50);
+  --icon-muted: var(--icon-500);
+
+  --chart-1: var(--state-success-dark);
+  --chart-2: var(--brand-400);
+  --chart-3: #ff9f0a;
+  --chart-4: #5e5ce6;
+  --chart-5: #bf5af2;
+
+  --sidebar: var(--background-800);
+  --sidebar-foreground: var(--text-50);
+  --sidebar-primary: var(--brand-400);
+  --sidebar-primary-foreground: var(--background-900);
+  --sidebar-accent: var(--background-700);
+  --sidebar-accent-foreground: var(--text-50);
+  --sidebar-border: var(--background-700);
+  --sidebar-ring: var(--brand-400);
+
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.30);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.36), 0 1px 3px -1px rgba(0, 0, 0, 0.36);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.40), 0 1px 2px -1px rgba(0, 0, 0, 0.36);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.44), 0 2px 4px -2px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.50), 0 4px 8px -4px rgba(0, 0, 0, 0.40);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.55), 0 8px 16px -8px rgba(0, 0, 0, 0.44);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.60);
+}
+
+    </style>
+    <style id="component-vars">
+/*
+ * components.css - aggregated component CSS
+ * Auto-extracted from preview/component-*.html files.
+ * DO NOT EDIT. Regenerate with extract-components-css.mjs.
+ *
+ * Foundation tokens live in colors_and_type.css.
+ * This file consumes those tokens via var(--*) references.
+ */
+
+/* ============================================================
+ * Button
+ * source: preview/component-button.html
+ * rules: 10
+ */
+/* @anatomy
+   <div class="row"><span class="label">Primary 56</span><button class="btn btn-primary btn-lg">Buy now</button><button class="btn btn-primary btn-lg" disabled>Buy now</button></div>
+*/
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:calc(var(--spacing)*1.5);height:40px;padding:0 20px;border:none;border-radius:calc(var(--radius)*2);background:transparent;color:var(--foreground);font:600 14px/1 var(--font-sans);letter-spacing:var(--tracking-normal);white-space:nowrap;box-shadow:var(--shadow-sm);cursor:pointer;transition:background-color .18s ease,color .18s ease,opacity .18s ease,filter .18s ease}
+.btn:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.btn:disabled{opacity:.42;cursor:not-allowed}
+.btn-primary{background:var(--primary);color:var(--primary-foreground)}
+.btn-primary:hover{filter:brightness(.96)}
+.btn-secondary{height:48px;padding:0 24px;background:var(--secondary);color:var(--secondary-foreground)}
+.btn-secondary:hover{background:var(--muted)}
+.btn-text{height:48px;padding:0 4px;box-shadow:none}
+.btn-text:hover{color:var(--primary)}
+.btn-lg{height:56px;padding:0 28px;font-size:16px}
+
+/* ============================================================
+ * Card
+ * source: preview/component-card.html
+ * rules: 12
+ */
+/* @anatomy
+   <div class="row">
+   <span class="label">Info</span>
+   <article class="card">
+   <div><div class="eyebrow">Pinguo Apple</div>
+*/
+.card{width:188px;min-height:148px;padding:calc(var(--spacing)*5);display:flex;flex-direction:column;justify-content:space-between;background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-md);transition:transform .18s ease,box-shadow .18s ease}
+.card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.card.disabled,.card.disabled:hover{opacity:.5;transform:none;box-shadow:var(--shadow-md)}
+.eyebrow,.meta{color:var(--muted-foreground);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.title{margin:6px 0 8px;font-size:18px;line-height:1.15}
+.body-copy{margin:0;color:var(--muted-foreground);font-size:13px}
+.cta{display:inline-flex;align-items:center;justify-content:center;width:max-content;margin-top:12px;padding:calc(var(--spacing)*2) calc(var(--spacing)*3.5);border-radius:999px;background:var(--primary);color:var(--primary-foreground);font-size:12px;font-weight:700;text-decoration:none}
+.media{aspect-ratio:4/3;border-radius:calc(var(--radius) - 4px);background:linear-gradient(135deg,var(--secondary),var(--accent));border:1px solid var(--border)}
+.media-card{min-height:212px;padding:calc(var(--spacing)*4)}
+.media-card .title{font-size:16px;margin:10px 0 6px}
+.price{font-size:12px;color:var(--muted-foreground)}
+.dark{background:var(--card);color:var(--card-foreground)}
+
+/* ============================================================
+ * Comparison Table
+ * source: preview/component-comparison-table.html
+ * rules: 13
+ */
+/* @anatomy
+   <div class="row"><span class="label">Default</span><div class="t"><div class="c m">Compare models</div>
+*/
+.t{display:grid;grid-template-columns:96px repeat(3,1fr);overflow:hidden;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);color:var(--card-foreground);box-shadow:var(--shadow-sm)}
+.q{grid-template-columns:82px repeat(4,1fr)}
+.c{padding:10px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.t>.c:nth-child(4n),.q>.c:nth-child(5n){border-right:0}
+.t>.c:nth-last-child(-n+4),.q>.c:nth-last-child(-n+5){border-bottom:0}
+.m{background:var(--background);color:var(--muted-foreground);font:700 10px/1 var(--font-mono);letter-spacing:.12em;text-transform:uppercase}
+.h{background:var(--background);font-weight:700}
+.k{display:block;font-size:14px;line-height:1.1}
+.s{display:block;margin-top:4px;color:var(--chart-2);font-size:11px;font-weight:700}
+.b .k{color:var(--chart-2)}
+.v{font-weight:600}
+.n{color:var(--muted-foreground);font-size:12px}
+.x{opacity:.45}
+
+/* ============================================================
+ * Input
+ * source: preview/component-input.html
+ * rules: 10
+ */
+/* @anatomy
+   <div class="row">
+   <span class="label">Search 44</span>
+   <div class="field">
+   <span class="icon">⌕</span>
+   <input class="control" aria-label="Search products" placeholder="Search products">
+   <button class="clear" type="button" aria-label="Clear search">×</button>
+   </div>
+*/
+.surface{display:flex;gap:calc(var(--spacing)*2);padding:calc(var(--spacing)*3);border:1px solid var(--border);border-radius:var(--radius);background:var(--card);box-shadow:var(--shadow-sm)}
+.dark{background:var(--background);color:var(--foreground)}
+.field{display:flex;align-items:center;gap:calc(var(--spacing)*2);min-width:240px;height:44px;padding:0 calc(var(--spacing)*3);border:1px solid var(--input);border-radius:var(--radius);background:var(--background);color:var(--foreground);box-shadow:var(--shadow-xs)}
+.field.small{height:40px}
+.field:focus-within{border-color:var(--ring);box-shadow:0 0 0 1px var(--ring)}
+.field.disabled{opacity:.55}
+.icon,.clear{padding:0;border:0;background:transparent;color:var(--icon-muted);font:inherit}
+.icon{font-size:13px}
+.control{flex:1;border:0;outline:0;background:transparent;color:inherit;font:inherit}
+.control::placeholder{color:var(--muted-foreground)}
+
+/* ============================================================
+ * Navigation
+ * source: preview/component-navigation.html
+ * rules: 16
+ */
+/* @anatomy
+   <div class="row"><span class="label">Global 44</span><nav class="webbar dark" aria-label="Pinguo Apple global navigation"><span class="brand">Pinguo Apple</span><div class="rail"><a class="link" href="#">Store</a><a class="link" href="#">Explore</a><a class="link" href="#">Community</a><a class="link" href="#">Support</a></div>
+*/
+.webbar,.mobile{border:1px solid var(--border);box-shadow:var(--shadow-sm)}
+.webbar{display:flex;align-items:center;gap:calc(var(--spacing)*2);min-width:320px;height:44px;padding:0 calc(var(--spacing)*3);border-radius:var(--radius);background:var(--sidebar)}
+.brand{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.link,.tab{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;color:inherit;text-decoration:none;white-space:nowrap;transition:background-color .18s ease,color .18s ease,opacity .18s ease}
+.link{height:32px;padding:0 calc(var(--spacing)*2.5)}
+.link:hover,.tab:hover{background:var(--secondary)}
+.link:focus-visible,.tab:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.dark{background:var(--sidebar);color:var(--foreground)}
+.disabled{opacity:.48}
+.disabled .link,.disabled .tab{pointer-events:none}
+.mobile{padding:calc(var(--spacing)*2);border-radius:calc(var(--radius)*1.1);background:var(--card)}
+.screen{display:flex;align-items:flex-end;justify-content:center;width:188px;height:164px;padding:calc(var(--spacing)*3);border-radius:calc(var(--radius)*.9);background:linear-gradient(180deg,var(--background),var(--secondary))}
+.tabbar{display:flex;gap:calc(var(--spacing)*1.5);padding:calc(var(--spacing)*1.5);border:1px solid var(--border);border-radius:999px;background:var(--card);box-shadow:var(--shadow-md)}
+.tab{flex-direction:column;gap:2px;min-width:56px;height:56px;padding:0 calc(var(--spacing)*1.5);font-size:11px;text-align:center}
+.dot{width:18px;height:18px;border-radius:999px;background:var(--secondary);box-shadow:inset 0 0 0 1px var(--border)}
+.tab:hover .dot{background:var(--primary)}
+
+/* ============================================================
+ * Product Grid
+ * source: preview/component-product-grid.html
+ * rules: 12
+ */
+/* @anatomy
+   <div class="row">
+   <span class="label">4-up</span>
+   <div class="grid grid-4">
+   <article class="card"><div class="media"></div>
+*/
+.grid{display:grid;gap:8px;flex:1}
+.grid-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.card{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);color:var(--card-foreground);box-shadow:var(--shadow-xs);transition:border-color .2s ease,transform .2s ease}
+.card:hover{border-color:var(--primary);transform:translateY(-1px)}
+.media{aspect-ratio:1;border-radius:calc(var(--radius) - 4px);background:linear-gradient(135deg,var(--secondary),var(--background));border:1px solid var(--border)}
+.eyebrow{color:var(--muted-foreground);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.title{font-size:15px;line-height:1.25}
+.price{font-variant-numeric:tabular-nums}
+.cta{display:inline-flex;align-self:flex-start;padding:7px 10px;border-radius:999px;background:var(--primary);color:var(--primary-foreground);font-size:12px;text-decoration:none}
+.muted{color:var(--muted-foreground)}
+.is-disabled{opacity:.55}
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-foreground: var(--card-foreground);
+  }
+  @layer base {
+    body { background: var(--card-background); color: var(--card-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased" style="background:var(--background-100);">
+    <main class="flex h-screen w-screen overflow-hidden">
+
+      <!-- ===== LEFT SIDEBAR (dark, same as editor) ===== -->
+      <aside class="flex flex-col w-60 shrink-0 border-r" style="background:var(--background-800); border-color:var(--background-700);">
+        <!-- Logo -->
+        <div class="flex items-center gap-2 px-4 h-12 shrink-0" style="border-bottom:1px solid var(--background-700);">
+          <i data-lucide="file" class="w-5 h-5 shrink-0" style="color:var(--brand-400);"></i>
+          <span class="text-sm font-semibold truncate" style="color:var(--background-50); letter-spacing:-0.01em;">UniDoc</span>
+        </div>
+
+        <!-- Sidebar nav -->
+        <nav class="flex flex-col px-2 pt-3 gap-0.5 shrink-0">
+          <a href="#" class="flex items-center gap-2.5 h-8 px-2 rounded-lg text-xs font-medium truncate" style="color:var(--background-400);" data-dom-id="back-editor">
+            <i data-lucide="folder-open" class="w-4 h-4 shrink-0"></i>
+            <span>文档</span>
+          </a>
+          <a href="#" class="flex items-center gap-2.5 h-8 px-2 rounded-lg text-xs font-medium truncate" style="color:var(--background-400);">
+            <i data-lucide="star" class="w-4 h-4 shrink-0"></i>
+            <span>模板</span>
+          </a>
+          <a href="#" class="flex items-center gap-2.5 h-8 px-2 rounded-lg text-xs font-medium truncate" style="color:var(--background-400);">
+            <i data-lucide="clock" class="w-4 h-4 shrink-0"></i>
+            <span>最近</span>
+          </a>
+          <a href="#" class="flex items-center gap-2.5 h-8 px-2 rounded-lg text-xs font-medium truncate" style="background:var(--background-700); color:var(--brand-400);" data-active="true">
+            <i data-lucide="sparkles" class="w-4 h-4 shrink-0" style="color:var(--brand-400);"></i>
+            <span>AI 设置</span>
+          </a>
+          <a href="#" class="flex items-center gap-2.5 h-8 px-2 rounded-lg text-xs font-medium truncate" style="color:var(--background-400);" data-dom-id="nav-presentation">
+            <i data-lucide="presentation" class="w-4 h-4 shrink-0"></i>
+            <span>演示</span>
+          </a>
+        </nav>
+
+        <!-- Spacer -->
+        <div class="flex-1"></div>
+
+        <!-- Bottom actions -->
+        <div class="flex items-center gap-1 px-2 py-2 shrink-0" style="border-top:1px solid var(--background-700);">
+          <button class="flex items-center justify-center w-8 h-8 rounded-lg" style="color:var(--background-400);" title="切换主题">
+            <i data-lucide="sun" class="w-4 h-4"></i>
+          </button>
+          <button class="flex items-center justify-center w-8 h-8 rounded-lg" style="color:var(--background-400);" title="设置" data-dom-id="nav-settings">
+            <i data-lucide="settings" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </aside>
+
+      <!-- ===== MAIN CONTENT AREA ===== -->
+      <div class="flex flex-col flex-1 min-w-0 overflow-y-auto no-scrollbar" style="background:var(--background-100);">
+
+        <!-- Title bar -->
+        <div class="flex items-center h-10 px-4 shrink-0" style="background:var(--background-50); border-bottom:1px solid var(--border);">
+          <a href="#" class="flex items-center gap-1 text-xs whitespace-nowrap" style="color:var(--muted-foreground);" data-dom-id="back-editor">
+            <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+            <span>返回编辑器</span>
+          </a>
+          <div class="flex-1"></div>
+        </div>
+
+        <!-- Content scroll area -->
+        <div class="flex-1 overflow-y-auto no-scrollbar p-8">
+          <div class="mx-auto" style="max-width:820px;">
+
+            <!-- Page title -->
+            <h1 class="text-2xl font-semibold mb-1" style="color:var(--foreground); line-height:1.25; text-wrap:balance; word-break:keep-all; overflow-wrap:break-word;">
+              AI 模型配置
+            </h1>
+            <p class="text-sm mb-8" style="color:var(--muted-foreground); line-height:1.6;">
+              管理你的 AI 接入配置，自由选择模型和参数
+            </p>
+
+            <!-- ===== CURRENT ACTIVE CONFIG CARD ===== -->
+            <section class="rounded-xl p-5 mb-6" style="background:var(--background-50); border:1px solid var(--border);">
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex items-center justify-center h-5 px-2 rounded-md text-xs font-semibold whitespace-nowrap" style="background:var(--state-success-surface); color:var(--state-success);">当前使用</span>
+                  <span class="text-base font-semibold truncate" style="color:var(--foreground);">办公模型 — OpenAI GPT-4o</span>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <span class="w-2 h-2 rounded-full" style="background:var(--state-success);"></span>
+                  <span class="text-xs whitespace-nowrap" style="color:var(--state-success);">已连接</span>
+                  <span class="text-xs whitespace-nowrap" style="color:var(--muted-foreground);">3 分钟前</span>
+                </div>
+              </div>
+
+              <!-- Model info -->
+              <div class="flex items-center gap-3 mb-4 flex-wrap">
+                <span class="inline-flex items-center h-6 px-2.5 rounded-lg text-xs whitespace-nowrap" style="background:var(--secondary); color:var(--text-600);">gpt-4o</span>
+                <span class="inline-flex items-center h-6 px-2.5 rounded-lg text-xs whitespace-nowrap" style="background:var(--secondary); color:var(--text-600);">OpenAI</span>
+                <span class="inline-flex items-center h-6 px-2.5 rounded-lg text-xs whitespace-nowrap" style="background:var(--secondary); color:var(--text-600);">Temperature: 0.7</span>
+              </div>
+
+              <!-- Action buttons -->
+              <div class="flex items-center gap-2">
+                <button class="inline-flex items-center justify-center h-8 px-4 rounded-lg text-xs font-semibold whitespace-nowrap" style="background:var(--secondary); color:var(--foreground); border:1px solid var(--border);">
+                  测试连接
+                </button>
+                <button class="inline-flex items-center justify-center h-8 px-4 rounded-lg text-xs font-medium whitespace-nowrap" style="color:var(--muted-foreground);">
+                  切换配置
+                </button>
+              </div>
+            </section>
+
+            <!-- ===== SAVED CONFIGURATIONS LIST ===== -->
+            <section class="mb-6">
+              <h2 class="text-base font-semibold mb-3" style="color:var(--foreground);">已保存配置</h2>
+              <div class="flex flex-col gap-3">
+
+                <!-- Config card 1: Active -->
+                <div class="flex items-center gap-4 rounded-xl p-4" style="background:var(--background-50); border:1px solid var(--border);">
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:var(--brand-500);"></span>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                      <span class="text-sm font-medium truncate" style="color:var(--foreground);">办公模型</span>
+                      <span class="text-xs truncate" style="color:var(--muted-foreground);">OpenAI GPT-4o</span>
+                    </div>
+                    <span class="text-xs truncate" style="color:var(--muted-foreground);">api.openai.com</span>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <button class="flex items-center justify-center w-7 h-7 rounded-md" style="color:var(--muted-foreground);" title="编辑">
+                      <i data-lucide="pen-line" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <button class="flex items-center justify-center w-7 h-7 rounded-md" style="color:var(--muted-foreground);" title="删除">
+                      <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Config card 2: Inactive -->
+                <div class="flex items-center gap-4 rounded-xl p-4" style="background:var(--background-50); border:1px solid var(--border);">
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:var(--background-400);"></span>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                      <span class="text-sm font-medium truncate" style="color:var(--foreground);">本地模型</span>
+                      <span class="text-xs truncate" style="color:var(--muted-foreground);">Ollama Qwen2.5</span>
+                    </div>
+                    <span class="text-xs truncate" style="color:var(--muted-foreground);">localhost:11434</span>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <button class="flex items-center justify-center w-7 h-7 rounded-md" style="color:var(--muted-foreground);" title="编辑">
+                      <i data-lucide="pen-line" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <button class="flex items-center justify-center w-7 h-7 rounded-md" style="color:var(--muted-foreground);" title="删除">
+                      <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Config card 3: Inactive -->
+                <div class="flex items-center gap-4 rounded-xl p-4" style="background:var(--background-50); border:1px solid var(--border);">
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:var(--background-400);"></span>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                      <span class="text-sm font-medium truncate" style="color:var(--foreground);">长文本模型</span>
+                      <span class="text-xs truncate" style="color:var(--muted-foreground);">Anthropic Claude Sonnet</span>
+                    </div>
+                    <span class="text-xs truncate" style="color:var(--muted-foreground);">api.anthropic.com</span>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <button class="flex items-center justify-center w-7 h-7 rounded-md" style="color:var(--muted-foreground);" title="编辑">
+                      <i data-lucide="pen-line" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <button class="flex items-center justify-center w-7 h-7 rounded-md" style="color:var(--muted-foreground);" title="删除">
+                      <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </section>
+
+            <!-- ===== ADD NEW CONFIGURATION FORM ===== -->
+            <section class="rounded-xl p-5" style="background:var(--background-50); border:1px solid var(--border);">
+              <h2 class="text-base font-semibold mb-5" style="color:var(--foreground);">添加新配置</h2>
+
+              <!-- Form fields - 2 column grid -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+
+                <!-- 配置名称 -->
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-xs font-medium" style="color:var(--text-600);">配置名称</label>
+                  <input type="text" class="h-9 px-3 rounded-lg text-sm outline-none" style="background:var(--background); border:1px solid var(--input); color:var(--foreground);" placeholder="办公模型">
+                </div>
+
+                <!-- Base URL -->
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-xs font-medium" style="color:var(--text-600);">Base URL</label>
+                  <input type="text" class="h-9 px-3 rounded-lg text-sm outline-none" style="background:var(--background); border:1px solid var(--input); color:var(--foreground);" placeholder="https://api.openai.com/v1">
+                </div>
+
+                <!-- API Key -->
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-xs font-medium" style="color:var(--text-600);">API Key</label>
+                  <div class="flex items-center h-9 rounded-lg overflow-hidden" style="background:var(--background); border:1px solid var(--input);">
+                    <i data-lucide="lock" class="w-3.5 h-3.5 ml-3 shrink-0" style="color:var(--brand-500);"></i>
+                    <input type="password" class="flex-1 h-full px-2 text-sm outline-none" style="background:transparent; color:var(--foreground); min-width:0;" placeholder="sk-...">
+                    <button class="flex items-center justify-center w-8 h-full shrink-0" style="color:var(--muted-foreground);" title="显示/隐藏密钥">
+                      <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                    </button>
+                  </div>
+                  <span class="inline-flex items-center gap-1 text-xs" style="color:var(--muted-foreground);">
+                    <i data-lucide="check" class="w-3 h-3" style="color:var(--state-success);"></i>
+                    密钥将安全存储，仅用于 API 调用
+                  </span>
+                </div>
+
+                <!-- 模型名称 -->
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-xs font-medium" style="color:var(--text-600);">模型名称</label>
+                  <input type="text" class="h-9 px-3 rounded-lg text-sm outline-none" style="background:var(--background); border:1px solid var(--input); color:var(--foreground);" placeholder="gpt-4o">
+                </div>
+
+              </div>
+
+              <!-- Additional params (collapsible) -->
+              <div class="mb-5">
+                <button class="flex items-center gap-1.5 mb-3 text-xs font-medium whitespace-nowrap" style="color:var(--brand-500);">
+                  <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                  <span>高级参数</span>
+                </button>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pl-1">
+
+                  <!-- Temperature -->
+                  <div class="flex flex-col gap-1.5">
+                    <div class="flex items-center justify-between">
+                      <label class="text-xs font-medium" style="color:var(--text-600);">Temperature</label>
+                      <span class="text-xs tabular-nums" style="color:var(--muted-foreground);">0.7</span>
+                    </div>
+                    <div class="h-1.5 rounded-full" style="background:var(--secondary);">
+                      <div class="h-full rounded-full" style="width:35%; background:var(--brand-500);"></div>
+                    </div>
+                  </div>
+
+                  <!-- Max Tokens -->
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-xs font-medium" style="color:var(--text-600);">Max Tokens</label>
+                    <input type="number" value="4096" class="h-9 px-3 rounded-lg text-sm outline-none" style="background:var(--background); border:1px solid var(--input); color:var(--foreground);">
+                  </div>
+
+                  <!-- 上下文长度限制 -->
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-xs font-medium" style="color:var(--text-600);">上下文长度</label>
+                    <input type="number" value="128000" class="h-9 px-3 rounded-lg text-sm outline-none" style="background:var(--background); border:1px solid var(--input); color:var(--foreground);" placeholder="tokens">
+                  </div>
+
+                  <!-- 超时时间 -->
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-xs font-medium" style="color:var(--text-600);">超时时间</label>
+                    <input type="number" value="30" class="h-9 px-3 rounded-lg text-sm outline-none" style="background:var(--background); border:1px solid var(--input); color:var(--foreground);">
+                  </div>
+
+                  <!-- 代理设置 -->
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-xs font-medium" style="color:var(--text-600);">代理设置</label>
+                    <input type="text" class="h-9 px-3 rounded-lg text-sm outline-none" style="background:var(--background); border:1px solid var(--input); color:var(--foreground);" placeholder="可选">
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- Action buttons -->
+              <div class="flex items-center gap-2">
+                <button class="inline-flex items-center justify-center h-9 px-5 rounded-lg text-xs font-semibold whitespace-nowrap" style="background:var(--primary); color:var(--primary-foreground);">
+                  保存配置
+                </button>
+                <button class="inline-flex items-center justify-center h-9 px-4 rounded-lg text-xs font-medium whitespace-nowrap" style="background:var(--secondary); color:var(--foreground); border:1px solid var(--border);">
+                  测试连接
+                </button>
+              </div>
+
+            </section>
+
+          </div>
+        </div>
+      </div>
+      <!-- End MAIN CONTENT AREA -->
+
+    </main>
+    <script>lucide.createIcons();</script>
+<style>
+/* Dark palette remap — makes raw palette vars resolve to dark values in .dark context */
+html.dark {
+  --background-50: #1c1c1e;
+  --background-100: #1c1c1e;
+  --background-200: #2c2c2e;
+  --background-300: #3a3a3c;
+  --background-400: #636366;
+  --background-500: #8e8e93;
+  --background-600: #636366;
+  --background-700: #2c2c2e;
+  --background-800: #141416;
+  --background-900: #0a0a0a;
+  --text-50: #f5f5f7;
+  --text-100: #e5e5ea;
+  --text-200: #d1d1d6;
+  --text-300: #c7c7cc;
+  --text-400: #8e8e93;
+  --text-500: #8e8e93;
+  --text-600: #c7c7cc;
+  --text-700: #aeaeb2;
+  --text-800: #1d1d1f;
+  --text-900: #3a3a3c;
+  --icon-50: #f5f5f7;
+  --icon-400: #aeaeb2;
+  --icon-500: #8e8e93;
+  --icon-800: #636366;
+  --state-success-surface: #1a3d28;
+  --state-error-surface: #3d1a1a;
+  --brand-400: #4da3ff;
+}
+</style>
+</body>
+</html>
+

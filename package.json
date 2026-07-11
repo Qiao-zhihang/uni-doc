@@ -1,0 +1,33 @@
+{
+  "name": "uni-doc",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "UniDoc - 以 Markdown 为核心的轻量化全能办公编辑器 (Milestone 1 前端骨架)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-fs": "^2.5.1",
+    "@types/katex": "^0.16.8",
+    "jszip": "^3.10.1",
+    "katex": "^0.17.0",
+    "lucide-vue-next": "^0.469.0",
+    "mermaid": "^11.16.0",
+    "pinia": "^2.3.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.3",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.5",
+    "vue-tsc": "^2.2.0"
+  }
+}

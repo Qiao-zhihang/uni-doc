@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UniDoc 编辑器</title>
+    <style id="theme-vars">
+/*
+ * Pinguo design tokens
+ * Brand: Pinguo
+ * Domain: Consumer imaging product
+ * Style: Restrained, elegant, Apple-inspired
+ * Theme mode: light-dark
+ * Source language: zh
+ * Output language: en
+ *
+ * Color architecture (two layers):
+ *   1. Primitive palette - six categories. brand / background / text / icon
+ *      are each a 10-step scale (50 lightest to 900 darkest). state-success and
+ *      state-error are functional colors anchored on Apple system colors.
+ *      Anchors follow Apple Human Interface Guidelines system colors
+ *      (System Blue #007AFF, System Green #34C759, System Red #FF3B30,
+ *      system grays / label / background colors).
+ *   2. Semantic tokens - :root (light) and .dark map roles onto primitives.
+ *      Components and UI kits must only consume the semantic tokens below.
+ */
+
+/* @group-priority: brand, background, text, icon, state-success, state-error */
+
+:root {
+  /* ===== PRIMITIVE PALETTE ===== */
+
+  /* brand */
+  --brand-50: #e8f2ff;
+  --brand-100: #cfe5ff;
+  --brand-200: #9fcbff;
+  --brand-300: #66abff;
+  --brand-400: #2e8dff;
+  --brand-500: #007aff; /* @primary */
+  --brand-600: #0064d6;
+  --brand-700: #004fad;
+  --brand-800: #003b82;
+  --brand-900: #00275a;
+
+  /* background */
+  --background-50: #ffffff;
+  --background-100: #f7f7fa;
+  --background-200: #f2f2f7;
+  --background-300: #e5e5ea;
+  --background-400: #d1d1d6;
+  --background-500: #aeaeb2;
+  --background-600: #8e8e93;
+  --background-700: #3a3a3c;
+  --background-800: #1c1c1e;
+  --background-900: #000000;
+
+  /* text */
+  --text-50: #f5f5f7;
+  --text-100: #e3e3e8;
+  --text-200: #c7c7cc;
+  --text-300: #aeaeb2;
+  --text-400: #8e8e93;
+  --text-500: #6e6e73;
+  --text-600: #48484a;
+  --text-700: #3c3c43;
+  --text-800: #1d1d1f;
+  --text-900: #000000;
+
+  /* icon */
+  --icon-50: #f5f5f7;
+  --icon-100: #e5e5ea;
+  --icon-200: #d1d1d6;
+  --icon-300: #c7c7cc;
+  --icon-400: #aeaeb2;
+  --icon-500: #8e8e93;
+  --icon-600: #6e6e73;
+  --icon-700: #48484a;
+  --icon-800: #2c2c2e;
+  --icon-900: #1d1d1f;
+
+  /* state-success */
+  --state-success: #34c759; /* @primary */
+  --state-success-dark: #30d158;
+  --state-success-surface: #e9f9ee;
+  --state-success-foreground: #ffffff;
+
+  /* state-error */
+  --state-error: #ff3b30; /* @primary */
+  --state-error-dark: #ff453a;
+  --state-error-surface: #ffecea;
+  --state-error-foreground: #ffffff;
+
+  /* ===== SEMANTIC ROLES ===== */
+
+  /* semantic */
+  --background: var(--background-50);
+  --foreground: var(--text-800);
+  --card: var(--background-50);
+  --card-foreground: var(--text-800);
+  --popover: var(--background-50);
+  --popover-foreground: var(--text-900);
+
+  --primary: var(--brand-500);
+  --primary-foreground: var(--background-50);
+  --secondary: var(--background-200);
+  --secondary-foreground: var(--text-800);
+  --muted: var(--background-200);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-100);
+  --accent-foreground: var(--text-800);
+  --destructive: var(--state-error);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-300);
+  --input: var(--background-400);
+  --ring: var(--brand-500);
+
+  --icon: var(--icon-900);
+  --icon-muted: var(--icon-500);
+
+  /* chart */
+  --chart-1: var(--state-success);
+  --chart-2: var(--brand-500);
+  --chart-3: #ff9500;
+  --chart-4: #5856d6;
+  --chart-5: #af52de;
+
+  /* sidebar */
+  --sidebar: var(--background-200);
+  --sidebar-foreground: var(--text-800);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: var(--background-50);
+  --sidebar-accent: var(--background-300);
+  --sidebar-accent-foreground: var(--text-800);
+  --sidebar-border: var(--background-300);
+  --sidebar-ring: var(--brand-500);
+
+  /* TYPOGRAPHY */
+  --font-sans: "Noto Sans CJK SC", "Noto Sans", sans-serif;
+  --font-serif: DM Sans, ui-sans-serif, sans-serif, system-ui;
+  --font-mono: JetBrains Mono, monospace;
+  --tracking-normal: 0em;
+
+  /* RADIUS */
+  --radius: 1.2rem;
+
+  /* SHADOWS */
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.04); /* Hairline */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04); /* Subtle */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.05); /* Card */
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.05); /* Raised */
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05); /* Card Hover */
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.05); /* Float */
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.10), 0 8px 16px -8px rgba(0, 0, 0, 0.06); /* Overlay */
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.12); /* Modal */
+
+  /* SPACING */
+  --spacing: 0.24rem;
+}
+
+/* ===== SEMANTIC ROLES - dark (primitive palette inherited) ===== */
+.dark {
+  --background: var(--background-900);
+  --foreground: var(--text-50);
+  --card: var(--background-800);
+  --card-foreground: var(--text-50);
+  --popover: var(--background-700);
+  --popover-foreground: var(--text-50);
+
+  --primary: var(--brand-400);
+  --primary-foreground: var(--background-900);
+  --secondary: var(--background-800);
+  --secondary-foreground: var(--text-50);
+  --muted: var(--background-800);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-700);
+  --accent-foreground: var(--text-50);
+  --destructive: var(--state-error-dark);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success-dark);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-700);
+  --input: var(--background-700);
+  --ring: var(--brand-400);
+
+  --icon: var(--icon-50);
+  --icon-muted: var(--icon-500);
+
+  --chart-1: var(--state-success-dark);
+  --chart-2: var(--brand-400);
+  --chart-3: #ff9f0a;
+  --chart-4: #5e5ce6;
+  --chart-5: #bf5af2;
+
+  --sidebar: var(--background-800);
+  --sidebar-foreground: var(--text-50);
+  --sidebar-primary: var(--brand-400);
+  --sidebar-primary-foreground: var(--background-900);
+  --sidebar-accent: var(--background-700);
+  --sidebar-accent-foreground: var(--text-50);
+  --sidebar-border: var(--background-700);
+  --sidebar-ring: var(--brand-400);
+
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.30);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.36), 0 1px 3px -1px rgba(0, 0, 0, 0.36);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.40), 0 1px 2px -1px rgba(0, 0, 0, 0.36);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.44), 0 2px 4px -2px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.50), 0 4px 8px -4px rgba(0, 0, 0, 0.40);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.55), 0 8px 16px -8px rgba(0, 0, 0, 0.44);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.60);
+}
+
+    </style>
+    <style id="component-vars">
+/*
+ * components.css - aggregated component CSS
+ * Auto-extracted from preview/component-*.html files.
+ * DO NOT EDIT. Regenerate with extract-components-css.mjs.
+ *
+ * Foundation tokens live in colors_and_type.css.
+ * This file consumes those tokens via var(--*) references.
+ */
+
+/* ============================================================
+ * Button
+ * source: preview/component-button.html
+ * rules: 10
+ */
+/* @anatomy
+   <div class="row"><span class="label">Primary 56</span><button class="btn btn-primary btn-lg">Buy now</button><button class="btn btn-primary btn-lg" disabled>Buy now</button></div>
+*/
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:calc(var(--spacing)*1.5);height:40px;padding:0 20px;border:none;border-radius:calc(var(--radius)*2);background:transparent;color:var(--foreground);font:600 14px/1 var(--font-sans);letter-spacing:var(--tracking-normal);white-space:nowrap;box-shadow:var(--shadow-sm);cursor:pointer;transition:background-color .18s ease,color .18s ease,opacity .18s ease,filter .18s ease}
+.btn:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.btn:disabled{opacity:.42;cursor:not-allowed}
+.btn-primary{background:var(--primary);color:var(--primary-foreground)}
+.btn-primary:hover{filter:brightness(.96)}
+.btn-secondary{height:48px;padding:0 24px;background:var(--secondary);color:var(--secondary-foreground)}
+.btn-secondary:hover{background:var(--muted)}
+.btn-text{height:48px;padding:0 4px;box-shadow:none}
+.btn-text:hover{color:var(--primary)}
+.btn-lg{height:56px;padding:0 28px;font-size:16px}
+
+/* ============================================================
+ * Card
+ * source: preview/component-card.html
+ * rules: 12
+ */
+/* @anatomy
+   <div class="row">
+   <span class="label">Info</span>
+   <article class="card">
+   <div><div class="eyebrow">Pinguo Apple</div>
+*/
+.card{width:188px;min-height:148px;padding:calc(var(--spacing)*5);display:flex;flex-direction:column;justify-content:space-between;background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-md);transition:transform .18s ease,box-shadow .18s ease}
+.card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.card.disabled,.card.disabled:hover{opacity:.5;transform:none;box-shadow:var(--shadow-md)}
+.eyebrow,.meta{color:var(--muted-foreground);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.title{margin:6px 0 8px;font-size:18px;line-height:1.15}
+.body-copy{margin:0;color:var(--muted-foreground);font-size:13px}
+.cta{display:inline-flex;align-items:center;justify-content:center;width:max-content;margin-top:12px;padding:calc(var(--spacing)*2) calc(var(--spacing)*3.5);border-radius:999px;background:var(--primary);color:var(--primary-foreground);font-size:12px;font-weight:700;text-decoration:none}
+.media{aspect-ratio:4/3;border-radius:calc(var(--radius) - 4px);background:linear-gradient(135deg,var(--secondary),var(--accent));border:1px solid var(--border)}
+.media-card{min-height:212px;padding:calc(var(--spacing)*4)}
+.media-card .title{font-size:16px;margin:10px 0 6px}
+.price{font-size:12px;color:var(--muted-foreground)}
+.dark{background:var(--card);color:var(--card-foreground)}
+
+/* ============================================================
+ * Comparison Table
+ * source: preview/component-comparison-table.html
+ * rules: 13
+ */
+/* @anatomy
+   <div class="row"><span class="label">Default</span><div class="t"><div class="c m">Compare models</div>
+*/
+.t{display:grid;grid-template-columns:96px repeat(3,1fr);overflow:hidden;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);color:var(--card-foreground);box-shadow:var(--shadow-sm)}
+.q{grid-template-columns:82px repeat(4,1fr)}
+.c{padding:10px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.t>.c:nth-child(4n),.q>.c:nth-child(5n){border-right:0}
+.t>.c:nth-last-child(-n+4),.q>.c:nth-last-child(-n+5){border-bottom:0}
+.m{background:var(--background);color:var(--muted-foreground);font:700 10px/1 var(--font-mono);letter-spacing:.12em;text-transform:uppercase}
+.h{background:var(--background);font-weight:700}
+.k{display:block;font-size:14px;line-height:1.1}
+.s{display:block;margin-top:4px;color:var(--chart-2);font-size:11px;font-weight:700}
+.b .k{color:var(--chart-2)}
+.v{font-weight:600}
+.n{color:var(--muted-foreground);font-size:12px}
+.x{opacity:.45}
+
+/* ============================================================
+ * Input
+ * source: preview/component-input.html
+ * rules: 10
+ */
+/* @anatomy
+   <div class="row">
+   <span class="label">Search 44</span>
+   <div class="field">
+   <span class="icon">⌕</span>
+   <input class="control" aria-label="Search products" placeholder="Search products">
+   <button class="clear" type="button" aria-label="Clear search">×</button>
+   </div>
+*/
+.surface{display:flex;gap:calc(var(--spacing)*2);padding:calc(var(--spacing)*3);border:1px solid var(--border);border-radius:var(--radius);background:var(--card);box-shadow:var(--shadow-sm)}
+.dark{background:var(--background);color:var(--foreground)}
+.field{display:flex;align-items:center;gap:calc(var(--spacing)*2);min-width:240px;height:44px;padding:0 calc(var(--spacing)*3);border:1px solid var(--input);border-radius:var(--radius);background:var(--background);color:var(--foreground);box-shadow:var(--shadow-xs)}
+.field.small{height:40px}
+.field:focus-within{border-color:var(--ring);box-shadow:0 0 0 1px var(--ring)}
+.field.disabled{opacity:.55}
+.icon,.clear{padding:0;border:0;background:transparent;color:var(--icon-muted);font:inherit}
+.icon{font-size:13px}
+.control{flex:1;border:0;outline:0;background:transparent;color:inherit;font:inherit}
+.control::placeholder{color:var(--muted-foreground)}
+
+/* ============================================================
+ * Navigation
+ * source: preview/component-navigation.html
+ * rules: 16
+ */
+/* @anatomy
+   <div class="row"><span class="label">Global 44</span><nav class="webbar dark" aria-label="Pinguo Apple global navigation"><span class="brand">Pinguo Apple</span><div class="rail"><a class="link" href="#">Store</a><a class="link" href="#">Explore</a><a class="link" href="#">Community</a><a class="link" href="#">Support</a></div>
+*/
+.webbar,.mobile{border:1px solid var(--border);box-shadow:var(--shadow-sm)}
+.webbar{display:flex;align-items:center;gap:calc(var(--spacing)*2);min-width:320px;height:44px;padding:0 calc(var(--spacing)*3);border-radius:var(--radius);background:var(--sidebar)}
+.brand{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.link,.tab{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;color:inherit;text-decoration:none;white-space:nowrap;transition:background-color .18s ease,color .18s ease,opacity .18s ease}
+.link{height:32px;padding:0 calc(var(--spacing)*2.5)}
+.link:hover,.tab:hover{background:var(--secondary)}
+.link:focus-visible,.tab:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.dark{background:var(--sidebar);color:var(--foreground)}
+.disabled{opacity:.48}
+.disabled .link,.disabled .tab{pointer-events:none}
+.mobile{padding:calc(var(--spacing)*2);border-radius:calc(var(--radius)*1.1);background:var(--card)}
+.screen{display:flex;align-items:flex-end;justify-content:center;width:188px;height:164px;padding:calc(var(--spacing)*3);border-radius:calc(var(--radius)*.9);background:linear-gradient(180deg,var(--background),var(--secondary))}
+.tabbar{display:flex;gap:calc(var(--spacing)*1.5);padding:calc(var(--spacing)*1.5);border:1px solid var(--border);border-radius:999px;background:var(--card);box-shadow:var(--shadow-md)}
+.tab{flex-direction:column;gap:2px;min-width:56px;height:56px;padding:0 calc(var(--spacing)*1.5);font-size:11px;text-align:center}
+.dot{width:18px;height:18px;border-radius:999px;background:var(--secondary);box-shadow:inset 0 0 0 1px var(--border)}
+.tab:hover .dot{background:var(--primary)}
+
+/* ============================================================
+ * Product Grid
+ * source: preview/component-product-grid.html
+ * rules: 12
+ */
+/* @anatomy
+   <div class="row">
+   <span class="label">4-up</span>
+   <div class="grid grid-4">
+   <article class="card"><div class="media"></div>
+*/
+.grid{display:grid;gap:8px;flex:1}
+.grid-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.card{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);color:var(--card-foreground);box-shadow:var(--shadow-xs);transition:border-color .2s ease,transform .2s ease}
+.card:hover{border-color:var(--primary);transform:translateY(-1px)}
+.media{aspect-ratio:1;border-radius:calc(var(--radius) - 4px);background:linear-gradient(135deg,var(--secondary),var(--background));border:1px solid var(--border)}
+.eyebrow{color:var(--muted-foreground);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.title{font-size:15px;line-height:1.25}
+.price{font-variant-numeric:tabular-nums}
+.cta{display:inline-flex;align-self:flex-start;padding:7px 10px;border-radius:999px;background:var(--primary);color:var(--primary-foreground);font-size:12px;text-decoration:none}
+.muted{color:var(--muted-foreground)}
+.is-disabled{opacity:.55}
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-foreground: var(--card-foreground);
+  }
+  @layer base {
+    body { background: var(--card-background); color: var(--card-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased" style="background:var(--background-100); overflow:hidden;">
+    <main class="flex h-screen w-screen overflow-hidden">
+
+      <!-- ===== LEFT SIDEBAR (dark, ~240px) ===== -->
+      <aside class="flex flex-col w-60 shrink-0 border-r" style="background:var(--background-800); border-color:var(--background-700);">
+        <!-- Logo -->
+        <div class="flex items-center gap-2 px-4 h-12 shrink-0" style="border-bottom:1px solid var(--background-700);">
+          <i data-lucide="file" class="w-5 h-5 shrink-0" style="color:var(--brand-400);"></i>
+          <span class="text-sm font-semibold truncate" style="color:var(--background-50); letter-spacing:-0.01em;">UniDoc</span>
+        </div>
+
+        <!-- Sidebar nav -->
+        <nav class="flex flex-col px-2 pt-3 gap-0.5 shrink-0">
+          <a href="#" class="flex items-center gap-2.5 h-8 px-2 rounded-lg text-xs font-medium truncate" style="background:var(--background-700); color:var(--brand-400);" data-active="true">
+            <i data-lucide="folder-open" class="w-4 h-4 shrink-0" style="color:var(--brand-400);"></i>
+            <span>文档</span>
+          </a>
+          <a href="#" class="flex items-center gap-2.5 h-8 px-2 rounded-lg text-xs font-medium truncate" style="color:var(--background-400);">
+            <i data-lucide="star" class="w-4 h-4 shrink-0"></i>
+            <span>模板</span>
+          </a>
+          <a href="#" class="flex items-center gap-2.5 h-8 px-2 rounded-lg text-xs font-medium truncate" style="color:var(--background-400);">
+            <i data-lucide="clock" class="w-4 h-4 shrink-0"></i>
+            <span>最近</span>
+          </a>
+          <a href="#" class="flex items-center gap-2.5 h-8 px-2 rounded-lg text-xs font-medium truncate" style="color:var(--background-400);" data-dom-id="nav-ai-panel">
+            <i data-lucide="sparkles" class="w-4 h-4 shrink-0"></i>
+            <span>AI 助手</span>
+          </a>
+          <a href="#" class="flex items-center gap-2.5 h-8 px-2 rounded-lg text-xs font-medium truncate" style="color:var(--background-400);" data-dom-id="nav-presentation">
+            <i data-lucide="presentation" class="w-4 h-4 shrink-0"></i>
+            <span>演示</span>
+          </a>
+        </nav>
+
+        <!-- Document outline -->
+        <div class="flex-1 overflow-y-auto px-2 pt-4 no-scrollbar">
+          <div class="text-xs font-semibold uppercase tracking-wider px-2 mb-2" style="color:var(--background-500); font-size:10px; letter-spacing:0.08em;">文档大纲</div>
+          <div class="flex flex-col gap-0.5">
+            <a href="#" class="flex items-center gap-1.5 h-6 px-2 rounded text-xs truncate" style="color:var(--background-300);">
+              <span class="w-1 h-1 rounded-full shrink-0" style="background:var(--brand-400);"></span>
+              <span>2026 Q3 产品规划方案</span>
+            </a>
+            <a href="#" class="flex items-center gap-1.5 h-6 px-2 rounded text-xs truncate pl-5" style="color:var(--background-400);">
+              <span class="w-1 h-1 rounded-full shrink-0" style="background:var(--background-500);"></span>
+              <span>一、市场分析</span>
+            </a>
+            <a href="#" class="flex items-center gap-1.5 h-6 px-2 rounded text-xs truncate pl-5" style="color:var(--background-400);">
+              <span class="w-1 h-1 rounded-full shrink-0" style="background:var(--background-500);"></span>
+              <span>二、技术路线</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Bottom actions -->
+        <div class="flex items-center gap-1 px-2 py-2 shrink-0" style="border-top:1px solid var(--background-700);">
+          <button class="flex items-center justify-center w-8 h-8 rounded-lg" style="color:var(--background-400);" title="切换主题">
+            <i data-lucide="sun" class="w-4 h-4"></i>
+          </button>
+          <button class="flex items-center justify-center w-8 h-8 rounded-lg" style="color:var(--background-400);" title="设置" data-dom-id="nav-settings">
+            <i data-lucide="settings" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </aside>
+
+      <!-- ===== MAIN CONTENT AREA ===== -->
+      <div class="flex flex-col flex-1 min-w-0">
+
+        <!-- Title bar -->
+        <div class="flex items-center h-10 px-4 shrink-0" style="background:var(--background-50); border-bottom:1px solid var(--border);">
+          <span class="text-sm font-medium truncate" style="color:var(--foreground);">2026 Q3 产品规划方案</span>
+          <span class="ml-2 text-xs truncate" style="color:var(--muted-foreground);">.unidoc</span>
+          <div class="flex-1"></div>
+          <div class="flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full" style="background:var(--state-success);"></span>
+            <span class="text-xs" style="color:var(--muted-foreground);">已保存</span>
+          </div>
+        </div>
+
+        <!-- Top toolbar -->
+        <div class="flex items-center gap-1 h-10 px-3 shrink-0 overflow-x-auto no-scrollbar" style="background:var(--background-50); border-bottom:1px solid var(--border);">
+          <!-- Formatting group -->
+          <div class="flex items-center gap-0.5 shrink-0">
+            <button class="flex items-center justify-center w-8 h-8 rounded" style="color:var(--foreground);" title="加粗">
+              <i data-lucide="bold" class="w-4 h-4"></i>
+            </button>
+            <button class="flex items-center justify-center w-8 h-8 rounded" style="color:var(--foreground);" title="斜体">
+              <i data-lucide="italic" class="w-4 h-4"></i>
+            </button>
+            <button class="flex items-center justify-center w-8 h-8 rounded" style="color:var(--foreground);" title="下划线">
+              <i data-lucide="underline" class="w-4 h-4"></i>
+            </button>
+            <button class="flex items-center justify-center w-8 h-8 rounded" style="color:var(--foreground);" title="删除线">
+              <i data-lucide="strikethrough" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <div class="w-px h-5 mx-1 shrink-0" style="background:var(--border);"></div>
+
+          <!-- Heading dropdown -->
+          <div class="flex items-center gap-1 shrink-0">
+            <button class="flex items-center gap-1 h-7 px-2 rounded-lg text-xs font-medium whitespace-nowrap" style="background:var(--secondary); color:var(--foreground);">
+              <span>正文</span>
+              <i data-lucide="chevron-down" class="w-3 h-3" style="color:var(--muted-foreground);"></i>
+            </button>
+          </div>
+
+          <div class="w-px h-5 mx-1 shrink-0" style="background:var(--border);"></div>
+
+          <!-- Insert tools -->
+          <div class="flex items-center gap-0.5 shrink-0">
+            <button class="flex items-center justify-center w-8 h-8 rounded" style="color:var(--foreground);" title="插入图片">
+              <i data-lucide="image" class="w-4 h-4"></i>
+            </button>
+            <button class="flex items-center justify-center w-8 h-8 rounded" style="color:var(--foreground);" title="插入表格">
+              <i data-lucide="table" class="w-4 h-4"></i>
+            </button>
+            <button class="flex items-center justify-center w-8 h-8 rounded" style="color:var(--foreground);" title="代码块">
+              <i data-lucide="code" class="w-4 h-4"></i>
+            </button>
+            <button class="flex items-center justify-center w-8 h-8 rounded" style="color:var(--foreground);" title="分页符">
+              <i data-lucide="minus" class="w-4 h-4"></i>
+            </button>
+            <button class="flex items-center justify-center w-8 h-8 rounded" style="color:var(--foreground);" title="分割线">
+              <i data-lucide="separator-horizontal" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <div class="flex-1"></div>
+
+          <!-- Right tools -->
+          <div class="flex items-center gap-0.5 shrink-0">
+            <button class="flex items-center justify-center w-8 h-8 rounded" style="color:var(--foreground);" title="撤销">
+              <i data-lucide="undo-2" class="w-4 h-4"></i>
+            </button>
+            <button class="flex items-center justify-center w-8 h-8 rounded" style="color:var(--muted-foreground);" title="重做">
+              <i data-lucide="redo-2" class="w-4 h-4"></i>
+            </button>
+            <div class="w-px h-5 mx-1" style="background:var(--border);"></div>
+            <button class="flex items-center gap-1 h-7 px-2 rounded-lg text-xs font-medium whitespace-nowrap" style="background:var(--primary); color:var(--primary-foreground);" title="源码/可视化切换">
+              <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+              <span>可视化</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Editor + Right panel wrapper -->
+        <div class="flex flex-1 min-h-0">
+
+          <!-- ===== EDITOR CANVAS (Silver Mist background) ===== -->
+          <div class="flex-1 overflow-y-auto no-scrollbar p-6" style="background:var(--background-200);">
+            <div class="mx-auto" style="max-width:794px;">
+
+              <!-- A4 Paper -->
+              <div class="rounded-lg p-12 pb-6" style="background:var(--background-50); box-shadow:var(--shadow-lg), 0 1px 3px rgba(0,0,0,0.06); min-height:1123px;">
+
+                <!-- H1 -->
+                <h1 class="text-2xl font-semibold mb-6" style="color:var(--foreground); line-height:1.25; word-break:keep-all; overflow-wrap:break-word; text-wrap:balance;">
+                  2026 Q3 产品规划方案
+                </h1>
+
+                <!-- H2: 市场分析 -->
+                <h2 class="text-lg font-semibold mb-3" style="color:var(--foreground); line-height:1.3;">
+                  一、市场分析
+                </h2>
+
+                <!-- Paragraphs -->
+                <p class="text-sm mb-3" style="color:var(--text-600); line-height:1.7;">
+                  随着数字化协作需求的持续增长，企业级文档工具市场在 2026 年上半年呈现出强劲的增长势头。根据 IDC 最新报告，全球文档协作平台市场规模预计将达到 182 亿美元，同比增长 23.4%。其中，基于 AI 辅助的文档编辑工具成为增长最快的细分领域，年复合增长率高达 41.2%。
+                </p>
+                <p class="text-sm mb-4" style="color:var(--text-600); line-height:1.7;">
+                  在竞争格局方面，传统办公套件正在加速向云端和 AI 化转型。UniDoc 凭借其轻量级架构和原生 Markdown 支持的独特定位，在中小企业和个人创作者市场中占据差异化优势。Q2 用户调研数据显示，87% 的活跃用户认为 UniDoc 的编辑体验优于传统文档工具。
+                </p>
+
+                <!-- Table block -->
+                <div class="mb-4 rounded-lg overflow-hidden" style="border:1px solid var(--border);">
+                  <table class="w-full text-sm" style="border-collapse:collapse;">
+                    <thead>
+                      <tr style="background:var(--background-100);">
+                        <th class="text-left px-3 py-2 font-medium whitespace-nowrap" style="color:var(--foreground); border-bottom:1px solid var(--border);">产品</th>
+                        <th class="text-left px-3 py-2 font-medium whitespace-nowrap" style="color:var(--foreground); border-bottom:1px solid var(--border);">Q2 数据</th>
+                        <th class="text-left px-3 py-2 font-medium whitespace-nowrap" style="color:var(--foreground); border-bottom:1px solid var(--border);">Q3 目标</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td class="px-3 py-2 whitespace-nowrap" style="color:var(--text-700); border-bottom:1px solid var(--border);">月活用户</td>
+                        <td class="px-3 py-2" style="color:var(--text-700); border-bottom:1px solid var(--border);">128,000</td>
+                        <td class="px-3 py-2" style="color:var(--text-700); border-bottom:1px solid var(--border);">200,000</td>
+                      </tr>
+                      <tr>
+                        <td class="px-3 py-2 whitespace-nowrap" style="color:var(--text-700); border-bottom:1px solid var(--border);">付费转化率</td>
+                        <td class="px-3 py-2" style="color:var(--text-700); border-bottom:1px solid var(--border);">4.2%</td>
+                        <td class="px-3 py-2" style="color:var(--text-700); border-bottom:1px solid var(--border);">6.0%</td>
+                      </tr>
+                      <tr>
+                        <td class="px-3 py-2 whitespace-nowrap" style="color:var(--text-700);">NPS 评分</td>
+                        <td class="px-3 py-2" style="color:var(--text-700);">72</td>
+                        <td class="px-3 py-2" style="color:var(--text-700);">80</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Page break indicator -->
+                <div class="flex items-center justify-center gap-3 my-6">
+                  <div class="flex-1" style="border-top:2px dashed var(--brand-300); opacity:0.5;"></div>
+                  <span class="text-xs font-medium whitespace-nowrap" style="color:var(--brand-500);">--- 分页 ---</span>
+                  <div class="flex-1" style="border-top:2px dashed var(--brand-300); opacity:0.5;"></div>
+                </div>
+
+                <!-- Image placeholder -->
+                <div class="flex items-center justify-center my-6 rounded-lg" style="width:100%; height:180px; background:var(--background-100); border:1px solid var(--border);">
+                  <div class="flex flex-col items-center gap-2" style="color:var(--muted-foreground);">
+                    <i data-lucide="image" class="w-10 h-10" style="color:var(--background-400);"></i>
+                    <span class="text-xs">图片占位区域</span>
+                  </div>
+                </div>
+
+                <!-- H2: 技术路线 -->
+                <h2 class="text-lg font-semibold mb-3 mt-8" style="color:var(--foreground); line-height:1.3;">
+                  二、技术路线
+                </h2>
+
+                <!-- Bullet list -->
+                <ul class="flex flex-col gap-2 mb-4 pl-4 text-sm" style="color:var(--text-600); line-height:1.7; list-style-type:disc;">
+                  <li>基于 CRDT 的实时协同编辑引擎升级，支持离线优先和冲突自动合并</li>
+                  <li>集成多模态 AI 能力，包括文本润色、智能摘要、图表生成和跨语言翻译</li>
+                  <li>重构渲染层为 Block-based 架构，实现文档组件的原子化复用和嵌套</li>
+                  <li>推出 WebAssembly 加速的 Markdown 解析器，解析性能提升 15 倍</li>
+                </ul>
+
+                <!-- Block quote -->
+                <div class="pl-4 my-4 rounded-r-lg" style="border-left:3px solid var(--brand-400); background:var(--background-100); padding-top:8px; padding-bottom:8px; padding-right:12px;">
+                  <p class="text-sm italic" style="color:var(--text-500); line-height:1.7;">
+                    "Q3 的核心策略是'AI 原生编辑体验'——让 AI 能力像拼写检查一样自然地融入每一次编辑操作中，而不是额外的工具面板。"
+                  </p>
+                  <p class="text-xs mt-2" style="color:var(--muted-foreground);">
+                    —— 产品负责人，2026 年 6 月
+                  </p>
+                </div>
+
+              </div>
+              <!-- End A4 Paper -->
+
+            </div>
+          </div>
+
+          <!-- ===== RIGHT PANEL (collapsible, ~280px) ===== -->
+          <aside class="flex flex-col w-72 shrink-0" style="background:var(--background-50); border-left:1px solid var(--border);">
+            <!-- Panel header -->
+            <div class="flex items-center justify-between h-10 px-4 shrink-0" style="border-bottom:1px solid var(--border);">
+              <span class="text-xs font-semibold" style="color:var(--foreground);">Block 属性</span>
+              <button class="flex items-center justify-center w-6 h-6 rounded" style="color:var(--muted-foreground);" title="收起面板">
+                <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+
+            <!-- Panel content -->
+            <div class="flex-1 overflow-y-auto no-scrollbar px-4 py-3 flex flex-col gap-5">
+
+              <!-- Block info -->
+              <div>
+                <div class="text-xs font-medium mb-2" style="color:var(--muted-foreground);">当前区块</div>
+                <div class="flex flex-col gap-2 text-xs" style="color:var(--text-700);">
+                  <div class="flex justify-between">
+                    <span style="color:var(--muted-foreground);">类型</span>
+                    <span>段落</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span style="color:var(--muted-foreground);">字数</span>
+                    <span>186</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span style="color:var(--muted-foreground);">字符数</span>
+                    <span>287</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Divider -->
+              <div style="border-top:1px solid var(--border);"></div>
+
+              <!-- Style options -->
+              <div>
+                <div class="text-xs font-medium mb-2" style="color:var(--muted-foreground);">样式</div>
+
+                <!-- Font size selector -->
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="text-xs shrink-0" style="color:var(--text-600);">字号</span>
+                  <button class="flex items-center justify-between flex-1 h-7 px-2 rounded-lg text-xs" style="background:var(--secondary); color:var(--foreground); border:1px solid var(--border);">
+                    <span>14px</span>
+                    <i data-lucide="chevron-down" class="w-3 h-3" style="color:var(--muted-foreground);"></i>
+                  </button>
+                </div>
+
+                <!-- Alignment buttons -->
+                <div class="flex items-center gap-1 mb-3">
+                  <span class="text-xs shrink-0 mr-1" style="color:var(--text-600);">对齐</span>
+                  <button class="flex items-center justify-center w-7 h-7 rounded" style="background:var(--primary); color:var(--primary-foreground);" title="左对齐">
+                    <i data-lucide="align-left" class="w-3.5 h-3.5"></i>
+                  </button>
+                  <button class="flex items-center justify-center w-7 h-7 rounded" style="background:var(--secondary); color:var(--text-500);" title="居中">
+                    <i data-lucide="align-center" class="w-3.5 h-3.5"></i>
+                  </button>
+                  <button class="flex items-center justify-center w-7 h-7 rounded" style="background:var(--secondary); color:var(--text-500);" title="右对齐">
+                    <i data-lucide="align-right" class="w-3.5 h-3.5"></i>
+                  </button>
+                  <button class="flex items-center justify-center w-7 h-7 rounded" style="background:var(--secondary); color:var(--text-500);" title="两端对齐">
+                    <i data-lucide="align-justify" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+
+                <!-- Line height slider -->
+                <div class="flex items-center gap-2">
+                  <span class="text-xs shrink-0" style="color:var(--text-600);">行高</span>
+                  <div class="flex-1 h-1.5 rounded-full" style="background:var(--secondary);">
+                    <div class="h-full rounded-full" style="width:60%; background:var(--primary);"></div>
+                  </div>
+                  <span class="text-xs shrink-0 tabular-nums" style="color:var(--text-600);">1.7</span>
+                </div>
+              </div>
+
+              <!-- Divider -->
+              <div style="border-top:1px solid var(--border);"></div>
+
+              <!-- AI Quick actions -->
+              <div>
+                <div class="text-xs font-medium mb-2" style="color:var(--muted-foreground);">AI 快捷操作</div>
+                <div class="flex flex-col gap-2">
+                  <button class="flex items-center gap-2 h-8 px-3 rounded-lg text-xs font-medium whitespace-nowrap" style="background:var(--secondary); color:var(--foreground); border:1px solid var(--border);">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5" style="color:var(--brand-500);"></i>
+                    <span>润色文本</span>
+                  </button>
+                  <button class="flex items-center gap-2 h-8 px-3 rounded-lg text-xs font-medium whitespace-nowrap" style="background:var(--secondary); color:var(--foreground); border:1px solid var(--border);">
+                    <i data-lucide="expand" class="w-3.5 h-3.5" style="color:var(--brand-500);"></i>
+                    <span>扩写内容</span>
+                  </button>
+                  <button class="flex items-center gap-2 h-8 px-3 rounded-lg text-xs font-medium whitespace-nowrap" style="background:var(--secondary); color:var(--foreground); border:1px solid var(--border);">
+                    <i data-lucide="languages" class="w-3.5 h-3.5" style="color:var(--brand-500);"></i>
+                    <span>翻译</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </aside>
+
+        </div>
+
+        <!-- ===== BOTTOM AI COMMAND BAR ===== -->
+        <div class="shrink-0" style="border-top:1px solid var(--border);">
+          <!-- Gradient blue accent line -->
+          <div class="h-px" style="background:linear-gradient(90deg, transparent, var(--brand-400), transparent);"></div>
+          <!-- Command bar content -->
+          <div class="px-4 py-2 flex flex-col gap-2" style="background:var(--background-50);">
+            <!-- Input row -->
+            <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-1 h-9 px-3 rounded-full" style="background:var(--background-100); border:1px solid var(--border);">
+                <i data-lucide="sparkles" class="w-4 h-4 shrink-0" style="color:var(--brand-500);"></i>
+                <span class="text-sm" style="color:var(--muted-foreground);">AI 指令</span>
+              </div>
+              <button class="flex items-center justify-center h-9 px-4 rounded-full text-xs font-semibold whitespace-nowrap" style="background:var(--primary); color:var(--primary-foreground);">
+                <i data-lucide="send-horizontal" class="w-3.5 h-3.5 mr-1"></i>
+                <span>发送</span>
+              </button>
+            </div>
+            <!-- Recent commands as chips -->
+            <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
+              <span class="text-xs shrink-0" style="color:var(--muted-foreground);">快捷：</span>
+              <button class="h-6 px-2.5 rounded-full text-xs whitespace-nowrap shrink-0" style="background:var(--background-100); color:var(--text-600); border:1px solid var(--border);">全文润色</button>
+              <button class="h-6 px-2.5 rounded-full text-xs whitespace-nowrap shrink-0" style="background:var(--background-100); color:var(--text-600); border:1px solid var(--border);">生成目录</button>
+              <button class="h-6 px-2.5 rounded-full text-xs whitespace-nowrap shrink-0" style="background:var(--background-100); color:var(--text-600); border:1px solid var(--border);">优化表格</button>
+              <div class="flex-1"></div>
+              <span class="text-xs shrink-0" style="color:var(--muted-foreground);">Ctrl+K 唤起</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== STATUS BAR ===== -->
+        <div class="flex items-center justify-between h-7 px-4 shrink-0" style="background:var(--background-50); border-top:1px solid var(--border);">
+          <!-- Left status -->
+          <div class="flex items-center gap-3 text-xs" style="color:var(--muted-foreground);">
+            <span>第 1 页 / 共 3 页</span>
+            <span class="w-px h-3" style="background:var(--border);"></span>
+            <span>1,247 字</span>
+            <span class="w-px h-3" style="background:var(--border);"></span>
+            <span>23 个区块</span>
+          </div>
+          <!-- Center: AI model -->
+          <div class="flex items-center gap-1.5 text-xs" style="color:var(--text-500);">
+            <i data-lucide="bot" class="w-3 h-3" style="color:var(--brand-500);"></i>
+            <span>OpenAI GPT-4o</span>
+          </div>
+          <!-- Right status -->
+          <div class="flex items-center gap-3 text-xs" style="color:var(--muted-foreground);">
+            <span>150%</span>
+            <span class="w-px h-3" style="background:var(--border);"></span>
+            <span>浅色主题</span>
+            <span class="w-px h-3" style="background:var(--border);"></span>
+            <div class="flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full" style="background:var(--state-success);"></span>
+              <span>已保存</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <!-- End MAIN CONTENT AREA -->
+
+    </main>
+    <script>lucide.createIcons();</script>
+<style>
+/* Dark palette remap — makes raw palette vars resolve to dark values in .dark context */
+html.dark {
+  --background-50: #1c1c1e;
+  --background-100: #1c1c1e;
+  --background-200: #2c2c2e;
+  --background-300: #3a3a3c;
+  --background-400: #636366;
+  --background-500: #8e8e93;
+  --background-600: #636366;
+  --background-700: #2c2c2e;
+  --background-800: #141416;
+  --background-900: #0a0a0a;
+  --text-50: #f5f5f7;
+  --text-100: #e5e5ea;
+  --text-200: #d1d1d6;
+  --text-300: #c7c7cc;
+  --text-400: #8e8e93;
+  --text-500: #8e8e93;
+  --text-600: #c7c7cc;
+  --text-700: #aeaeb2;
+  --text-800: #1d1d1f;
+  --text-900: #3a3a3c;
+  --icon-50: #f5f5f7;
+  --icon-400: #aeaeb2;
+  --icon-500: #8e8e93;
+  --icon-800: #636366;
+  --state-success-surface: #1a3d28;
+  --state-error-surface: #3d1a1a;
+  --brand-400: #4da3ff;
+}
+</style>
+</body>
+</html>
+
