@@ -2,19 +2,14 @@
 
 **以 Markdown 为核心的轻量化全能办公编辑器**
 
-用单一软件、单一文档格式，完全平替传统 Office（Word / Excel / PPT）及常规 WPS 的全部日常办公功能。
+我们希望推出一款全新的编辑器，相较于传统办公软件，我们的优势：
+- 标准md文件，适配新时代ai生产力场景
+- 轻量化设计，极速冷启动
+- 全平台兼容，采用原生webview（发行版里边只有windows版本，mac的小伙伴可以自行打包）
+- 内置自研轻量化agent，支持用户自行配置api，让ai真正变得有用
 
 ---
 
-## 核心特性
-
-- **Markdown 原生**：所有内容以 Markdown 为底层表示，支持源码模式与可视化编辑无缝切换
-- **单文档大一统**：文本、表格、图片、分页、图表共存于同一 `.uni-doc` 文件，无三件套割裂
-- **轻量跨平台**：基于 Tauri v2，调用系统原生 WebView（Windows/macOS/Linux），不捆绑 Chromium
-- **AI 深度集成**：AI 不是插件，是核心工作流。支持用户自定义 API 接入任意兼容服务或本地模型
-- **Block-based 编辑**：段落、标题、列表、表格、代码块、图片等独立块单元，支持精细操作与实时渲染
-
----
 
 ## 技术架构
 
@@ -59,16 +54,7 @@ npm run tauri build
 
 ## 文档格式
 
-`.uni-doc` 文件本质是一个 ZIP 压缩包，包含：
-
-```
-example.uni-doc/
-├── content.md      # Markdown 主内容
-├── blocks.json     # Block 元数据（可选）
-├── assets/         # 图片等资源文件
-└── meta.json       # 文档元信息
-```
-
+通过标准 .md 文件储存在用户本地
 ---
 
 ## 项目结构
@@ -93,15 +79,7 @@ src-tauri/
 
 ## 开发状态
 
-当前为 Milestone 1 阶段，已完成：
-
-- Block-based 文档引擎（Paragraph/Heading/List/Table/Code/Image/Quote/Divider/PageBreak）
-- Markdown 解析与序列化
-- 撤销/重做栈
-- 多标签页编辑
-- 库（Vault）文件管理
-- 演示模式
-- 实时热保存
+当前版本仍不稳定，希望各位提供bug及复现过程，感谢！
 
 ---
 
@@ -113,4 +91,4 @@ MIT License
 
 ## 致谢
 
-吉祥物 **UUshark** 由项目团队设计。
+吉祥物 **UUshark** 由qzh设计。
