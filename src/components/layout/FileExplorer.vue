@@ -98,6 +98,16 @@ watch(
   }
 )
 
+/** 监听 vaultTreeTick 变化,AI 创建/删除文件后自动刷新文件树 */
+watch(
+  () => doc.vaultTreeTick,
+  () => {
+    if (doc.vaultRoot) {
+      void refreshTree()
+    }
+  }
+)
+
 /** 组件挂载时若已有 vaultRoot(如从设置返回),自动重新加载文件树 */
 onMounted(() => {
   if (doc.vaultRoot && tree.value.length === 0) {

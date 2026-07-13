@@ -199,6 +199,7 @@ function insertRowAbove() {
   rows.splice(insertAt, 0, newRow)
   selfUpdate.value = true
   emit('update', { content: { headers, rows } })
+  nextTick(() => requestAnimationFrame(syncCells))
   closeContextMenu()
 }
 
@@ -213,6 +214,7 @@ function insertRowBelow() {
   rows.splice(insertAt, 0, newRow)
   selfUpdate.value = true
   emit('update', { content: { headers, rows } })
+  nextTick(() => requestAnimationFrame(syncCells))
   closeContextMenu()
 }
 
@@ -227,6 +229,7 @@ function insertColLeft() {
   aligns.splice(colIdx, 0, 'left')
   selfUpdate.value = true
   emit('update', { content: { headers, rows, aligns } })
+  nextTick(() => requestAnimationFrame(syncCells))
   closeContextMenu()
 }
 
@@ -241,6 +244,7 @@ function insertColRight() {
   aligns.splice(colIdx + 1, 0, 'left')
   selfUpdate.value = true
   emit('update', { content: { headers, rows, aligns } })
+  nextTick(() => requestAnimationFrame(syncCells))
   closeContextMenu()
 }
 
@@ -260,6 +264,7 @@ function deleteRow() {
   rows.splice(rowIdx, 1)
   selfUpdate.value = true
   emit('update', { content: { headers, rows } })
+  nextTick(() => requestAnimationFrame(syncCells))
   closeContextMenu()
 }
 
@@ -278,6 +283,7 @@ function deleteCol() {
   aligns.splice(colIdx, 1)
   selfUpdate.value = true
   emit('update', { content: { headers, rows, aligns } })
+  nextTick(() => requestAnimationFrame(syncCells))
   closeContextMenu()
 }
 

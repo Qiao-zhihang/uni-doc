@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "1.0.0"
+version = "1.5.0"
 description = "UniDoc - 以 Markdown 为核心的轻量化全能办公编辑器"
 authors = ["UniDoc"]
 license = "MIT"
@@ -28,3 +28,4 @@ uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 log = "0.4"
 tauri-plugin-log = "2"
+dirs = "5"

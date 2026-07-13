@@ -5,16 +5,47 @@
  * M1 提供:主题切换、关于信息、快捷键说明
  * M3 将补充 AI 配置面板
  */
-import { ArrowLeft, Sun, Moon, Info, Keyboard, Code } from 'lucide-vue-next'
+import { onMounted, ref } from 'vue'
+import { ArrowLeft, Sun, Moon, Info, Keyboard, Code, Eye, EyeOff, Sparkles, Loader2 } from 'lucide-vue-next'
 import { useThemeStore } from '@/stores/theme'
+import { useSettingsStore } from '@/stores/settings'
 import { useRouter } from 'vue-router'
 
 const theme = useThemeStore()
+const settings = useSettingsStore()
 const router = useRouter()
 
 function backToEditor() {
   router.push('/editor')
 }
+
+// AI 配置
+type ProviderKey = 'openai' | 'deepseek' | 'qwen' | 'zhipu' | 'ollama' | 'custom'
+const showApiKey = ref(false)
+const testing = ref(false)
+const toast = ref<{ type: 'success' | 'error'; msg: string } | null>(null)
+
+function onProviderChange(e: Event) {
+  const value = (e.target as HTMLSelectElement).value as ProviderKey
+  settings.applyPreset(value)
+}
+
+async function testConnection() {
+  testing.value = true
+  try {
+    const r = await settings.testConnection()
+    toast.value = { type: r.ok ? 'success' : 'error', msg: r.message }
+  } catch (e) {
+    toast.value = { type: 'error', msg: (e as Error).message }
+  } finally {
+    testing.value = false
+    setTimeout(() => { toast.value = null }, 3000)
+  }
+}
+
+onMounted(() => {
+  settings.load()
+})
 
 const shortcuts = [
   { keys: 'Ctrl+Z', desc: '撤销' },
@@ -69,6 +100,116 @@ const markdownSyntax = [
           >
             <Moon :size="16" />
             <span>深色</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- AI 配置 -->
+      <section class="card">
+        <div class="card-header">
+          <Sparkles :size="18" class="card-icon" />
+          <h2 class="card-title">AI 配置</h2>
+        </div>
+        <p class="card-desc">配置 AI 服务商、密钥与模型参数,修改后自动保存到本地。</p>
+
+        <div class="form-row">
+          <label class="form-label">服务商</label>
+          <select
+            class="form-select"
+            :value="settings.provider"
+            @change="onProviderChange"
+          >
+            <option value="openai">OpenAI</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="qwen">通义千问</option>
+            <option value="zhipu">智谱清言</option>
+            <option value="ollama">Ollama (本地)</option>
+            <option value="custom">自定义</option>
+          </select>
+          <span class="form-hint">选择预设将自动填入地址与模型</span>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">API Key</label>
+          <div class="password-wrapper">
+            <input
+              :type="showApiKey ? 'text' : 'password'"
+              v-model="settings.apiKey"
+              @input="settings.save()"
+              class="form-input"
+              placeholder="sk-..."
+            />
+            <button
+              type="button"
+              class="toggle-btn"
+              :title="showApiKey ? '隐藏' : '显示'"
+              @click="showApiKey = !showApiKey"
+            >
+              <Eye v-if="!showApiKey" :size="16" />
+              <EyeOff v-else :size="16" />
+            </button>
+          </div>
+          <span class="form-hint">仅保存在本地,用于请求鉴权</span>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">API URL</label>
+          <input
+            type="text"
+            v-model="settings.apiUrl"
+            @input="settings.save()"
+            class="form-input"
+            placeholder="https://api.example.com/v1"
+          />
+          <span class="form-hint">OpenAI 兼容接口地址</span>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">模型</label>
+          <input
+            type="text"
+            v-model="settings.model"
+            @input="settings.save()"
+            class="form-input"
+            placeholder="gpt-4o-mini"
+          />
+          <span class="form-hint">模型标识符</span>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">温度</label>
+          <div class="slider-wrapper">
+            <input
+              type="range"
+              min="0"
+              max="2"
+              step="0.1"
+              v-model.number="settings.temperature"
+              @input="settings.save()"
+              class="form-slider"
+            />
+            <span class="slider-value">{{ settings.temperature.toFixed(1) }}</span>
+          </div>
+          <span class="form-hint">越高越发散,越低越稳定</span>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">最大 Tokens</label>
+          <input
+            type="number"
+            min="100"
+            max="32768"
+            v-model.number="settings.maxTokens"
+            @change="settings.save()"
+            class="form-input"
+          />
+          <span class="form-hint">单次回复长度上限</span>
+        </div>
+
+        <div class="form-actions">
+          <button class="test-btn" :disabled="testing" @click="testConnection">
+            <Loader2 v-if="testing" :size="14" class="spin" />
+            <span>{{ testing ? '测试中...' : '测试连接' }}</span>
           </button>
         </div>
       </section>
@@ -132,6 +273,10 @@ const markdownSyntax = [
           </div>
         </div>
       </section>
+    </div>
+
+    <div v-if="toast" class="toast" :class="toast.type">
+      {{ toast.msg }}
     </div>
   </main>
 </template>
@@ -303,5 +448,153 @@ kbd {
 }
 .about-value.pending {
   color: var(--chart-3);
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 6px 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.form-label {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.form-input,
+.form-select {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--foreground);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+.form-input:focus,
+.form-select:focus {
+  border-color: var(--primary);
+}
+.form-hint {
+  grid-column: 2;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.4;
+}
+.password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.password-wrapper .form-input {
+  padding-right: 36px;
+}
+.toggle-btn {
+  position: absolute;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+}
+.toggle-btn:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+.slider-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.form-slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+}
+.form-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+}
+.form-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+}
+.slider-value {
+  min-width: 32px;
+  text-align: right;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--foreground);
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.test-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  transition: opacity 0.15s;
+}
+.test-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.test-btn:not(:disabled):hover {
+  opacity: 0.9;
+}
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+  max-width: 320px;
+  word-break: break-word;
+}
+.toast.success {
+  background: #16a34a;
+}
+.toast.error {
+  background: #dc2626;
 }
 </style>

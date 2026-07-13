@@ -29,7 +29,7 @@ import {
 } from 'lucide-vue-next'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
-import type { BlockType } from '@/core/blocks/types'
+import type { BlockType, ListType } from '@/core/blocks/types'
 
 const emit = defineEmits<{ (e: 'presentation'): void }>()
 
@@ -99,9 +99,9 @@ function convertTo(opt: { type: BlockType; level?: number }) {
   closeMenus()
 }
 
-function insertAfter(type: BlockType) {
+function insertAfter(type: BlockType, listType?: ListType) {
   const id = editor.selectedBlockId
-  const newId = doc.insertBlockAfter(id, type, `插入${type}`)
+  const newId = doc.insertBlockAfter(id, type, `插入${type}`, listType)
   editor.selectBlock(newId)
   closeMenus()
 }
@@ -178,13 +178,13 @@ function onRedo() {
 
     <!-- 列表组 -->
     <div class="group" @click.stop>
-      <button class="tool-btn" title="无序列表" :disabled="!hasActiveTab" @click="insertAfter('list')">
+      <button class="tool-btn" title="无序列表" :disabled="!hasActiveTab" @click="insertAfter('list', 'bullet')">
         <List :size="16" />
       </button>
-      <button class="tool-btn" title="有序列表" :disabled="!hasActiveTab" @click="insertAfter('list')">
+      <button class="tool-btn" title="有序列表" :disabled="!hasActiveTab" @click="insertAfter('list', 'ordered')">
         <ListOrdered :size="16" />
       </button>
-      <button class="tool-btn" title="任务列表" :disabled="!hasActiveTab" @click="insertAfter('list')">
+      <button class="tool-btn" title="任务列表" :disabled="!hasActiveTab" @click="insertAfter('list', 'task')">
         <ListChecks :size="16" />
       </button>
     </div>

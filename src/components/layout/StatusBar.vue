@@ -2,9 +2,9 @@
 /**
  * 状态栏(改造版)
  * 参考 UI 改造方案 §3.2.G 和设计稿 editor-light.html
- * 高度 24px,点击模型名唤起 AI 浮窗;右下角演示按钮方便够不到顶部工具栏的用户
+ * 高度 24px,中间显示软件署名;右下角演示按钮方便够不到顶部工具栏的用户
  */
-import { Sparkles, Presentation } from 'lucide-vue-next'
+import { Presentation } from 'lucide-vue-next'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 
@@ -24,11 +24,8 @@ const emit = defineEmits<{ (e: 'presentation'): void }>()
       <span class="sep"></span>
       <span>{{ doc.pageCount }} 页</span>
     </div>
-    <!-- 中间:AI 模型入口 -->
-    <button class="group center clickable" @click="editor.openAiFloating()" title="唤起 AI 助手">
-      <Sparkles :size="11" class="bot-icon" />
-      <span>AI 助手</span>
-    </button>
+    <!-- 中间:软件署名 -->
+    <span class="copyright">Copyright © 2026 Qiao Zhihang. All Rights Reserved.</span>
     <!-- 右侧 -->
     <div class="group">
       <button class="zoom-btn" @click="editor.zoomOut" title="缩小">−</button>
@@ -66,22 +63,11 @@ const emit = defineEmits<{ (e: 'presentation'): void }>()
   align-items: center;
   gap: 10px;
 }
-.group.center {
+.copyright {
   color: var(--muted-foreground);
-  gap: 5px;
-}
-.group.clickable {
-  padding: 0 8px;
-  border-radius: var(--radius-button);
-  cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
-}
-.group.clickable:hover {
-  background: var(--secondary);
-  color: var(--foreground);
-}
-.bot-icon {
-  color: var(--brand-500);
+  font-size: 10px;
+  letter-spacing: 0.2px;
+  user-select: none;
 }
 .sep {
   width: 1px;

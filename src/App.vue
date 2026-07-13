@@ -5,12 +5,15 @@
  */
 import { onMounted } from 'vue'
 import { useThemeStore } from '@/stores/theme'
+import { useSettingsStore } from '@/stores/settings'
 import DialogHost from '@/components/common/DialogHost.vue'
 
 const theme = useThemeStore()
+const settings = useSettingsStore()
 
 onMounted(() => {
   theme.init()
+  void settings.load()
 })
 </script>
 

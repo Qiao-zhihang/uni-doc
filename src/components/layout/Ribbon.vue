@@ -9,7 +9,6 @@ import {
   FileText,
   Search,
   List,
-  Sparkles,
   Sun,
   Moon,
   Settings
@@ -17,6 +16,7 @@ import {
 import { useEditorStore } from '@/stores/editor'
 import { useThemeStore } from '@/stores/theme'
 import { useRouter } from 'vue-router'
+import AiIconUrl from '@/assets/UUshark/icon.svg'
 
 const editor = useEditorStore()
 const theme = useThemeStore()
@@ -66,7 +66,7 @@ function goToSettings() {
         title="AI 助手 (Ctrl+K)"
         @click="editor.toggleAiFloating()"
       >
-        <Sparkles :size="20" />
+        <img :src="AiIconUrl" class="ai-btn-icon" alt="UU鲨" />
       </button>
       <button
         class="ribbon-btn"
@@ -134,5 +134,11 @@ function goToSettings() {
   height: 18px;
   border-radius: 1px;
   background: var(--brand-500);
+}
+.ai-btn-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  pointer-events: none;
 }
 </style>

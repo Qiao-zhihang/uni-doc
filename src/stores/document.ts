@@ -11,7 +11,7 @@
 
 import { defineStore } from 'pinia'
 import { computed, markRaw, nextTick, ref } from 'vue'
-import type { Block, BlockType, DocumentMeta, OutlineEntry } from '@/core/blocks/types'
+import type { Block, BlockType, DocumentMeta, ListType, OutlineEntry } from '@/core/blocks/types'
 import {
   createBlock,
   createHeadingBlock,
@@ -90,6 +90,8 @@ export const useDocumentStore = defineStore('document', () => {
   const vaultRoot = ref<string | null>(null)
   // vault 文件树(缓存,打开 vault 后加载)
   const vaultTree = ref<VaultNode[]>([])
+  // 文件树刷新信号(AI 创建文件后递增,FileExplorer 监听此值触发刷新)
+  const vaultTreeTick = ref(0)
 
   // ===== 内部工具 =====
   function getActive(): TabInstance | undefined {
@@ -217,11 +219,11 @@ export const useDocumentStore = defineStore('document', () => {
 
   // ===== actions:作用于 active tab =====
 
-  function updateBlock(id: string, patch: Partial<Block>, label = '编辑内容') {
+  function updateBlock(id: string, patch: Partial<Block>, label = '编辑内容'): boolean {
     const tab = getActive()
-    if (!tab) return
+    if (!tab) return false
     const idx = tab.blocks.findIndex((b) => b.id === id)
-    if (idx === -1) return
+    if (idx === -1) return false
     commit(label)
     const target = tab.blocks[idx]
     tab.blocks[idx] = {
@@ -231,11 +233,15 @@ export const useDocumentStore = defineStore('document', () => {
       props: { ...target.props, ...(patch.props ?? {}) },
       updated_at: new Date().toISOString()
     }
+    return true
   }
 
-  function insertBlockAfter(id: string | null, type: BlockType, label = '新建区块') {
+  function insertBlockAfter(id: string | null, type: BlockType, label = '新建区块', listType?: ListType) {
     commit(label)
     const newBlock = createBlock(type)
+    if (type === 'list' && listType) {
+      newBlock.props = { listType }
+    }
     if (id === null) {
       blocks.value.push(newBlock)
     } else {
@@ -253,27 +259,32 @@ export const useDocumentStore = defineStore('document', () => {
     return insertBlockAfter(null, type, '追加区块')
   }
 
-  function removeBlock(id: string, label = '删除区块') {
+  function removeBlock(id: string, label = '删除区块'): boolean {
+    const exists = blocks.value.some((b) => b.id === id)
+    if (!exists) return false
     commit(label)
     blocks.value = blocks.value.filter((b) => b.id !== id)
+    return true
   }
 
-  function moveBlockUp(id: string, label = '上移区块') {
+  function moveBlockUp(id: string, label = '上移区块'): boolean {
     const idx = blocks.value.findIndex((b) => b.id === id)
-    if (idx <= 0) return
+    if (idx <= 0) return false
     commit(label)
     const arr = [...blocks.value]
     ;[arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]]
     blocks.value = arr
+    return true
   }
 
-  function moveBlockDown(id: string, label = '下移区块') {
+  function moveBlockDown(id: string, label = '下移区块'): boolean {
     const idx = blocks.value.findIndex((b) => b.id === id)
-    if (idx === -1 || idx >= blocks.value.length - 1) return
+    if (idx === -1 || idx >= blocks.value.length - 1) return false
     commit(label)
     const arr = [...blocks.value]
     ;[arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]]
     blocks.value = arr
+    return true
   }
 
   function duplicateBlock(id: string, label = '复制区块') {
@@ -288,9 +299,9 @@ export const useDocumentStore = defineStore('document', () => {
     return clone.id
   }
 
-  function convertBlock(id: string, type: BlockType, label = '转换类型') {
+  function convertBlock(id: string, type: BlockType, label = '转换类型'): boolean {
     const idx = blocks.value.findIndex((b) => b.id === id)
-    if (idx === -1) return
+    if (idx === -1) return false
     commit(label)
     const old = blocks.value[idx]
     const newBlock = createBlock(type)
@@ -308,6 +319,7 @@ export const useDocumentStore = defineStore('document', () => {
     newBlock.created_at = old.created_at
     newBlock.updated_at = new Date().toISOString()
     blocks.value[idx] = newBlock
+    return true
   }
 
   function undo() {
@@ -558,6 +570,7 @@ function closeAllTabs() {
     if (!vaultRoot.value) return
     try {
       vaultTree.value = await readVaultTree(vaultRoot.value)
+      vaultTreeTick.value++
     } catch (e) {
       console.error('刷新 vault 文件树失败:', e)
     }
@@ -581,6 +594,7 @@ function closeAllTabs() {
     activeTabId,
     vaultRoot,
     vaultTree,
+    vaultTreeTick,
     // 兼容字段(computed getter+setter)
     blocks,
     meta,

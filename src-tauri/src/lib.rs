@@ -580,6 +580,61 @@ fn open_external_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
+/// 保存 AI 设置 JSON 到 ~/.unidoc/settings.json
+#[tauri::command]
+fn save_settings(json: String) -> Result<(), String> {
+    let home = dirs::home_dir().ok_or("无法获取用户主目录")?;
+    let dir = home.join(".unidoc");
+    fs::create_dir_all(&dir).map_err(|e| format!("创建配置目录失败: {}", e))?;
+    let file_path = dir.join("settings.json");
+    fs::write(&file_path, json).map_err(|e| format!("写入配置文件失败: {}", e))?;
+    Ok(())
+}
+
+/// 读取 ~/.unidoc/settings.json,不存在返回空字符串
+#[tauri::command]
+fn load_settings() -> Result<String, String> {
+    let home = dirs::home_dir().ok_or("无法获取用户主目录")?;
+    let file_path = home.join(".unidoc").join("settings.json");
+    if !file_path.exists() {
+        return Ok(String::new());
+    }
+    fs::read_to_string(&file_path).map_err(|e| format!("读取配置文件失败: {}", e))
+}
+
+/// 保存 AI 对话历史 JSON 到 ~/.unidoc/ai_history.json
+#[tauri::command]
+fn save_ai_history(json: String) -> Result<(), String> {
+    let home = dirs::home_dir().ok_or("无法获取用户主目录")?;
+    let dir = home.join(".unidoc");
+    fs::create_dir_all(&dir).map_err(|e| format!("创建配置目录失败: {}", e))?;
+    let file_path = dir.join("ai_history.json");
+    fs::write(&file_path, json).map_err(|e| format!("写入对话历史失败: {}", e))?;
+    Ok(())
+}
+
+/// 读取 ~/.unidoc/ai_history.json,不存在返回空字符串
+#[tauri::command]
+fn load_ai_history() -> Result<String, String> {
+    let home = dirs::home_dir().ok_or("无法获取用户主目录")?;
+    let file_path = home.join(".unidoc").join("ai_history.json");
+    if !file_path.exists() {
+        return Ok(String::new());
+    }
+    fs::read_to_string(&file_path).map_err(|e| format!("读取对话历史失败: {}", e))
+}
+
+/// 清除 ~/.unidoc/ai_history.json
+#[tauri::command]
+fn clear_ai_history() -> Result<(), String> {
+    let home = dirs::home_dir().ok_or("无法获取用户主目录")?;
+    let file_path = home.join(".unidoc").join("ai_history.json");
+    if file_path.exists() {
+        fs::remove_file(&file_path).map_err(|e| format!("删除对话历史失败: {}", e))?;
+    }
+    Ok(())
+}
+
 /// 从 ZIP 中读取指定条目为字符串
 fn read_zip_entry<R: std::io::Read + std::io::Seek>(
     archive: &mut zip::ZipArchive<R>,
@@ -636,6 +691,11 @@ pub fn run() {
             write_image_to_vault,
             pick_image_to_vault,
             open_external_url,
+            save_settings,
+            load_settings,
+            save_ai_history,
+            load_ai_history,
+            clear_ai_history,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
