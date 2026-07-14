@@ -58,3 +58,6 @@ coverage
 *.local
 *.bak
 *.tmp
+
+#others
+start-tauri.bat
