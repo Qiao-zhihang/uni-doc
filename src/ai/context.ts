@@ -140,7 +140,7 @@ export function buildContext(
  * 控制可见块最多 10 条,避免 token 超限
  * 重要：必须把 blockId 暴露给 AI，否则 AI 无法调用 update_block/delete_block 等需要 id 的工具
  */
-export function buildSystemPrompt(context: AgentContext): string {
+export function buildSystemPrompt(context: AgentContext, enableToolSearch = false, enableNativeSearch = false): string {
   const lines: string[] = []
 
   lines.push('# 角色')
@@ -203,6 +203,16 @@ export function buildSystemPrompt(context: AgentContext): string {
   lines.push('- 需要重写整篇文章、大段重构、整体替换文档内容时,使用 replace_document 工具,直接传入新的 blocks 数组。')
   lines.push('- 单次响应中也可以返回多个 tool_calls 并行执行多个独立工具。')
   lines.push('- 优先选择批量工具,避免逐个操作导致轮次耗尽。')
+
+  if (enableNativeSearch) {
+    lines.push('')
+    lines.push('# 联网搜索')
+    lines.push('你已启用联网搜索功能。当用户的问题涉及实时信息、最新事件、具体事实或需要查找网络资料时,你可以直接联网搜索并给出回答。')
+  } else if (enableToolSearch) {
+    lines.push('')
+    lines.push('# 联网搜索')
+    lines.push('你已启用联网搜索功能。当用户的问题涉及实时信息、最新事件、具体事实或需要查找网络资料时,请使用 web_search 工具搜索。搜索后结合搜索结果和你的知识给出回答。')
+  }
 
   return lines.join('\n')
 }

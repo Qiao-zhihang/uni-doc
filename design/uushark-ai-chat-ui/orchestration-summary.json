@@ -1,0 +1,271 @@
+{
+  "project": {
+    "name": "UU鲨 AI 对话 UI 重做",
+    "path": "c:\\Users\\乔一峰\\Documents\\uni-doc\\design\\uushark-ai-chat-ui",
+    "operation": "create",
+    "deviceType": "freeSize",
+    "language": "zh-CN",
+    "dashboardMode": false,
+    "replicationMode": null,
+    "sourceUrl": null,
+    "visualSpecExcerpt": null,
+    "styleDefinitionBrief": "Desktop app AI chat floating window, Apple-inspired restrained design, brand blue #007aff, dual-panel (conversation list + chat area), compact information-dense tool UI",
+    "designRead": "Desktop app tool UI / internal power user / restrained professional / information-dense / avoid colorful decoration",
+    "designDials": {
+      "layoutVariance": 2,
+      "motionIntensity": 1,
+      "visualDensity": 4
+    },
+    "styleContinuityAnchors": {
+      "colorSystem": {
+        "primaryColorRole": "single brand hue #007aff for primary actions, active states, send button, profile selector active indicator",
+        "brandHuePolicy": "no secondary brand hue; all identity uses primary blue tints or neutral",
+        "stateColors": "success green for capability tags, destructive red for delete buttons"
+      },
+      "shapeSystem": "compact 8px radius for panels, 6px for buttons/inputs, 4px for tags, full-round for minimized bubble",
+      "typographySystem": "Noto Sans CJK SC, 13px body, 12px secondary, 11px timestamps",
+      "spacingSystem": "tight 8-12px padding, 4px gaps, 8px section spacing inside floating window",
+      "componentLanguage": "minimal flat buttons, borderless icon buttons, subtle 1px borders, no decorative shadows except floating layers",
+      "surfaceAndDepth": "border-based separation; shadow only for floating window and dropdown popover; shadow-xl for floating window, shadow-md for dropdown",
+      "imageryAndIconography": "inline SVG icons only, no raster images",
+      "interactionTone": "quiet functional: hover background change, no animation, instant state feedback"
+    },
+    "specsConstraints": null,
+    "sharedProjectShellContract": {
+      "navigationShell": "No global nav - each page is a self-contained floating window or settings section",
+      "primaryColorSystem": "single primary brand hue; no secondary/accent brand hue",
+      "typographySystem": "Noto Sans CJK SC / Noto Sans / sans-serif, 13px body, tight leading",
+      "radiusScale": "8px panels, 6px buttons/inputs, 4px tags, 9999px bubble",
+      "surfaceDepthModel": "borders for static separation, shadows only for floating layers (window, dropdown, confirm dialog)",
+      "ctaStyle": "compact 28-30px height, 6px radius, primary fill for send/action, ghost for secondary",
+      "alignmentRules": "left-aligned text, flex column layout, sticky input area at bottom"
+    },
+    "generationTree": {
+      "root": {
+        "nodeId": "gen-project-shell",
+        "kind": "project-shell",
+        "pageIds": ["page-ai-floating-light", "page-ai-floating-dark", "page-profile-dropdown", "page-delete-confirm", "page-ai-minimized", "page-settings-ai", "page-settings-ai-edit"],
+        "output": "partials/project-shell.html",
+        "sharedRegions": [],
+        "privateRegions": [],
+        "mutableSlots": [],
+        "status": "planned",
+        "children": [
+          {
+            "nodeId": "gen-page-ai-floating-light",
+            "kind": "page-leaf",
+            "pageIds": ["page-ai-floating-light"],
+            "output": "pages/ai-floating-light.html",
+            "sharedRegions": [],
+            "privateRegions": ["entire page"],
+            "mutableSlots": [],
+            "status": "planned",
+            "children": []
+          },
+          {
+            "nodeId": "gen-page-ai-floating-dark",
+            "kind": "page-leaf",
+            "pageIds": ["page-ai-floating-dark"],
+            "output": "pages/ai-floating-dark.html",
+            "sharedRegions": [],
+            "privateRegions": ["entire page"],
+            "mutableSlots": [],
+            "status": "planned",
+            "children": []
+          },
+          {
+            "nodeId": "gen-page-profile-dropdown",
+            "kind": "page-leaf",
+            "pageIds": ["page-profile-dropdown"],
+            "output": "pages/profile-dropdown.html",
+            "sharedRegions": [],
+            "privateRegions": ["entire page"],
+            "mutableSlots": [],
+            "status": "planned",
+            "children": []
+          },
+          {
+            "nodeId": "gen-page-delete-confirm",
+            "kind": "page-leaf",
+            "pageIds": ["page-delete-confirm"],
+            "output": "pages/delete-confirm.html",
+            "sharedRegions": [],
+            "privateRegions": ["entire page"],
+            "mutableSlots": [],
+            "status": "planned",
+            "children": []
+          },
+          {
+            "nodeId": "gen-page-ai-minimized",
+            "kind": "page-leaf",
+            "pageIds": ["page-ai-minimized"],
+            "output": "pages/ai-minimized.html",
+            "sharedRegions": [],
+            "privateRegions": ["entire page"],
+            "mutableSlots": [],
+            "status": "planned",
+            "children": []
+          },
+          {
+            "nodeId": "gen-page-settings-ai",
+            "kind": "page-leaf",
+            "pageIds": ["page-settings-ai"],
+            "output": "pages/settings-ai.html",
+            "sharedRegions": [],
+            "privateRegions": ["entire page"],
+            "mutableSlots": [],
+            "status": "planned",
+            "children": []
+          },
+          {
+            "nodeId": "gen-page-settings-ai-edit",
+            "kind": "page-leaf",
+            "pageIds": ["page-settings-ai-edit"],
+            "output": "pages/settings-ai-edit.html",
+            "sharedRegions": [],
+            "privateRegions": ["entire page"],
+            "mutableSlots": [],
+            "status": "planned",
+            "children": []
+          }
+        ]
+      }
+    }
+  },
+  "designSource": {
+    "operatingMode": "free-explore",
+    "libraryIdentity": {
+      "name": null,
+      "id": null,
+      "version": null,
+      "scope": null,
+      "path": null,
+      "versionSource": null
+    },
+    "brandCssPath": "c:\\Users\\乔一峰\\Documents\\uni-doc\\design\\uushark-ai-chat-ui\\colors_and_type.css"
+  },
+  "pages": [
+    {
+      "nodeId": "page-ai-floating-light",
+      "title": "AI 浮窗 - 亮色模式",
+      "htmlSrc": "pages/ai-floating-light.html",
+      "pageType": "information-dense",
+      "requirements": "Complete AI floating window in light mode: title bar with shark icon + title + Profile dropdown + [+] [−] [×] buttons, left conversation list (160px, 3 conversations with active highlight, new conversation button), right chat area with user/AI message bubbles, image preview row, input area with web-search toggle (active) + image upload + textarea + send button, tool status bar",
+      "visualNorthStar": "compact desktop tool panel, dual-column layout, minimal chrome, functional density",
+      "compositionPattern": "split-panel",
+      "continuityAnchors": {
+        "colorSystem": "brand blue for primary actions and active states",
+        "shapeSystem": "8px panel radius, 6px button radius",
+        "surfaceDepthModel": "border-based separation, shadow only for the floating window container"
+      },
+      "componentPlan": null,
+      "imagePlan": [],
+      "chartsRequired": false
+    },
+    {
+      "nodeId": "page-ai-floating-dark",
+      "title": "AI 浮窗 - 暗色模式",
+      "htmlSrc": "pages/ai-floating-dark.html",
+      "pageType": "information-dense",
+      "requirements": "Same layout as light mode but with .dark class: all semantic CSS variables auto-switch to dark palette, demonstrating full dark mode support with conversation list, messages, and input area",
+      "visualNorthStar": "compact desktop tool panel in dark theme",
+      "compositionPattern": "split-panel",
+      "continuityAnchors": {
+        "colorSystem": "brand-400 for dark mode primary",
+        "shapeSystem": "same as light mode",
+        "surfaceDepthModel": "same structure, dark palette"
+      },
+      "componentPlan": null,
+      "imagePlan": [],
+      "chartsRequired": false
+    },
+    {
+      "nodeId": "page-profile-dropdown",
+      "title": "Profile 下拉选择器",
+      "htmlSrc": "pages/profile-dropdown.html",
+      "pageType": "information-dense",
+      "requirements": "Profile selector dropdown overlay: shows 4 API profiles (DeepSeek with checkmark, OpenAI GPT-4o, Qwen, Ollama local) each with capability icons (web/image), separator, '管理配置...' link at bottom",
+      "visualNorthStar": "compact dropdown popover, minimal, functional",
+      "compositionPattern": "overlay-popover",
+      "continuityAnchors": {
+        "colorSystem": "checkmark uses brand primary",
+        "shapeSystem": "8px radius, 6px for items",
+        "surfaceDepthModel": "shadow-md for popover"
+      },
+      "componentPlan": null,
+      "imagePlan": [],
+      "chartsRequired": false
+    },
+    {
+      "nodeId": "page-delete-confirm",
+      "title": "删除会话确认弹窗",
+      "htmlSrc": "pages/delete-confirm.html",
+      "pageType": "task-driven",
+      "requirements": "Custom confirm dialog overlay on top of the floating window: semi-transparent backdrop, centered dialog with warning icon, '确定删除此会话？' text, '删除后不可恢复' subtext, cancel and confirm buttons",
+      "visualNorthStar": "centered modal dialog, minimal and clear",
+      "compositionPattern": "centered-modal",
+      "continuityAnchors": {
+        "colorSystem": "destructive red for confirm button",
+        "shapeSystem": "8px dialog radius, 6px button radius",
+        "surfaceDepthModel": "scrim backdrop + shadow-xl dialog"
+      },
+      "componentPlan": null,
+      "imagePlan": [],
+      "chartsRequired": false
+    },
+    {
+      "nodeId": "page-ai-minimized",
+      "title": "最小化气泡",
+      "htmlSrc": "pages/ai-minimized.html",
+      "pageType": "information-dense",
+      "requirements": "44x44 circular minimized bubble with shark icon, brand primary background, centered on page, no red notification badge",
+      "visualNorthStar": "minimal floating action button style",
+      "compositionPattern": "single-element",
+      "continuityAnchors": {
+        "colorSystem": "brand primary background, white foreground",
+        "shapeSystem": "full-round (9999px)",
+        "surfaceDepthModel": "shadow-lg for floating bubble"
+      },
+      "componentPlan": null,
+      "imagePlan": [],
+      "chartsRequired": false
+    },
+    {
+      "nodeId": "page-settings-ai",
+      "title": "设置页 - AI 配置管理",
+      "htmlSrc": "pages/settings-ai.html",
+      "pageType": "information-dense",
+      "requirements": "Settings page AI configuration section: title 'AI 配置', API configuration list with 3 profiles (DeepSeek, OpenAI, Ollama) each showing name, model, capability tags, edit/delete buttons, '+ 添加配置' button at bottom",
+      "visualNorthStar": "settings list, clean table-like layout",
+      "compositionPattern": "list-management",
+      "continuityAnchors": {
+        "colorSystem": "success green for capability ✓ tags",
+        "shapeSystem": "8px card radius, 6px button radius, 4px tag radius",
+        "surfaceDepthModel": "border-based card separation, no shadow on static cards"
+      },
+      "componentPlan": null,
+      "imagePlan": [],
+      "chartsRequired": false
+    },
+    {
+      "nodeId": "page-settings-ai-edit",
+      "title": "设置页 - 编辑 API 配置",
+      "htmlSrc": "pages/settings-ai-edit.html",
+      "pageType": "task-driven",
+      "requirements": "Settings page with expanded edit form: profile list above (compact), edit form below with fields for name, provider dropdown, API key with show/hide toggle, API URL, model, temperature slider (0.7), max tokens input, auto-detected capability tags, save/cancel buttons, test button",
+      "visualNorthStar": "form layout within settings context",
+      "compositionPattern": "list-management",
+      "continuityAnchors": {
+        "colorSystem": "brand primary for save button, success for detected capabilities",
+        "shapeSystem": "same radius scale",
+        "surfaceDepthModel": "border for form fields, subtle background for form area"
+      },
+      "componentPlan": null,
+      "imagePlan": [],
+      "chartsRequired": false
+    }
+  ],
+  "assets": [],
+  "wiringPlan": [],
+  "hiddenInteractionPlan": []
+}

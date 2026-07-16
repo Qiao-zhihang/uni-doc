@@ -1,77 +1,21 @@
 /**
- * UniDoc AI Agent 编排模块（~200 行）
+ * UniDoc AI Agent 编排模块
  *
  * 负责多轮对话循环：构建上下文 → 调用模型 → 解析工具调用 → 执行工具 → 把结果回灌给模型，
- * 直至模型不再请求工具或达到最大轮次（5 次）。对外暴露 createAgent 工厂，返回 chat / clear 两个方法。
- * 参考 PRD AI Agent 模块设计。
+ * 直至模型不再请求工具或达到最大轮次。
+ *
+ * Agent 不再自己维护 messages 闭包，改为接收外部传入的 messages 数组（由 conversation store 管理）。
  */
-import type { ChatMessage, ModelConfig, StreamCallbacks, ToolCall } from './types'
+
+import type { ChatMessage, MessageContent, ModelConfig, StreamCallbacks, ToolCall } from './types'
 import { streamChat, type StreamResult } from './model'
 import { createTools, getToolDefinitions, executeTool } from './tools'
 import { buildContext, buildSystemPrompt } from './context'
 import type { useDocumentStore } from '@/stores/document'
 import type { useEditorStore } from '@/stores/editor'
-import { isTauri } from '@/core/serializer/markdownFile'
 
 /** 单轮生成最大续推次数（防无限续推） */
 const MAX_CONTINUE = 3
-
-/** 历史消息持久化 key */
-const HISTORY_KEY = 'unidoc-ai-history'
-
-/** 动态导入 Tauri invoke,避免 Web 环境下打包报错 */
-async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const { invoke } = await import('@tauri-apps/api/core')
-  return invoke<T>(cmd, args)
-}
-
-/** 持久化保存对话历史 */
-async function saveHistoryToStorage(messages: ChatMessage[]): Promise<void> {
-  // 不保存 system 消息，因为每次都会重建
-  const toSave = messages.filter((m) => m.role !== 'system')
-  const json = JSON.stringify(toSave)
-  try {
-    if (isTauri()) {
-      await tauriInvoke('save_ai_history', { json })
-    } else {
-      localStorage.setItem(HISTORY_KEY, json)
-    }
-  } catch (e) {
-    console.error('保存AI对话历史失败:', e)
-  }
-}
-
-/** 从持久化加载对话历史 */
-async function loadHistoryFromStorage(): Promise<ChatMessage[]> {
-  try {
-    let json: string | null = null
-    if (isTauri()) {
-      const raw = await tauriInvoke<string>('load_ai_history')
-      json = raw && raw.length > 0 ? raw : null
-    } else {
-      json = localStorage.getItem(HISTORY_KEY)
-    }
-    if (json) {
-      return JSON.parse(json) as ChatMessage[]
-    }
-  } catch (e) {
-    console.error('加载AI对话历史失败:', e)
-  }
-  return []
-}
-
-/** 清除持久化的对话历史 */
-async function clearHistoryFromStorage(): Promise<void> {
-  try {
-    if (isTauri()) {
-      await tauriInvoke('clear_ai_history')
-    } else {
-      localStorage.removeItem(HISTORY_KEY)
-    }
-  } catch (e) {
-    console.error('清除AI对话历史失败:', e)
-  }
-}
 
 /** OpenAI 函数调用工具描述格式（与 model.ts 中的 ToolSpec 一致） */
 type ToolSpec = Array<{ type: 'function'; function: { name: string; description: string; parameters: unknown } }>
@@ -92,7 +36,8 @@ const TOOL_LABELS: Record<string, string> = {
   create_file: '创建文件',
   open_file: '打开文件',
   get_vault_tree: '获取文件树',
-  switch_tab: '切换标签'
+  switch_tab: '切换标签',
+  web_search: '联网搜索'
 }
 
 function formatToolResultForAI(toolName: string, result: { ok: boolean; data?: unknown; error?: string; total?: number }): string {
@@ -164,6 +109,10 @@ function formatToolResultForAI(toolName: string, result: { ok: boolean; data?: u
       const items = (result.data ?? []) as Array<{ name: string; path: string; isDir: boolean }>
       return `【文件树】共 ${items.length} 个节点:\n${items.map((n) => `${n.isDir ? '[文件夹]' : '[文件]'} ${n.path}`).join('\n')}`
     }
+    case 'web_search': {
+      const text = String(result.data ?? '').slice(0, 3000)
+      return `【搜索结果】\n${text}`
+    }
     default:
       return `【执行完成】${label}`
   }
@@ -212,12 +161,16 @@ export interface AgentDeps {
   getConfig: () => ModelConfig
   /** 获取当前画布 DOM 引用的函数 */
   canvasEl: () => HTMLElement | null
+  /** 是否启用联网搜索 */
+  enableWebSearch: () => boolean
 }
 
 export interface Agent {
-  chat: (userInput: string, callbacks?: StreamCallbacks) => Promise<void>
-  clear: () => Promise<void>
-  loadHistory: () => Promise<ChatMessage[]>
+  /**
+   * 执行一轮对话，直接修改传入的 messages 数组（push 消息）
+   * 调用方负责持久化
+   */
+  chat: (messages: ChatMessage[], userInput: string | MessageContent[], callbacks?: StreamCallbacks) => Promise<void>
 }
 
 /** 工具调用最大轮次，超过则强制生成最终回复 */
@@ -239,29 +192,52 @@ const DOC_MODIFYING_TOOLS = new Set([
 
 /**
  * 创建 Agent 实例
- * 内部维护 messages 闭包，跨多轮对话持久；clear() 可清空。
+ * 不再维护内部 messages 闭包，chat 方法接收外部 messages 数组
  */
 export function createAgent(deps: AgentDeps): Agent {
-  const { doc, editor, getConfig, canvasEl } = deps
-  let messages: ChatMessage[] = []
+  const { doc, editor, getConfig, canvasEl, enableWebSearch } = deps
 
-  async function chat(userInput: string, callbacks?: StreamCallbacks): Promise<void> {
+  const MAX_CONTEXT_ROUNDS = 30
+
+  async function chat(messages: ChatMessage[], userInput: string | MessageContent[], callbacks?: StreamCallbacks): Promise<void> {
     try {
-      // 每次对话都重新构建 system prompt，确保 AI 看到最新文档状态
-      // system prompt 始终是 messages[0]，旧的 system 被替换掉
+      const config = getConfig()
+      // 联网搜索总开关由 enableWebSearch 控制（浮窗的「联网」按钮）
+      // 开启时：qwen 走原生联网（enable_search），其他模型走 function calling 工具
+      const webSearchOn = enableWebSearch()
+      const useNativeSearch = webSearchOn && !!config.nativeSearch
+      const useToolSearch = webSearchOn && !useNativeSearch
+
       const context = buildContext(doc, editor, canvasEl())
-      const systemPrompt = buildSystemPrompt(context)
-      if (messages.length > 0 && messages[0].role === 'system') {
-        messages[0] = { role: 'system', content: systemPrompt }
-      } else {
-        messages.unshift({ role: 'system', content: systemPrompt })
+      const systemPrompt = buildSystemPrompt(context, useToolSearch, useNativeSearch)
+
+      // 保留 tool 角色消息，确保 tool_calls 序列完整
+      const historyMessages = messages.filter((m) => m.role !== 'system')
+      // 截断时不能从 tool 消息中间切断，回退到最近的 user 消息边界
+      let truncatedHistory = historyMessages
+      if (historyMessages.length > MAX_CONTEXT_ROUNDS * 2) {
+        const sliced = historyMessages.slice(-MAX_CONTEXT_ROUNDS * 2)
+        // 如果截断后第一条是 tool/assistant(with tool_calls) 消息，向前找到 user 消息边界
+        let startIdx = 0
+        for (let i = 0; i < sliced.length; i++) {
+          if (sliced[i].role === 'user') {
+            startIdx = i
+            break
+          }
+        }
+        truncatedHistory = sliced.slice(startIdx)
       }
 
-      // 推入用户消息
+      const contextMessages: ChatMessage[] = [
+        { role: 'system', content: systemPrompt },
+        ...truncatedHistory,
+        { role: 'user', content: userInput },
+      ]
+
       messages.push({ role: 'user', content: userInput })
 
       // 准备工具：内部 ToolDefinition[] 与 OpenAI Function Calling 格式
-      const tools = createTools(doc, editor)
+      const tools = createTools(doc, editor, useToolSearch)
       const toolDefs = getToolDefinitions(tools)
 
       // 多轮工具调用循环
@@ -269,27 +245,33 @@ export function createAgent(deps: AgentDeps): Agent {
       let consecutiveSame = 0
 
       for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-        // a. 调用模型流式接口（自动处理截断续写）
+        // a. 先推入空 assistant 消息到两个数组
+        contextMessages.push({ role: 'assistant', content: '', tool_calls: undefined })
+        messages.push({ role: 'assistant', content: '', tool_calls: undefined })
+
+        // b. 调用模型流式接口（使用 contextMessages）
         const streamResult = await streamChatWithContinue(
-          messages,
+          contextMessages,
           toolDefs,
           getConfig(),
           callbacks?.onDelta
         )
 
-        // b. 推入 assistant 消息（含工具调用）
-        messages.push({
-          role: 'assistant',
-          content: streamResult.content,
-          tool_calls: streamResult.toolCalls?.length ? streamResult.toolCalls : undefined,
-        })
+        // c. 用最终结果更新两个数组中的 assistant 消息
+        const lastCtxMsg = contextMessages[contextMessages.length - 1]
+        lastCtxMsg.content = streamResult.content
+        lastCtxMsg.tool_calls = streamResult.toolCalls?.length ? streamResult.toolCalls : undefined
 
-        // c. 无工具调用则结束循环
+        const lastMsg = messages[messages.length - 1]
+        lastMsg.content = streamResult.content
+        lastMsg.tool_calls = streamResult.toolCalls?.length ? streamResult.toolCalls : undefined
+
+        // d. 无工具调用则结束循环
         if (!streamResult.toolCalls || streamResult.toolCalls.length === 0) {
           break
         }
 
-        // d. 死循环检测：连续调用完全相同的工具+参数，直接终止
+        // e. 死循环检测：连续调用完全相同的工具+参数，直接终止
         const callKey = streamResult.toolCalls
           .map((tc) => `${tc.function.name}:${tc.function.arguments}`)
           .join('|')
@@ -304,7 +286,7 @@ export function createAgent(deps: AgentDeps): Agent {
           lastCallKey = callKey
         }
 
-        // e. 遍历执行所有工具调用
+        // g. 遍历执行所有工具调用
         for (const toolCall of streamResult.toolCalls) {
           const toolName = toolCall.function.name
 
@@ -316,34 +298,36 @@ export function createAgent(deps: AgentDeps): Agent {
             args = {}
           }
 
-          // 先回调一次表示"开始调用工具"，UI 可据此先显示"调用工具: xxx"
+          // 先回调一次表示"开始调用工具"
           callbacks?.onToolCall?.(toolName, args, { ok: true, data: '__calling__' })
 
           // 执行工具
           const toolResult = await executeTool(tools, toolName, args)
 
-          // 文档修改类工具执行成功后,递增 renderTick 强制 contenteditable DOM 重新同步
+          // 文档修改类工具执行成功后,递增 renderTick 强制 DOM 重新同步
           if (toolResult.ok && DOC_MODIFYING_TOOLS.has(toolName)) {
             doc.renderTick++
           }
 
-          // 再回调一次表示"工具执行完成"，UI 据此显示"结果: {摘要}"
+          // 再回调一次表示"工具执行完成"
           callbacks?.onToolCall?.(toolName, args, toolResult)
 
-          // 把结果回灌给模型（格式化后 AI 更容易理解）
+          // 把结果回灌给模型（同时推入 contextMessages 和 messages）
           const resultText = formatToolResultForAI(toolName, toolResult)
-          messages.push({
+          const toolMsg: ChatMessage = {
             role: 'tool',
             tool_call_id: toolCall.id,
             content: resultText,
-          })
+          }
+          contextMessages.push(toolMsg)
+          messages.push(toolMsg)
         }
 
-        // f. 最后一轮了，还有工具调用 → 强制模型生成最终回复（不带 tool_calls）
+        // h. 最后一轮了，还有工具调用 → 强制模型生成最终回复（不带 tool_calls）
         if (round === MAX_TOOL_ROUNDS - 1) {
           const finalResult = await streamChatWithContinue(
-            messages,
-            [], // 不传工具定义，强制模型输出文本回复
+            contextMessages,
+            [],
             getConfig(),
             callbacks?.onDelta
           )
@@ -354,28 +338,10 @@ export function createAgent(deps: AgentDeps): Agent {
         }
       }
     } catch (e) {
-      // 6. 任何异常都通过 onError 回调，不向外抛
+      // 任何异常都通过 onError 回调，不向外抛
       callbacks?.onError?.(e instanceof Error ? e.message : String(e))
-    } finally {
-      // 对话结束后自动保存历史
-      saveHistoryToStorage(messages)
     }
   }
 
-  /** 从持久化加载历史消息，返回加载的消息数 */
-  async function loadHistory(): Promise<ChatMessage[]> {
-    const history = await loadHistoryFromStorage()
-    if (history.length > 0) {
-      messages = history
-    }
-    return history
-  }
-
-  /** 清空内部消息历史 + 清除持久化数据 */
-  async function clear(): Promise<void> {
-    messages = []
-    await clearHistoryFromStorage()
-  }
-
-  return { chat, clear, loadHistory }
+  return { chat }
 }

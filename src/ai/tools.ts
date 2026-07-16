@@ -126,8 +126,8 @@ const BLOCK_CONTENT_PARAMS = {
 }
 
 /** 工具工厂:绑定 doc/editor 实例,返回 13 个 ToolDefinition */
-export function createTools(doc: DocumentStore, editor: EditorStore): ToolDefinition[] {
-  return [
+export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSearch = false): ToolDefinition[] {
+  const tools: ToolDefinition[] = [
     {
       name: 'get_document',
       description: '导出当前活动文档为 Markdown 全文',
@@ -559,6 +559,74 @@ export function createTools(doc: DocumentStore, editor: EditorStore): ToolDefini
       }
     }
   ]
+
+  // 联网搜索工具（仅在设置中启用时添加）
+  if (enableWebSearch) {
+    tools.push({
+      name: 'web_search',
+      description: '联网搜索：当用户的问题涉及实时信息、最新事件、具体事实或你需要查找网络资料时使用。返回搜索结果摘要（含标题、摘要、链接）。',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: '搜索关键词' }
+        },
+        required: ['query']
+      },
+      execute: async (args) => {
+        const q = String(args.query)
+        try {
+          // 优先用 Tauri Rust 端搜索（绕过 CORS，结果更全）
+          // Tauri 环境下 web_search 命令返回纯文本搜索结果
+          const { invoke } = await import('@tauri-apps/api/core')
+          const result = await invoke<string>('web_search', { query: q })
+          return { ok: true, data: result }
+        } catch (e) {
+          // 非 Tauri 环境或调用失败，降级到浏览器 fetch（可能受 CORS 限制）
+          try {
+            const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`
+            const res = await fetch(url)
+            if (!res.ok) return { ok: false, error: `搜索请求失败: HTTP ${res.status}` }
+            const data = await res.json() as {
+              Abstract?: string
+              AbstractText?: string
+              AbstractSource?: string
+              AbstractURL?: string
+              Heading?: string
+              RelatedTopics?: Array<{ Text?: string; FirstURL?: string }>
+              Results?: Array<{ Text?: string; FirstURL?: string }>
+            }
+            const parts: string[] = []
+            if (data.Heading) parts.push(`主题: ${data.Heading}`)
+            if (data.AbstractText) parts.push(`摘要: ${data.AbstractText}`)
+            if (data.AbstractSource && data.AbstractURL) {
+              parts.push(`来源: ${data.AbstractSource} (${data.AbstractURL})`)
+            }
+            if (data.Results?.length) {
+              parts.push('结果:')
+              data.Results.slice(0, 5).forEach((r, i) => {
+                if (r.Text) parts.push(`  ${i + 1}. ${r.Text}`)
+                if (r.FirstURL) parts.push(`     ${r.FirstURL}`)
+              })
+            }
+            if (data.RelatedTopics?.length) {
+              parts.push('相关话题:')
+              data.RelatedTopics.slice(0, 5).forEach((t) => {
+                if (t.Text) parts.push(`  - ${t.Text}`)
+              })
+            }
+            if (parts.length === 0) {
+              return { ok: true, data: '未找到相关结果，请尝试不同的关键词。' }
+            }
+            return { ok: true, data: parts.join('\n') }
+          } catch (e2) {
+            return { ok: false, error: `搜索失败: ${e2 instanceof Error ? e2.message : String(e2)}` }
+          }
+        }
+      }
+    })
+  }
+
+  return tools
 }
 
 /** 将内部 ToolDefinition 转换为 OpenAI Function Calling 请求格式 */

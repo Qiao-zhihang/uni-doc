@@ -6,3 +6,4 @@
 # 解决方案:手动分两步启动 — 先 npm run dev,再 cargo run --manifest-path src-tauri\Cargo.toml
 [build]
 target-dir = "C:\\temp\\unidoc-target"
+# 将 target 目录设为纯 ASCII 路径,避免 Windows

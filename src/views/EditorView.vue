@@ -23,13 +23,17 @@ import { useEditorStore } from '@/stores/editor'
 import { useDocumentStore } from '@/stores/document'
 import { useBreakpoint } from '@/composables/useBreakpoint'
 
-/* ===== 空状态鲨鱼图(懒加载,避免 eager 阻断模块初始化) ===== */
+/* ===== 空状态鲨鱼图(eager + ?url,避免动态 import 在 Tauri WebView 中失败) ===== */
 interface SharkEntry {
   url: string
   quote: string
 }
-const sharkModules = import.meta.glob<{ default: string }>('@/assets/UUshark/mascot_*.jpg')
-const sharkKeys = Object.keys(sharkModules)
+const sharkUrls = import.meta.glob<string>('@/assets/UUshark/mascot_*.jpg', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+})
+const sharkKeys = Object.keys(sharkUrls)
 const sharkQuotes: string[] = [
   '文档海洋太干了,先打开一份看看吧。',
   '没有可啃的文档,鲨鱼有点无聊。',
@@ -48,14 +52,10 @@ function randomShark() {
   }
   if (idx === -1) idx = 0
   lastSharkIdx = idx
-  const key = sharkKeys[idx]
-  const loader = sharkModules[key]
-  void loader().then((mod) => {
-    currentShark.value = {
-      url: mod.default,
-      quote: sharkQuotes[idx % sharkQuotes.length]
-    }
-  })
+  currentShark.value = {
+    url: sharkUrls[sharkKeys[idx]],
+    quote: sharkQuotes[idx % sharkQuotes.length]
+  }
 }
 
 const editor = useEditorStore()

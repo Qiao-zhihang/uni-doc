@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UU鲨 AI - 暗色模式</title>
+    <style id="theme-vars">
+/*
+ * UU鲨 AI Chat UI — Brand Design Tokens
+ * Based on UU鲨 existing design system (Apple-inspired, brand-500: #007aff)
+ * Extended with AI chat-specific tokens per UI redesign guide
+ */
+
+/* @group-priority: brand, background, text, icon, state-success, state-error */
+
+:root {
+  /* ===== PRIMITIVE PALETTE ===== */
+
+  /* brand */
+  --brand-50: #e8f2ff;
+  --brand-100: #cfe5ff;
+  --brand-200: #9fcbff;
+  --brand-300: #66abff;
+  --brand-400: #2e8dff;
+  --brand-500: #007aff;
+  --brand-600: #0064d6;
+  --brand-700: #004fad;
+  --brand-800: #003b82;
+  --brand-900: #00275a;
+
+  /* background */
+  --background-50: #ffffff;
+  --background-100: #f7f7fa;
+  --background-200: #f2f2f7;
+  --background-300: #e5e5ea;
+  --background-400: #d1d1d6;
+  --background-500: #aeaeb2;
+  --background-600: #8e8e93;
+  --background-700: #3a3a3c;
+  --background-800: #1c1c1e;
+  --background-900: #000000;
+
+  /* text */
+  --text-50: #f5f5f7;
+  --text-100: #e3e3e8;
+  --text-200: #c7c7cc;
+  --text-300: #aeaeb2;
+  --text-400: #8e8e93;
+  --text-500: #6e6e73;
+  --text-600: #48484a;
+  --text-700: #3c3c43;
+  --text-800: #1d1d1f;
+  --text-900: #000000;
+
+  /* icon */
+  --icon-50: #f5f5f7;
+  --icon-100: #e5e5ea;
+  --icon-200: #d1d1d6;
+  --icon-300: #c7c7cc;
+  --icon-400: #aeaeb2;
+  --icon-500: #8e8e93;
+  --icon-600: #6e6e73;
+  --icon-700: #48484a;
+  --icon-800: #2c2c2e;
+  --icon-900: #1d1d1f;
+
+  /* state-success */
+  --state-success: #34c759;
+  --state-success-dark: #30d158;
+  --state-success-surface: #e9f9ee;
+  --state-success-foreground: #ffffff;
+
+  /* state-error */
+  --state-error: #ff3b30;
+  --state-error-dark: #ff453a;
+  --state-error-surface: #ffecea;
+  --state-error-foreground: #ffffff;
+
+  /* ===== SEMANTIC ROLES ===== */
+
+  --background: var(--background-50);
+  --foreground: var(--text-800);
+  --card: var(--background-50);
+  --card-foreground: var(--text-800);
+  --popover: var(--background-50);
+  --popover-foreground: var(--text-900);
+
+  --primary: var(--brand-500);
+  --primary-foreground: var(--background-50);
+  --secondary: var(--background-200);
+  --secondary-foreground: var(--text-800);
+  --muted: var(--background-200);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-100);
+  --accent-foreground: var(--text-800);
+  --destructive: var(--state-error);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-300);
+  --input: var(--background-400);
+  --ring: var(--brand-500);
+
+  --icon: var(--icon-900);
+  --icon-muted: var(--icon-500);
+
+  /* TYPOGRAPHY */
+  --font-sans: "Noto Sans CJK SC", "Noto Sans", sans-serif;
+  --font-serif: DM Sans, ui-sans-serif, sans-serif, system-ui;
+  --font-mono: JetBrains Mono, monospace;
+  --tracking-normal: 0em;
+
+  /* RADIUS */
+  --radius: 1.2rem;
+  --radius-compact: 8px;
+  --radius-button: 6px;
+  --radius-tag: 4px;
+
+  /* SHADOWS */
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.05);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.10), 0 8px 16px -8px rgba(0, 0, 0, 0.06);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.12);
+
+  /* SPACING */
+  --spacing: 0.24rem;
+
+  /* ===== AI CHAT SPECIFIC TOKENS ===== */
+
+  /* Conversation list */
+  --conversation-active-bar: var(--brand-500);
+  --conversation-active-bg: var(--brand-50);
+
+  /* Code block */
+  --code-bg: rgba(0, 0, 0, 0.06);
+
+  /* Layout dimensions */
+  --floating-width: 480px;
+  --floating-height: 600px;
+  --floating-min-width: 360px;
+  --floating-min-height: 450px;
+  --conversation-list-width: 160px;
+  --conversation-list-collapsed-width: 40px;
+}
+
+/* ===== SEMANTIC ROLES - dark ===== */
+.dark {
+  --background: var(--background-900);
+  --foreground: var(--text-50);
+  --card: var(--background-800);
+  --card-foreground: var(--text-50);
+  --popover: var(--background-700);
+  --popover-foreground: var(--text-50);
+
+  --primary: var(--brand-400);
+  --primary-foreground: var(--background-900);
+  --secondary: var(--background-800);
+  --secondary-foreground: var(--text-50);
+  --muted: var(--background-800);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-700);
+  --accent-foreground: var(--text-50);
+  --destructive: var(--state-error-dark);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success-dark);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-700);
+  --input: var(--background-700);
+  --ring: var(--brand-400);
+
+  --icon: var(--icon-50);
+  --icon-muted: var(--icon-500);
+
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.30);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.36), 0 1px 3px -1px rgba(0, 0, 0, 0.36);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.40), 0 1px 2px -1px rgba(0, 0, 0, 0.36);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.44), 0 2px 4px -2px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.50), 0 4px 8px -4px rgba(0, 0, 0, 0.40);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.55), 0 8px 16px -8px rgba(0, 0, 0, 0.44);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.60);
+
+  --conversation-active-bar: var(--brand-400);
+  --conversation-active-bg: rgba(46, 141, 255, 0.12);
+  --code-bg: rgba(255, 255, 255, 0.06);
+}
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-foreground: var(--card-foreground);
+  }
+  @layer base {
+    body { background: var(--card-background); color: var(--card-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body>
+  <main class="floating-window">
+
+    <!-- ===== TITLE BAR ===== -->
+    <div class="title-bar">
+      <div class="title-bar-left">
+        <div style="display: flex; align-items: center; gap: 5px; flex-shrink: 0;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 2L3 12L6 10L8 14L10 10L13 12L8 2Z" fill="var(--primary)"/>
+          </svg>
+          <span style="font-size: 13px; font-weight: 600; color: var(--foreground);">UU鲨</span>
+        </div>
+      </div>
+
+      <div class="title-bar-center">
+        <div class="profile-selector">
+          <span class="capability-dot blue"></span>
+          <span class="capability-dot green"></span>
+          <span class="capability-dot orange"></span>
+          <span>DeepSeek</span>
+          <svg class="profile-chevron" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 4L5 6L7 4"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="title-bar-right">
+        <button class="title-btn" title="新建会话">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M7 2V12M2 7H12"/>
+          </svg>
+        </button>
+        <button class="title-btn" title="最小化">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M3 7H11"/>
+          </svg>
+        </button>
+        <button class="title-btn" title="关闭">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M4 4L10 10M10 4L4 10"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ===== BODY ===== -->
+    <div class="floating-body">
+
+      <!-- LEFT PANEL: Conversation List -->
+      <div class="conversation-panel">
+        <button class="conversation-new-btn">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M7 3V11M3 7H11"/>
+          </svg>
+          新建会话
+        </button>
+        <div class="conversation-list">
+          <div class="conversation-item active">帮我写一篇作文</div>
+          <div class="conversation-item">Vue 3 组合式 API 介绍</div>
+          <div class="conversation-item">解释量子计算的基本原理</div>
+        </div>
+      </div>
+
+      <!-- RIGHT PANEL: Chat Area -->
+      <div class="chat-panel">
+
+        <!-- Tool status bar -->
+        <div class="tool-status-bar">
+          <svg class="spinner" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M10 6A4 4 0 0 1 6 10"/>
+          </svg>
+          <span>正在调用 web_search...</span>
+        </div>
+
+        <!-- Messages (bubble layout, matching light mode) -->
+        <div class="chat-messages">
+          <!-- User message (right-aligned blue bubble) -->
+          <div class="message-row message-row-user">
+            <div class="bubble bubble-user">帮我写一篇关于秋天的作文，要求字数在800字左右</div>
+          </div>
+
+          <!-- Timestamp -->
+          <div class="message-timestamp">14:32</div>
+
+          <!-- AI message (left-aligned gray bubble) -->
+          <div class="message-row message-row-ai">
+            <div class="bubble bubble-ai"><strong>秋天的小路</strong>
+
+秋天来了，树叶变成了金黄色，一片片从枝头飘落，像蝴蝶一样在空中飞舞。我走在乡间的小路上，脚下的落叶发出沙沙的声响，仿佛在诉说着季节的故事。
+
+远处的山峦被薄雾笼罩，若隐若现。田野里，稻谷已经成熟，金黄的稻穗在微风中轻轻摇摆，像是一片金色的海洋。</div>
+          </div>
+        </div>
+
+        <!-- Image preview row -->
+        <div class="image-preview-row">
+          <div class="image-thumb">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="2" width="16" height="16" rx="2"/>
+              <circle cx="7" cy="7" r="1.5"/>
+              <path d="M2 14L6 10L9 13L13 9L18 14"/>
+            </svg>
+          </div>
+          <div class="image-thumb">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="2" width="16" height="16" rx="2"/>
+              <circle cx="7" cy="7" r="1.5"/>
+              <path d="M2 14L6 10L9 13L13 9L18 14"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Input area -->
+        <div class="chat-input-area">
+          <div class="input-toolbar">
+            <button class="toolbar-btn active">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="6" cy="6" r="4.5"/>
+                <path d="M1.5 5.5C2.5 3 4.5 1.5 6 1.5"/>
+                <path d="M6 10.5C7.5 10.5 9.5 9 10.5 6.5"/>
+              </svg>
+              联网搜索
+            </button>
+            <button class="toolbar-btn">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8.5 1.5V10.5M8.5 1.5L3 4V10"/>
+              </svg>
+              上传图片
+            </button>
+          </div>
+          <div class="input-row">
+            <textarea class="chat-textarea" placeholder="输入你的问题..." rows="1"></textarea>
+            <button class="send-btn">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 8L14 2L8 14L6.5 9.5L2 8Z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Resize handle -->
+    <div class="resize-handle"></div>
+
+  </main>
+
+    <style>
+    /* ===== RESET ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--background-100);
+      color: var(--foreground);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    /* ===== FLOATING WINDOW ===== */
+    .floating-window {
+      width: var(--floating-width);
+      height: var(--floating-height);
+      background: var(--popover);
+      border-radius: var(--radius-compact);
+      box-shadow: var(--shadow-xl);
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-size: 13px;
+      color: var(--popover-foreground);
+    }
+
+    /* ===== TITLE BAR ===== */
+    .title-bar {
+      height: 36px;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px 0 10px;
+      border-bottom: 1px solid var(--border);
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+    .title-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-width: 0;
+    }
+    .title-bar-center {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+    }
+    .profile-selector {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px 2px 10px;
+      border-radius: var(--radius-button);
+      background: var(--muted);
+      color: var(--popover-foreground);
+      font-size: 12px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: none;
+    }
+    .profile-selector:hover {
+      border-color: var(--border);
+    }
+    .capability-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+    .capability-dot.blue { background: var(--brand-400); }
+    .capability-dot.green { background: var(--success); }
+    .capability-dot.orange { background: var(--muted-foreground); }
+    .profile-chevron {
+      width: 10px;
+      height: 10px;
+      color: var(--icon-muted);
+    }
+    .title-bar-right {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      flex: 1;
+      justify-content: flex-end;
+    }
+    .title-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: transparent;
+      color: var(--icon-muted);
+      border-radius: var(--radius-button);
+      cursor: pointer;
+    }
+    .title-btn:hover {
+      background: var(--muted);
+      color: var(--popover-foreground);
+    }
+    .title-btn svg {
+      width: 14px;
+      height: 14px;
+      display: block;
+    }
+
+    /* ===== BODY (two-panel) ===== */
+    .floating-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ===== LEFT PANEL - CONVERSATION LIST ===== */
+    .conversation-panel {
+      width: var(--conversation-list-width);
+      min-width: var(--conversation-list-width);
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      background: var(--card);
+    }
+    .conversation-new-btn {
+      margin: 8px;
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-button);
+      background: transparent;
+      color: var(--muted-foreground);
+      font-size: 12px;
+      font-family: var(--font-sans);
+      cursor: pointer;
+    }
+    .conversation-new-btn:hover {
+      background: var(--muted);
+      color: var(--popover-foreground);
+    }
+    .conversation-new-btn svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+    .conversation-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 0;
+    }
+    .conversation-item {
+      position: relative;
+      padding: 8px 12px 8px 16px;
+      font-size: 12px;
+      color: var(--muted-foreground);
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.4;
+    }
+    .conversation-item:hover {
+      background: var(--muted);
+      color: var(--popover-foreground);
+    }
+    .conversation-item.active {
+      color: var(--primary);
+      background: var(--conversation-active-bg);
+    }
+    .conversation-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 4px;
+      bottom: 4px;
+      width: 3px;
+      border-radius: 0 2px 2px 0;
+      background: var(--conversation-active-bar);
+    }
+
+    /* ===== RIGHT PANEL - CHAT AREA ===== */
+    .chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    /* Tool status bar */
+    .tool-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      font-size: 11px;
+      color: var(--muted-foreground);
+      border-bottom: 1px solid var(--border);
+    }
+    .tool-status-bar .spinner {
+      width: 12px;
+      height: 12px;
+      animation: spin 1s linear infinite;
+      color: var(--primary);
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .tool-status-bar .status-icon {
+      width: 12px;
+      height: 12px;
+      color: var(--icon-muted);
+    }
+
+    /* Messages area */
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    /* Bubble layout (matching light mode) */
+    .message-row {
+      display: flex;
+    }
+    .message-row-user {
+      justify-content: flex-end;
+    }
+    .message-row-ai {
+      justify-content: flex-start;
+    }
+    .message-timestamp {
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted-foreground);
+    }
+    .bubble {
+      max-width: 80%;
+      padding: 8px 12px;
+      border-radius: var(--radius-compact);
+      font-size: 13px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+    .bubble-user {
+      background: var(--primary);
+      color: var(--primary-foreground);
+    }
+    .bubble-ai {
+      background: var(--muted);
+      color: var(--popover-foreground);
+    }
+
+    /* Image preview row */
+    .image-preview-row {
+      display: flex;
+      gap: 8px;
+      padding: 0 12px 8px;
+    }
+    .image-thumb {
+      width: 64px;
+      height: 64px;
+      border-radius: var(--radius-compact);
+      background: var(--muted);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--icon-muted);
+    }
+    .image-thumb svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    /* ===== INPUT AREA ===== */
+    .chat-input-area {
+      padding: 8px 10px;
+      border-top: 1px solid var(--border);
+    }
+    .input-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+    .toolbar-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-button);
+      background: transparent;
+      color: var(--muted-foreground);
+      font-size: 11px;
+      font-family: var(--font-sans);
+      cursor: pointer;
+    }
+    .toolbar-btn:hover {
+      background: var(--muted);
+      color: var(--popover-foreground);
+    }
+    .toolbar-btn.active {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--conversation-active-bg);
+    }
+    .toolbar-btn svg {
+      width: 12px;
+      height: 12px;
+    }
+    .input-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+    }
+    .chat-textarea {
+      flex: 1;
+      min-height: 36px;
+      max-height: 80px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-button);
+      background: var(--muted);
+      color: var(--popover-foreground);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.4;
+      resize: none;
+      outline: none;
+    }
+    .chat-textarea::placeholder {
+      color: var(--muted-foreground);
+    }
+    .chat-textarea:focus {
+      border-color: var(--primary);
+    }
+    .send-btn {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-radius: var(--radius-button);
+      background: var(--primary);
+      color: var(--primary-foreground);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .send-btn:hover {
+      opacity: 0.9;
+    }
+    .send-btn svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+    }
+
+    /* ===== RESIZE HANDLE ===== */
+    .resize-handle {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 16px;
+      height: 16px;
+      cursor: nwse-resize;
+    }
+    .resize-handle::after {
+      content: '';
+      position: absolute;
+      bottom: 3px;
+      right: 3px;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid var(--icon-muted);
+      border-bottom: 2px solid var(--icon-muted);
+      opacity: 0.4;
+    }
+
+    /* Floating window needs position for resize handle */
+    .floating-window {
+      position: relative;
+    }
+  </style>
+</body>
+</html>

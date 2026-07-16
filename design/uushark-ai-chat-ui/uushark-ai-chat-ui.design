@@ -1,0 +1,122 @@
+{
+  "data": [
+    {
+      "id": "page-ai-floating-light",
+      "title": "AI 浮窗 - 亮色模式",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1784041900000,
+      "canvasData": {
+        "x": 0,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/ai-floating-light.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-ai-floating-dark",
+      "title": "AI 浮窗 - 暗色模式",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1784041901000,
+      "canvasData": {
+        "x": 620,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/ai-floating-dark.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-profile-dropdown",
+      "title": "Profile 下拉选择器",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1784041902000,
+      "canvasData": {
+        "x": 0,
+        "y": 377,
+        "group": 1
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/profile-dropdown.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-delete-confirm",
+      "title": "删除会话确认弹窗",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1784041903000,
+      "canvasData": {
+        "x": 620,
+        "y": 377,
+        "group": 1
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/delete-confirm.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-ai-minimized",
+      "title": "最小化气泡",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1784041904000,
+      "canvasData": {
+        "x": 1240,
+        "y": 377,
+        "group": 1
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/ai-minimized.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-settings-ai",
+      "title": "设置页 - AI 配置管理",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1784041905000,
+      "canvasData": {
+        "x": 0,
+        "y": 754,
+        "group": 2
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/settings-ai.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-settings-ai-edit",
+      "title": "设置页 - 编辑 API 配置",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1784041906000,
+      "canvasData": {
+        "x": 620,
+        "y": 754,
+        "group": 2
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/settings-ai-edit.html",
+        "interactions": []
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": true,
+    "deviceType": "desktop",
+    "projectName": "UU鲨 AI 对话 UI 重做",
+    "designLibrary": null
+  }
+}

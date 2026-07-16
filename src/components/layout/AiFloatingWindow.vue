@@ -1,52 +1,186 @@
 <script setup lang="ts">
 /**
- * AI 独立浮窗
- * 参考 UI 改造方案 §3.2.E 和设计稿 ai-floating-expanded.html / ai-floating-minimized.html
- * 380×540 浮窗 + 最小化气泡,可拖拽(标题栏)
- * M3:接入真实 Agent,支持流式输出 / 工具调用展示 / 错误气泡
+ * AI 独立浮窗 — 多会话双栏布局
+ * 左侧：会话列表（新建/切换/删除）
+ * 右侧：对话区（消息列表 + 输入栏）
+ * 标题栏：UU鲨 + Profile 下拉选择器 + 新建/最小化/关闭
  */
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { Minus, X, SendHorizontal, Eraser, Loader2 } from 'lucide-vue-next'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useEditorStore } from '@/stores/editor'
 import { useDocumentStore } from '@/stores/document'
 import { useSettingsStore } from '@/stores/settings'
+import { useAiConversationStore } from '@/stores/aiConversation'
 import { createAgent, type Agent } from '@/ai/agent'
 import { renderMarkdown } from '@/ai/markdown'
+import type { MessageContent } from '@/ai/types'
 import AiIconUrl from '@/assets/UUshark/icon.svg'
+
+const router = useRouter()
 
 const editor = useEditorStore()
 const doc = useDocumentStore()
 const settings = useSettingsStore()
+const convStore = useAiConversationStore()
 const agent = ref<Agent | null>(null)
 const sending = ref(false)
 
-interface ChatMessage {
-  role: 'user' | 'assistant' | 'system' | 'error' | 'tool'
-  content: string
-}
-
 const input = ref('')
-const messages = ref<ChatMessage[]>([])
 const toolStatus = ref<'idle' | 'calling' | 'completed'>('idle')
 const currentToolName = ref('')
-const showConfirmClear = ref(false)
+const chatAreaRef = ref<HTMLElement | null>(null)
+const localWebSearch = ref(true)
+const attachedImages = ref<Array<{ name: string; base64: string; mimeType: string }>>([])
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+/** Profile 下拉菜单 */
+const showProfileDropdown = ref(false)
+
+/** 删除会话确认 */
+const deleteTargetId = ref<string | null>(null)
+
+/** 重命名会话 */
+const renamingId = ref<string | null>(null)
+const renameInput = ref('')
+
+/** 左侧面板折叠状态 */
+const sidebarCollapsed = ref(false)
+const sidebarAnimating = ref(false)
+const SIDEBAR_W = 160
+const SIDEBAR_COLLAPSED_W = 48
+const SIDEBAR_DELTA = SIDEBAR_W - SIDEBAR_COLLAPSED_W
 
 const isOpen = computed(() => editor.aiFloatingState === 'expanded')
 const isMinimized = computed(() => editor.aiFloatingState === 'minimized')
 
-// 拖拽
-const pos = ref({ x: 0, y: 0 })
+/** 当前活跃会话的消息（过滤掉 system/tool 消息和空内容的 assistant 消息，用于显示） */
+const displayMessages = computed(() => {
+  const conv = convStore.activeConversation
+  if (!conv) return []
+  return conv.messages
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .filter((m) => {
+      if (!m.content) return false
+      const text = typeof m.content === 'string'
+        ? m.content
+        : Array.isArray(m.content) ? m.content.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text).join(' ') : ''
+      return text.trim().length > 0
+    })
+    .map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: typeof m.content === 'string'
+        ? m.content
+        : Array.isArray(m.content) ? m.content.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text).join(' ') : '',
+    }))
+})
+
+/** 按最后更新时间降序排列的会话列表 */
+const sortedConversations = computed(() => convStore.sortedConversations)
+
+/** 当前活跃 Profile */
+const activeProfile = computed(() => settings.activeProfile)
+
+/** 模型能力 */
+const caps = computed(() => settings.modelCapabilities)
+
+/** 滚动对话区到底部 */
+function scrollToBottom() {
+  nextTick(() => {
+    if (chatAreaRef.value) {
+      chatAreaRef.value.scrollTop = chatAreaRef.value.scrollHeight
+    }
+  })
+}
+
+// 消息变化时自动滚动
+watch(() => displayMessages.value.length, () => scrollToBottom())
+// 流式输出时持续滚动
+watch(() => {
+  const msgs = displayMessages.value
+  const last = msgs[msgs.length - 1]
+  return last?.role === 'assistant' ? last.content.length : 0
+}, () => scrollToBottom())
+// 窗口打开 / 切换会话时滚动到底部
+watch(isOpen, (open) => { if (open) scrollToBottom() })
+watch(() => convStore.activeConversationId, () => scrollToBottom())
+
+const MIN_W = 360
+const MIN_H = 450
+
+/** 窗口位置（left/top），初始值在 onMounted 计算 */
+const windowPos = ref({ x: 0, y: 0 })
 const dragging = ref(false)
 const dragStart = ref({ x: 0, y: 0, posX: 0, posY: 0 })
 
+const windowSize = ref({ w: 480, h: 600 })
+const resizing = ref(false)
+const resizeStart = ref({ x: 0, y: 0, startW: 0, startH: 0 })
+
+function initWindowPosition() {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const statusBarH = 28
+  windowPos.value = {
+    x: vw - windowSize.value.w - 16,
+    y: vh - windowSize.value.h - statusBarH - 16,
+  }
+}
+
+function clampToViewport(x: number, y: number, w: number, h: number) {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  return {
+    x: Math.max(0, Math.min(vw - w, x)),
+    y: Math.max(0, Math.min(vh - h - 28, y)),
+  }
+}
+
+function onResizeDown(e: PointerEvent) {
+  e.preventDefault()
+  e.stopPropagation()
+  ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  document.body.style.userSelect = 'none'
+  resizing.value = true
+  resizeStart.value = {
+    x: e.clientX,
+    y: e.clientY,
+    startW: windowSize.value.w,
+    startH: windowSize.value.h,
+  }
+  window.addEventListener('pointermove', onResizeMove)
+  window.addEventListener('pointerup', onResizeUp)
+}
+
+function onResizeMove(e: PointerEvent) {
+  if (!resizing.value) return
+  e.preventDefault()
+  const dw = e.clientX - resizeStart.value.x
+  const dh = e.clientY - resizeStart.value.y
+  const newW = Math.max(MIN_W, resizeStart.value.startW + dw)
+  const newH = Math.max(MIN_H, resizeStart.value.startH + dh)
+  const clamped = clampToViewport(windowPos.value.x, windowPos.value.y, newW, newH)
+  windowSize.value = { w: newW, h: newH }
+  windowPos.value = clamped
+}
+
+function onResizeUp(e: PointerEvent) {
+  resizing.value = false
+  document.body.style.userSelect = ''
+  try { (e.target as HTMLElement).releasePointerCapture(e.pointerId) } catch (_) {}
+  window.removeEventListener('pointermove', onResizeMove)
+  window.removeEventListener('pointerup', onResizeUp)
+}
+
 function onPointerDown(e: PointerEvent) {
   if (!isOpen.value) return
+  ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  document.body.style.userSelect = 'none'
   dragging.value = true
   dragStart.value = {
     x: e.clientX,
     y: e.clientY,
-    posX: pos.value.x,
-    posY: pos.value.y
+    posX: windowPos.value.x,
+    posY: windowPos.value.y,
   }
   window.addEventListener('pointermove', onPointerMove)
   window.addEventListener('pointerup', onPointerUp)
@@ -54,103 +188,260 @@ function onPointerDown(e: PointerEvent) {
 
 function onPointerMove(e: PointerEvent) {
   if (!dragging.value) return
-  pos.value = {
-    x: dragStart.value.posX + (e.clientX - dragStart.value.x),
-    y: dragStart.value.posY + (e.clientY - dragStart.value.y)
-  }
+  const newX = dragStart.value.posX + (e.clientX - dragStart.value.x)
+  const newY = dragStart.value.posY + (e.clientY - dragStart.value.y)
+  windowPos.value = clampToViewport(newX, newY, windowSize.value.w, windowSize.value.h)
 }
 
-function onPointerUp() {
+function onPointerUp(e: PointerEvent) {
   dragging.value = false
+  document.body.style.userSelect = ''
+  try { (e.target as HTMLElement).releasePointerCapture(e.pointerId) } catch (_) {}
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
 }
 
 onUnmounted(() => {
+  document.body.style.userSelect = ''
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
+  window.removeEventListener('pointermove', onResizeMove)
+  window.removeEventListener('pointerup', onResizeUp)
 })
 
-onMounted(() => {
+onMounted(async () => {
+  // 初始化窗口位置（右下角）
+  initWindowPosition()
+
+  // 加载设置和会话数据
+  await settings.load()
+  await convStore.load()
+
+  // 如果没有会话，创建一个新会话
+  if (convStore.conversations.length === 0) {
+    convStore.createConversation(settings.activeProfileId)
+  }
+
+  // 补上迁移会话的 profileId
+  if (convStore.activeConversation && !convStore.activeConversation.profileId) {
+    convStore.activeConversation.profileId = settings.activeProfileId
+  }
+
   agent.value = createAgent({
     doc,
     editor,
     getConfig: () => settings.getModelConfig(),
-    canvasEl: () => document.querySelector('.editor-canvas') as HTMLElement | null
-  })
-  // 加载历史消息
-  agent.value.loadHistory().then((history) => {
-    if (history.length > 0) {
-      messages.value = history
-        .filter((m) => m.role === 'user' || m.role === 'assistant')
-        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
-    }
+    canvasEl: () => document.querySelector('.editor-canvas') as HTMLElement | null,
+    enableWebSearch: () => localWebSearch.value,
   })
 })
 
+/** 新建会话 */
+function handleNewConversation() {
+  if (sending.value) return
+  convStore.createConversation(settings.activeProfileId)
+  localWebSearch.value = true
+}
+
+/** 切换会话 */
+function handleSwitchConversation(id: string) {
+  if (sending.value) return
+  convStore.switchConversation(id)
+}
+
+/** 请求删除会话 */
+function requestDeleteConversation(id: string) {
+  deleteTargetId.value = id
+}
+
+/** 确认删除会话 */
+function confirmDeleteConversation() {
+  if (deleteTargetId.value) {
+    convStore.deleteConversation(deleteTargetId.value)
+  }
+  deleteTargetId.value = null
+}
+
+/** 取消删除 */
+function cancelDelete() {
+  deleteTargetId.value = null
+}
+
+/** 开始重命名会话 */
+function startRename(id: string, title: string) {
+  renamingId.value = id
+  renameInput.value = title
+  nextTick(() => {
+    const el = document.querySelector('.rename-input') as HTMLInputElement | null
+    if (el) {
+      el.focus()
+      el.select()
+    }
+  })
+}
+
+/** 确认重命名 */
+function confirmRename() {
+  if (renamingId.value && renameInput.value.trim()) {
+    convStore.renameConversation(renamingId.value, renameInput.value.trim())
+  }
+  renamingId.value = null
+}
+
+/** 取消重命名 */
+function cancelRename() {
+  renamingId.value = null
+}
+
+/** 切换左侧面板折叠 */
+function toggleSidebar() {
+  sidebarAnimating.value = true
+  if (sidebarCollapsed.value) {
+    // 展开：窗口变宽，左移
+    windowSize.value.w += SIDEBAR_DELTA
+    windowPos.value.x -= SIDEBAR_DELTA
+  } else {
+    // 折叠：窗口变窄，右移
+    windowSize.value.w -= SIDEBAR_DELTA
+    windowPos.value.x += SIDEBAR_DELTA
+  }
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  // 动画结束后移除动画类，避免影响拖动/调整大小
+  setTimeout(() => {
+    sidebarAnimating.value = false
+  }, 200)
+}
+
+/** 切换 Profile */
+function handleSelectProfile(id: string) {
+  settings.setActiveProfile(id)
+  // 更新当前会话的 profileId
+  if (convStore.activeConversation) {
+    convStore.activeConversation.profileId = id
+    convStore.save()
+  }
+  showProfileDropdown.value = false
+}
+
+/** 跳转到设置页 */
+function goToSettings() {
+  showProfileDropdown.value = false
+  router.push('/settings')
+}
+
+/** 执行对话 */
 async function execute() {
-  if (!input.value.trim() || sending.value || !agent.value) return
+  if (!input.value.trim() || sending.value || !agent.value || !convStore.activeConversation) return
   const userText = input.value
-  messages.value.push({ role: 'user', content: userText })
   input.value = ''
+
+  const conv = convStore.activeConversation
+  const convId = conv.id
+
+  // 构建消息内容
+  const hasImages = attachedImages.value.length > 0 && caps.value.vision
+  let userContent: string | MessageContent[]
+  if (hasImages) {
+    const parts: MessageContent[] = [{ type: 'text', text: userText }]
+    for (const img of attachedImages.value) {
+      parts.push({ type: 'image_url', image_url: { url: `data:${img.mimeType};base64,${img.base64}` } })
+    }
+    userContent = parts
+    attachedImages.value = []
+  } else {
+    userContent = userText
+    if (attachedImages.value.length > 0) attachedImages.value = []
+  }
+
+  // 不在此处推入消息 — agent.chat() 负责推入 user 和 assistant 消息
+  // agent 会在流式输出前推入空 assistant，onDelta 回调更新它
+
   sending.value = true
-  // 预先 push 一个空的 assistant 消息,流式 onDelta 时更新它
-  const assistantMsg = reactive({ role: 'assistant' as const, content: '' })
-  messages.value.push(assistantMsg)
+  let accumulatedContent = ''
   try {
-    await agent.value.chat(userText, {
-      onDelta: (text) => {
-        assistantMsg.content += text
-      },
-      onToolCall: (toolName, _args, result) => {
-        if (result.data === '__calling__') {
-          toolStatus.value = 'calling'
-          currentToolName.value = toolName
-        } else {
-          toolStatus.value = 'completed'
-          setTimeout(() => {
-            toolStatus.value = 'idle'
-            currentToolName.value = ''
-          }, 2000)
-        }
-      },
-      onError: (err) => {
-        // 替换最后一个 assistant 消息为错误气泡
-        messages.value.push({ role: 'error', content: err })
+    await agent.value.chat(
+      conv.messages,
+      userContent,
+      {
+        onDelta: (text) => {
+          accumulatedContent += text
+          convStore.updateLastMessage(convId, accumulatedContent)
+        },
+        onToolCall: (toolName, _args, result) => {
+          if (result.data === '__calling__') {
+            toolStatus.value = 'calling'
+            currentToolName.value = toolName
+          } else {
+            toolStatus.value = 'completed'
+            setTimeout(() => {
+              toolStatus.value = 'idle'
+              currentToolName.value = ''
+            }, 2000)
+          }
+        },
+        onError: (err) => {
+          convStore.addMessage(convId, { role: 'assistant', content: `⚠️ ${err}` })
+        },
       }
-    })
+    )
   } catch (e) {
-    messages.value.push({ role: 'error', content: e instanceof Error ? e.message : String(e) })
+    convStore.addMessage(convId, { role: 'assistant', content: `⚠️ ${e instanceof Error ? e.message : String(e)}` })
   } finally {
     sending.value = false
-    // 若最后 assistant 消息仍为空（如出错前未流式输出）,移除它
-    const last = messages.value[messages.value.length - 1]
-    if (last && last.role === 'assistant' && !last.content) {
-      messages.value.pop()
+    // 若最后 assistant 消息仍为空，移除它
+    const lastMsg = conv.messages[conv.messages.length - 1]
+    if (lastMsg && lastMsg.role === 'assistant' && (!lastMsg.content || lastMsg.content === '')) {
+      conv.messages.pop()
+    }
+    // 持久化
+    convStore.flushSave()
+  }
+}
+
+/** 选择图片 */
+function onImageSelect(e: Event) {
+  const files = (e.target as HTMLInputElement).files
+  if (!files) return
+  for (const file of Array.from(files)) {
+    if (!file.type.startsWith('image/')) continue
+    if (attachedImages.value.length >= 3) break
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1]
+      attachedImages.value.push({ name: file.name, base64, mimeType: file.type })
+    }
+    reader.readAsDataURL(file)
+  }
+  if (fileInputRef.value) fileInputRef.value.value = ''
+}
+
+function removeImage(index: number) {
+  attachedImages.value.splice(index, 1)
+}
+
+/** 处理粘贴图片 */
+function onPaste(e: ClipboardEvent) {
+  if (!caps.value.vision) return
+  const items = e.clipboardData?.items
+  if (!items) return
+
+  for (const item of Array.from(items)) {
+    if (item.type.startsWith('image/')) {
+      const file = item.getAsFile()
+      if (!file) continue
+      if (attachedImages.value.length >= 3) break
+
+      const reader = new FileReader()
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1]
+        attachedImages.value.push({ name: file.name, base64, mimeType: file.type })
+      }
+      reader.readAsDataURL(file)
     }
   }
 }
 
-async function clearConversation() {
-  if (!messages.value.length) return
-  showConfirmClear.value = true
-}
-
-async function confirmClear() {
-  showConfirmClear.value = false
-  try {
-    await agent.value?.clear()
-    messages.value = []
-  } catch (e) {
-    console.error('清空对话失败:', e)
-  }
-}
-
-function cancelClear() {
-  showConfirmClear.value = false
-}
-
-/** 工具名映射为中文友好名称 */
+/** 工具名映射 */
 const TOOL_LABELS: Record<string, string> = {
   get_document: '获取文档',
   get_outline: '获取大纲',
@@ -167,15 +458,15 @@ const TOOL_LABELS: Record<string, string> = {
   create_file: '创建文件',
   open_file: '打开文件',
   get_vault_tree: '获取文件树',
-  switch_tab: '切换标签'
+  switch_tab: '切换标签',
+  web_search: '联网搜索',
 }
 
-/** 把工具名转为中文标签 */
 function formatToolName(name: string): string {
   return TOOL_LABELS[name] ?? name
 }
 
-/** assistant 消息渲染为 HTML（支持 Markdown 语法）;其他角色纯文本 */
+/** 渲染消息内容 */
 function renderContent(role: string, content: string): string {
   if (role === 'assistant') return renderMarkdown(content)
   return content
@@ -183,6 +474,21 @@ function renderContent(role: string, content: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
 }
+
+/** 关闭 Profile 下拉（点击外部） */
+function closeProfileDropdown(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.profile-selector-wrapper')) {
+    showProfileDropdown.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', closeProfileDropdown)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', closeProfileDropdown)
+})
 </script>
 
 <template>
@@ -190,79 +496,274 @@ function renderContent(role: string, content: string): string {
   <div
     v-if="isOpen"
     class="ai-floating"
-    :style="{ transform: `translate(${pos.x}px, ${pos.y}px)` }"
+    :class="{ 'floating-animating': sidebarAnimating }"
+    :style="{ left: `${windowPos.x}px`, top: `${windowPos.y}px`, width: `${windowSize.w}px`, height: `${windowSize.h}px` }"
   >
-    <!-- 标题栏(可拖拽) -->
-    <div class="float-header" @pointerdown="onPointerDown">
-      <div class="header-left">
-        <img :src="AiIconUrl" class="spark" alt="UU鲨" />
-        <span class="title">UU鲨</span>
+    <!-- 标题栏 -->
+    <div class="title-bar" @pointerdown="onPointerDown">
+      <div class="title-left">
+        <img :src="AiIconUrl" class="shark-icon" alt="UU鲨" />
+        <span class="title-text">UU鲨</span>
       </div>
-      <div class="header-actions">
-        <button class="icon-btn" title="清空对话" @click.stop="clearConversation" :disabled="!messages.length">
-          <Eraser :size="14" />
+
+      <!-- Profile 选择器 -->
+      <div class="profile-selector-wrapper">
+        <button class="profile-selector" @click.stop="showProfileDropdown = !showProfileDropdown">
+          <span class="cap-dot" :class="{ on: caps.nativeSearch || caps.webSearch, off: !caps.nativeSearch && !caps.webSearch }" title="联网搜索"></span>
+          <span class="cap-dot" :class="{ on: caps.vision, off: !caps.vision }" title="图片理解"></span>
+          <span class="profile-name">{{ activeProfile?.name ?? '未配置' }}</span>
+          <svg class="chevron" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 4L5 6L7 4" />
+          </svg>
         </button>
-        <button class="icon-btn" title="最小化" @click.stop="editor.minimizeAiFloating()">
-          <Minus :size="14" />
+        <!-- 下拉菜单 -->
+        <div v-if="showProfileDropdown" class="profile-dropdown" @click.stop>
+          <div
+            v-for="p in settings.profiles"
+            :key="p.id"
+            class="dropdown-item"
+            :class="{ active: p.id === settings.activeProfileId }"
+            @click="handleSelectProfile(p.id)"
+          >
+            <span class="check">{{ p.id === settings.activeProfileId ? '✓' : '' }}</span>
+            <div class="dropdown-item-info">
+              <span class="dropdown-item-name">{{ p.name }}</span>
+              <span class="dropdown-item-model">{{ p.model }}</span>
+            </div>
+          </div>
+          <div class="dropdown-sep"></div>
+          <div class="dropdown-item manage" @click="goToSettings">
+            <span class="check"></span>
+            <span class="dropdown-item-name">管理配置...</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="title-right">
+        <button class="title-btn" title="新建会话" @click.stop="handleNewConversation">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M7 2V12M2 7H12" />
+          </svg>
         </button>
-        <button class="icon-btn" title="关闭" @click.stop="editor.closeAiFloating()">
-          <X :size="14" />
+        <button class="title-btn" title="最小化" @click.stop="editor.minimizeAiFloating()">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M3 7H11" />
+          </svg>
+        </button>
+        <button class="title-btn" title="关闭" @click.stop="editor.closeAiFloating()">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M4 4L10 10M10 4L4 10" />
+          </svg>
         </button>
       </div>
     </div>
 
-    <!-- 对话区 -->
-    <div class="chat-area no-scrollbar">
-      <div v-if="!messages.length" class="empty">
-        <img :src="AiIconUrl" class="empty-icon" alt="UU鲨" />
-        <div class="empty-title">UU鲨已就绪</div>
-        <div class="empty-desc">输入指令开始对话</div>
+    <!-- 双栏主体 -->
+    <div class="floating-body">
+      <!-- 左侧：会话列表 -->
+      <div class="conversation-panel" :class="{ collapsed: sidebarCollapsed }">
+        <div class="conv-panel-header">
+          <button class="collapse-btn" @click="toggleSidebar" :title="sidebarCollapsed ? '展开会话列表' : '折叠会话列表'">
+            <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path v-if="!sidebarCollapsed" d="M3 2L6 5L3 8" />
+              <path v-else d="M7 2L4 5L7 8" />
+            </svg>
+          </button>
+          <span v-if="!sidebarCollapsed" class="conv-panel-title">会话</span>
+        </div>
+        <button v-if="!sidebarCollapsed" class="new-conv-btn" @click="handleNewConversation">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M7 3V11M3 7H11" />
+          </svg>
+          <span>新建会话</span>
+        </button>
+        <div v-if="!sidebarCollapsed" class="conversation-list no-scrollbar">
+          <div
+            v-for="conv in sortedConversations"
+            :key="conv.id"
+            class="conv-item"
+            :class="{ active: conv.id === convStore.activeConversationId }"
+            @click="handleSwitchConversation(conv.id)"
+            @dblclick.stop="startRename(conv.id, conv.title)"
+          >
+            <input
+              v-if="renamingId === conv.id"
+              v-model="renameInput"
+              class="rename-input"
+              @click.stop
+              @blur="confirmRename"
+              @keydown.enter.prevent="confirmRename"
+              @keydown.esc.prevent="cancelRename"
+            />
+            <span v-else class="conv-title">{{ conv.title }}</span>
+            <div class="conv-actions">
+              <button
+                class="conv-action-btn"
+                title="重命名"
+                @click.stop="startRename(conv.id, conv.title)"
+              >
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 3L10 4L6 8H5V7L9 3Z" />
+                  <path d="M2 10H7" />
+                </svg>
+              </button>
+              <button
+                class="conv-action-btn delete"
+                title="删除会话"
+                @click.stop="requestDeleteConversation(conv.id)"
+              >
+                <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1.5 2.5H8.5M3.75 2.5V1.875C3.75 1.66789 3.91789 1.5 4.125 1.5H5.875C6.08211 1.5 6.25 1.66789 6.25 1.875V2.5M4.375 4.375V7.125M5.625 4.375V7.125M2.5 2.5L2.8125 7.75C2.84411 8.30711 3.30429 8.75 3.8625 8.75H6.1375C6.69571 8.75 7.15589 8.30711 7.1875 7.75L7.5 2.5" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div v-if="sortedConversations.length === 0" class="conv-empty">
+            点击上方新建会话
+          </div>
+        </div>
+        <!-- 折叠态：只显示图标 -->
+        <div v-else class="collapsed-icons">
+          <button
+            v-for="conv in sortedConversations.slice(0, 8)"
+            :key="conv.id"
+            class="collapsed-conv-icon"
+            :class="{ active: conv.id === convStore.activeConversationId }"
+            :title="conv.title"
+            @click="handleSwitchConversation(conv.id)"
+          >
+            {{ conv.title.slice(0, 1) }}
+          </button>
+          <button class="collapsed-new-btn" title="新建会话" @click="handleNewConversation">
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+              <path d="M6 2V10M2 6H10" />
+            </svg>
+          </button>
+        </div>
       </div>
-      <div v-else class="messages">
-        <div
-          v-for="(msg, i) in messages"
-          :key="i"
-          class="msg"
-          :class="msg.role"
-        >
-          <div class="msg-bubble" :class="{ 'md-bubble': msg.role === 'assistant' }" v-html="renderContent(msg.role, msg.content)"></div>
+
+      <!-- 右侧：对话区 -->
+      <div class="chat-panel">
+        <!-- 工具状态条 -->
+        <div v-if="toolStatus !== 'idle'" class="tool-status-bar" :class="toolStatus">
+          <svg v-if="toolStatus === 'calling'" class="spinner" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M10 6A4 4 0 0 1 6 10" />
+          </svg>
+          <span>{{ toolStatus === 'calling' ? `正在调用 ${formatToolName(currentToolName)}...` : `已完成 ${formatToolName(currentToolName)}` }}</span>
+        </div>
+
+        <!-- 消息区 -->
+        <div class="chat-messages no-scrollbar" ref="chatAreaRef">
+          <div v-if="displayMessages.length === 0" class="empty-state">
+            <img :src="AiIconUrl" class="empty-icon" alt="UU鲨" />
+            <div class="empty-title">UU鲨已就绪</div>
+            <div class="empty-desc">输入指令开始对话</div>
+          </div>
+          <div v-else class="messages">
+            <div
+              v-for="(msg, i) in displayMessages"
+              :key="i"
+              class="message-row"
+              :class="msg.role === 'user' ? 'message-row-user' : 'message-row-ai'"
+            >
+              <div
+                class="bubble"
+                :class="{ 'md-bubble': msg.role === 'assistant' }"
+                v-html="renderContent(msg.role, msg.content)"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 图片预览行 -->
+        <div v-if="attachedImages.length" class="image-preview-row">
+          <div v-for="(img, i) in attachedImages" :key="i" class="image-thumb-wrapper">
+            <img :src="`data:${img.mimeType};base64,${img.base64}`" class="image-thumb" />
+            <button class="image-remove" @click="removeImage(i)">
+              <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                <path d="M2 2L8 8M8 2L2 8" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 输入区 -->
+        <div class="chat-input-area">
+          <div class="input-toolbar">
+            <!-- 联网开关：支持原生联网或 function calling 时都显示 -->
+            <button
+              v-if="caps.webSearch || caps.nativeSearch"
+              class="toolbar-btn"
+              :class="{ active: localWebSearch }"
+              :title="caps.nativeSearch ? '原生联网搜索' : '联网搜索'"
+              @click="localWebSearch = !localWebSearch"
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2">
+                <circle cx="8" cy="8" r="6" />
+                <ellipse cx="8" cy="8" rx="3" ry="6" />
+                <line x1="2" y1="8" x2="14" y2="8" />
+              </svg>
+              <span>联网</span>
+            </button>
+            <button
+              v-if="caps.vision"
+              class="toolbar-btn"
+              title="添加图片"
+              @click="fileInputRef?.click()"
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="12" height="10" rx="2" />
+                <circle cx="6" cy="7" r="1.5" />
+                <path d="M2 11L5.5 8L9 10.5L12 7.5L14 9.5" />
+              </svg>
+              <span>图片</span>
+            </button>
+            <input
+              ref="fileInputRef"
+              type="file"
+              accept="image/*"
+              multiple
+              style="display:none"
+              @change="onImageSelect"
+            />
+          </div>
+          <div class="input-row">
+            <textarea
+              v-model="input"
+              class="chat-input"
+              :placeholder="sending ? 'UU鲨正在响应...' : '输入指令... (Enter 发送)'"
+              :disabled="sending"
+              rows="2"
+              @keydown.enter.prevent="execute"
+              @paste="onPaste"
+            ></textarea>
+            <button class="send-btn" :disabled="!input.trim() || sending" @click="execute">
+              <svg v-if="sending" class="spinner" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                <path d="M10 7A3 3 0 0 1 7 10" />
+              </svg>
+              <svg v-else viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 7L12 2L7 12L6 8L2 7Z" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 输入区 -->
-    <div class="input-area">
-      <div v-if="toolStatus !== 'idle'" class="tool-status" :class="toolStatus">
-        <Loader2 v-if="toolStatus === 'calling'" :size="12" class="spin" />
-        <span>{{ toolStatus === 'calling' ? `正在调用 ${formatToolName(currentToolName)}...` : `已完成 ${formatToolName(currentToolName)}` }}</span>
-      </div>
-      <div class="input-row">
-        <textarea
-          v-model="input"
-          class="input"
-          :placeholder="sending ? 'UU鲨正在响应...' : '输入指令... (Enter 发送)'"
-          :disabled="sending"
-          rows="2"
-          @keydown.enter.prevent="execute"
-        ></textarea>
-        <button class="send-btn" :disabled="!input.trim() || sending" @click="execute">
-          <Loader2 v-if="sending" :size="14" class="spin" />
-          <SendHorizontal v-else :size="14" />
-        </button>
-      </div>
-    </div>
-
-    <!-- 清空确认对话框 -->
-    <div v-if="showConfirmClear" class="confirm-overlay" @click="cancelClear">
+    <!-- 删除会话确认对话框 -->
+    <div v-if="deleteTargetId" class="confirm-overlay" @click="cancelDelete">
       <div class="confirm-dialog" @click.stop>
-        <div class="confirm-title">清空对话</div>
-        <div class="confirm-desc">确定要清空所有对话历史吗？此操作不可恢复。</div>
+        <div class="confirm-title">删除会话</div>
+        <div class="confirm-desc">确定要删除这个会话吗？此操作不可恢复。</div>
         <div class="confirm-actions">
-          <button class="confirm-btn cancel" @click="cancelClear">取消</button>
-          <button class="confirm-btn danger" @click="confirmClear">确认清空</button>
+          <button class="confirm-btn cancel" @click="cancelDelete">取消</button>
+          <button class="confirm-btn danger" @click="confirmDeleteConversation">删除</button>
         </div>
       </div>
     </div>
+
+    <!-- 调整大小手柄 -->
+    <div class="resize-handle" @pointerdown="onResizeDown"></div>
   </div>
 
   <!-- 最小化气泡 -->
@@ -273,19 +774,16 @@ function renderContent(role: string, content: string): string {
     @click="editor.openAiFloating()"
   >
     <img :src="AiIconUrl" class="bubble-icon" alt="UU鲨" />
-    <span v-if="messages.length" class="badge">{{ messages.length }}</span>
   </button>
 </template>
 
 <style scoped>
 .ai-floating {
   position: fixed;
-  right: 16px;
-  bottom: calc(var(--statusbar-height) + 16px);
-  width: 380px;
-  height: 540px;
-  min-width: 300px;
-  min-height: 400px;
+  left: 0;
+  top: 0;
+  min-width: 360px;
+  min-height: 450px;
   display: flex;
   flex-direction: column;
   background: var(--popover);
@@ -295,60 +793,450 @@ function renderContent(role: string, content: string): string {
   box-shadow: var(--shadow-xl);
   z-index: 1000;
   overflow: hidden;
+  font-family: var(--font-sans);
+  user-select: none;
 }
-.float-header {
+.floating-animating {
+  transition: left 0.2s ease, width 0.2s ease;
+}
+
+/* ===== 标题栏 ===== */
+.title-bar {
+  height: 36px;
+  min-height: 36px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 36px;
-  padding: 0 8px 0 12px;
-  flex-shrink: 0;
-  background: var(--popover);
+  padding: 0 8px 0 10px;
   border-bottom: 1px solid var(--border);
   cursor: move;
   user-select: none;
-}
-.header-left {
-  display: flex;
-  align-items: center;
   gap: 6px;
 }
-.spark {
+.title-left {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.shark-icon {
   width: 14px;
   height: 14px;
   object-fit: contain;
 }
-.title {
+.title-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+/* Profile 选择器 */
+.profile-selector-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+.profile-selector {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  background: var(--muted);
+  border-radius: var(--radius-button);
+  cursor: pointer;
+  font-family: var(--font-sans);
   font-size: 12px;
+  color: var(--popover-foreground);
+  transition: none;
+}
+.profile-selector:hover {
+  border-color: var(--border);
+}
+.cap-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cap-dot.on {
+  background: var(--success);
+}
+.cap-dot.off {
+  background: var(--muted-foreground);
+  opacity: 0.4;
+}
+.profile-name {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chevron {
+  width: 10px;
+  height: 10px;
+  color: var(--icon-muted);
+  flex-shrink: 0;
+}
+
+/* Profile 下拉菜单 */
+.profile-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 4px;
+  min-width: 200px;
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-compact);
+  box-shadow: var(--shadow-md);
+  z-index: 10;
+  padding: 4px;
+}
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-button);
+  cursor: pointer;
+  font-size: 12px;
+}
+.dropdown-item:hover {
+  background: var(--accent);
+}
+.dropdown-item.active {
+  color: var(--primary);
+}
+.dropdown-item .check {
+  width: 14px;
+  flex-shrink: 0;
+  text-align: center;
   font-weight: 600;
 }
-.header-actions {
+.dropdown-item-info {
   display: flex;
-  gap: 2px;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
 }
-.icon-btn {
+.dropdown-item-name {
+  font-weight: 500;
+}
+.dropdown-item-model {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.dropdown-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+.dropdown-item.manage {
+  color: var(--muted-foreground);
+}
+
+/* 标题栏按钮 */
+.title-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.title-btn {
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--icon-muted);
+  border-radius: var(--radius-button);
+  cursor: pointer;
+}
+.title-btn:hover {
+  background: var(--muted);
+  color: var(--popover-foreground);
+}
+.title-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ===== 双栏主体 ===== */
+.floating-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* 左侧会话列表 */
+.conversation-panel {
+  width: 160px;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--card);
+  transition: width 0.2s ease, min-width 0.2s ease;
+  flex-shrink: 0;
+}
+.conversation-panel.collapsed {
+  width: 48px;
+  min-width: 48px;
+}
+.conv-panel-header {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.collapse-btn {
   width: 24px;
   height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  border-radius: var(--radius-tag);
+}
+.collapse-btn:hover {
+  background: var(--muted);
+  color: var(--popover-foreground);
+}
+.collapse-btn svg {
+  width: 12px;
+  height: 12px;
+}
+.conv-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--popover-foreground);
+  font-family: var(--font-sans);
+}
+.new-conv-btn {
+  margin: 8px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px dashed var(--border);
   border-radius: var(--radius-button);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+.new-conv-btn:hover {
+  background: var(--muted);
+  color: var(--popover-foreground);
+}
+.new-conv-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.conversation-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 4px 8px;
+}
+.conv-item {
+  position: relative;
+  padding: 7px 26px 7px 10px;
+  border-radius: var(--radius-button);
+  cursor: pointer;
+  overflow: hidden;
+}
+.conv-item:hover {
+  background: var(--muted);
+}
+.conv-item.active {
+  background: var(--conversation-active-bg);
+}
+.conv-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--conversation-active-bar);
+}
+.conv-title {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  padding-left: 2px;
+}
+.conv-item.active .conv-title {
+  color: var(--primary);
+}
+.rename-input {
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--primary);
+  border-radius: 3px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  outline: none;
+  user-select: text;
+}
+.conv-actions {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.conv-item:hover .conv-actions {
+  opacity: 1;
+}
+.conv-action-btn {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: var(--popover);
+  border-radius: var(--radius-tag);
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.conv-action-btn:hover {
+  background: var(--muted);
+  color: var(--popover-foreground);
+}
+.conv-action-btn.delete:hover {
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+}
+.conv-action-btn svg {
+  width: 12px;
+  height: 12px;
+}
+.conv-empty {
+  padding: 12px 8px;
+  text-align: center;
+  font-size: 11px;
   color: var(--muted-foreground);
 }
-.icon-btn:hover {
+
+/* 折叠态图标模式 */
+.collapsed-icons {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 6px;
+  overflow-y: auto;
+}
+.collapsed-conv-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.collapsed-conv-icon:hover {
   background: var(--secondary);
-  color: var(--foreground);
+  color: var(--secondary-foreground);
 }
-.icon-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.collapsed-conv-icon.active {
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
-.chat-area {
+.collapsed-new-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: auto;
+}
+.collapsed-new-btn:hover {
+  background: var(--muted);
+  color: var(--popover-foreground);
+}
+.collapsed-new-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 右侧对话区 */
+.chat-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* 工具状态条 */
+.tool-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+}
+.tool-status-bar.calling {
+  color: var(--primary);
+}
+.tool-status-bar.completed {
+  color: var(--success);
+}
+.tool-status-bar .spinner {
+  width: 12px;
+  height: 12px;
+  animation: spin 1s linear infinite;
+}
+
+/* 消息区 */
+.chat-messages {
   flex: 1;
   overflow-y: auto;
   padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  user-select: text;
 }
-.empty {
+.empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -375,82 +1263,114 @@ function renderContent(role: string, content: string): string {
   flex-direction: column;
   gap: 10px;
 }
-.msg {
+.message-row {
   display: flex;
 }
-.msg.user {
+.message-row-user {
   justify-content: flex-end;
 }
-.msg.assistant {
+.message-row-ai {
   justify-content: flex-start;
 }
-.msg-bubble {
+.bubble {
   max-width: 80%;
   padding: 8px 12px;
   border-radius: var(--radius-compact);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.6;
+  word-break: break-word;
+  user-select: text;
 }
-.msg.user .msg-bubble {
-  background: var(--brand-500);
+.message-row-user .bubble {
+  background: var(--primary);
   color: var(--primary-foreground);
 }
-.msg.assistant .msg-bubble {
-  background: var(--secondary);
-  color: var(--foreground);
+.message-row-ai .bubble {
+  background: var(--muted);
+  color: var(--popover-foreground);
 }
-.msg.system {
-  justify-content: center;
+
+/* 图片预览行 */
+.image-preview-row {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px 8px;
 }
-.msg.system .msg-bubble {
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: 11px;
-  padding: 4px 8px;
-  max-width: 100%;
-  text-align: center;
+.image-thumb-wrapper {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
 }
-.msg.error {
-  justify-content: center;
+.image-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-compact);
+  border: 1px solid var(--border);
 }
-.msg.error .msg-bubble {
+.image-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
   background: var(--destructive);
   color: var(--destructive-foreground);
-  border-radius: var(--radius-button);
-  font-size: 11px;
-  padding: 6px 10px;
-  max-width: 90%;
-}
-.input-area {
-  flex-shrink: 0;
-  padding: 8px;
-  border-top: 1px solid var(--border);
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
-.tool-status {
+.image-remove svg {
+  width: 8px;
+  height: 8px;
+}
+
+/* 输入区 */
+.chat-input-area {
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+}
+.input-toolbar {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
+  margin-bottom: 6px;
+}
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-button);
+  background: transparent;
+  color: var(--muted-foreground);
   font-size: 11px;
+  font-family: var(--font-sans);
+  cursor: pointer;
 }
-.tool-status.calling {
-  background: var(--secondary);
-  color: var(--brand-500);
+.toolbar-btn:hover {
+  background: var(--muted);
+  color: var(--popover-foreground);
 }
-.tool-status.completed {
-  background: rgba(0, 180, 100, 0.1);
-  color: rgba(0, 180, 100, 0.9);
+.toolbar-btn.active {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+.toolbar-btn svg {
+  width: 14px;
+  height: 14px;
 }
 .input-row {
   display: flex;
   gap: 6px;
   align-items: flex-end;
 }
-.input {
+.chat-input {
   flex: 1;
   border: 1px solid var(--border);
   border-radius: var(--radius-button);
@@ -462,15 +1382,16 @@ function renderContent(role: string, content: string): string {
   resize: none;
   outline: none;
   line-height: 1.5;
+  user-select: text;
 }
-.input:focus {
+.chat-input:focus {
   border-color: var(--ring);
   box-shadow: 0 0 0 1px var(--ring);
 }
-.input::placeholder {
+.chat-input::placeholder {
   color: var(--muted-foreground);
 }
-.input:disabled {
+.chat-input:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -481,9 +1402,11 @@ function renderContent(role: string, content: string): string {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-button);
-  background: var(--brand-500);
+  background: var(--primary);
   color: var(--primary-foreground);
+  border: none;
   flex-shrink: 0;
+  cursor: pointer;
 }
 .send-btn:disabled {
   opacity: 0.5;
@@ -492,10 +1415,40 @@ function renderContent(role: string, content: string): string {
 .send-btn:not(:disabled):hover {
   filter: brightness(0.96);
 }
+.send-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 调整大小手柄 */
+.resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  z-index: 2;
+}
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--muted-foreground);
+  border-bottom: 2px solid var(--muted-foreground);
+  opacity: 0.5;
+}
+.resize-handle:hover::after {
+  opacity: 1;
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-.spin {
+.spinner {
   animation: spin 1s linear infinite;
 }
 
@@ -507,7 +1460,7 @@ function renderContent(role: string, content: string): string {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: var(--brand-500);
+  background: var(--primary);
   color: var(--primary-foreground);
   display: flex;
   align-items: center;
@@ -515,6 +1468,8 @@ function renderContent(role: string, content: string): string {
   box-shadow: var(--shadow-lg);
   z-index: 1000;
   transition: transform 0.15s ease;
+  border: none;
+  cursor: pointer;
 }
 .ai-bubble:hover {
   transform: scale(1.05);
@@ -527,27 +1482,65 @@ function renderContent(role: string, content: string): string {
   background: var(--popover);
   padding: 2px;
 }
-.badge {
+
+/* ===== 确认对话框 ===== */
+.confirm-overlay {
   position: absolute;
-  top: -2px;
-  right: -2px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--destructive);
-  color: var(--destructive-foreground);
-  font-size: 10px;
-  font-weight: 600;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 10;
+}
+.confirm-dialog {
+  width: 280px;
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-compact);
+  padding: 16px;
+  box-shadow: var(--shadow-xl);
+}
+.confirm-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--foreground);
+}
+.confirm-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.confirm-btn {
+  padding: 6px 14px;
+  border-radius: var(--radius-button);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--foreground);
+}
+.confirm-btn:hover {
+  background: var(--accent);
+}
+.confirm-btn.danger {
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+  border-color: var(--destructive);
+}
+.confirm-btn.danger:hover {
+  filter: brightness(0.96);
 }
 
-/* ===== Markdown 渲染样式（assistant 消息） ===== */
-.md-bubble {
-  word-break: break-word;
-}
+/* ===== Markdown 渲染样式 ===== */
 .md-bubble :deep(.md-h) {
   font-weight: 600;
   margin: 6px 0 4px;
@@ -581,21 +1574,21 @@ function renderContent(role: string, content: string): string {
   vertical-align: middle;
 }
 .md-bubble :deep(.md-pre) {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--code-bg);
   border-radius: 6px;
   padding: 8px 10px;
   margin: 6px 0;
   overflow-x: auto;
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.5;
   white-space: pre;
 }
 .md-bubble :deep(.md-code) {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--code-bg);
   border-radius: 3px;
   padding: 1px 4px;
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-family: var(--font-mono);
   font-size: 0.9em;
 }
 .md-bubble :deep(.md-hr) {
@@ -611,7 +1604,7 @@ function renderContent(role: string, content: string): string {
   font-size: 11px;
 }
 .md-bubble :deep(a) {
-  color: var(--brand-500);
+  color: var(--primary);
   text-decoration: underline;
 }
 .md-bubble :deep(strong) { font-weight: 600; }
@@ -632,66 +1625,10 @@ function renderContent(role: string, content: string): string {
   line-height: 1.4;
 }
 .md-bubble :deep(.md-th) {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--code-bg);
   font-weight: 600;
 }
 .md-bubble :deep(.md-td) {
   vertical-align: top;
-}
-
-/* 确认对话框 */
-.confirm-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-}
-.confirm-dialog {
-  width: 280px;
-  background: var(--popover);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-compact);
-  padding: 16px;
-  box-shadow: var(--shadow-xl);
-}
-.confirm-title {
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-.confirm-desc {
-  font-size: 12px;
-  color: var(--muted-foreground);
-  line-height: 1.6;
-  margin-bottom: 16px;
-}
-.confirm-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-.confirm-btn {
-  padding: 6px 14px;
-  border-radius: var(--radius-button);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  border: 1px solid var(--border);
-  background: var(--secondary);
-  color: var(--foreground);
-}
-.confirm-btn:hover {
-  background: var(--accent);
-}
-.confirm-btn.danger {
-  background: var(--destructive);
-  color: var(--destructive-foreground);
-  border-color: var(--destructive);
-}
-.confirm-btn.danger:hover {
-  filter: brightness(0.96);
 }
 </style>

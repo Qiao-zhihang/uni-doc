@@ -29,7 +29,7 @@ export interface StreamResult {
   finishReason: string
 }
 
-/** 构造请求体：tools 为空数组时不传 tools 字段 */
+/** 构造请求体：tools 为空数组时不传 tools 字段；支持原生联网搜索参数 */
 function buildBody(
   messages: ChatMessage[],
   tools: ToolSpec[],
@@ -44,6 +44,17 @@ function buildBody(
   }
   if (stream) body.stream = true
   if (tools.length > 0) body.tools = tools
+
+  // 原生联网搜索参数（优先于 function calling 工具方式）
+  if (config.nativeSearch) {
+    if (config.provider === 'qwen') {
+      // 通义千问：enable_search 开启内置搜索
+      body.enable_search = true
+    }
+    // DeepSeek / OpenAI 搜索模型 / 智谱 等不需要额外参数，模型自带搜索能力
+    // 或参数由服务端根据模型自动处理
+  }
+
   return body
 }
 
@@ -183,4 +194,76 @@ export async function chat(
   }))
 
   return { content: message?.content ?? '', toolCalls }
+}
+
+/** 公开测试图片 URL（1x1 透明 GIF，体积小加载快），用于 vision 探针 */
+const PROBE_IMAGE_URL = 'https://www.baidu.com/img/PCtm_d9c8750bed0b3c7d089fa7d55720d6cf.png'
+
+/** 探针用的 dummy tool，检测 function calling 支持 */
+const PROBE_TOOL: ToolSpec = {
+  type: 'function',
+  function: {
+    name: 'echo_test',
+    description: 'Echo test for capability detection',
+    parameters: {
+      type: 'object',
+      properties: { text: { type: 'string', description: 'Text to echo' } },
+      required: ['text'],
+    },
+  },
+}
+
+/**
+ * 探针检测模型能力（vision / function calling / nativeSearch）
+ * 通过发送真实 API 请求判断，不依赖模型名猜测
+ */
+export async function probeCapabilities(
+  config: ModelConfig
+): Promise<{ vision: boolean; webSearch: boolean; nativeSearch: boolean; visionError?: string; webSearchError?: string }> {
+  // ===== Vision 探针：发送带图片的消息 =====
+  let vision = false
+  let visionError: string | undefined
+  try {
+    await chat(
+      [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: '这张图里有什么？用一个词回答' },
+            { type: 'image_url', image_url: { url: PROBE_IMAGE_URL, detail: 'low' } },
+          ],
+        },
+      ],
+      [],
+      config
+    )
+    vision = true
+  } catch (e) {
+    visionError = (e as Error).message
+    vision = false
+  }
+
+  // ===== Function calling 探针：发送带 tools 的请求 =====
+  let webSearch = false
+  let webSearchError: string | undefined
+  try {
+    await chat([{ role: 'user', content: 'ping' }], [PROBE_TOOL], config)
+    webSearch = true
+  } catch (e) {
+    webSearchError = (e as Error).message
+    webSearch = false
+  }
+
+  // ===== 原生联网搜索探针：发送带 enable_search 的请求 =====
+  let nativeSearch = false
+  if (config.provider === 'qwen') {
+    try {
+      await chat([{ role: 'user', content: 'ping' }], [], { ...config, nativeSearch: true })
+      nativeSearch = true
+    } catch {
+      nativeSearch = false
+    }
+  }
+
+  return { vision, webSearch, nativeSearch, visionError, webSearchError }
 }

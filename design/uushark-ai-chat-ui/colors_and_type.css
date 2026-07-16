@@ -1,12 +1,14 @@
 /*
- * UniDoc 全局样式与设计 token
- * 来源:Pinguo design tokens(从 design/pages/editor.html 提取)
- * 字体遵循 PRD §9.1:Noto Sans CJK SC / Noto Sans / JetBrains Mono
- * 不使用 DM Sans(按审核反馈)
+ * UU鲨 AI Chat UI — Brand Design Tokens
+ * Based on UU鲨 existing design system (Apple-inspired, brand-500: #007aff)
+ * Extended with AI chat-specific tokens per UI redesign guide
  */
 
-/* ===== PRIMITIVE PALETTE ===== */
+/* @group-priority: brand, background, text, icon, state-success, state-error */
+
 :root {
+  /* ===== PRIMITIVE PALETTE ===== */
+
   /* brand */
   --brand-50: #e8f2ff;
   --brand-100: #cfe5ff;
@@ -55,18 +57,20 @@
   --icon-800: #2c2c2e;
   --icon-900: #1d1d1f;
 
-  /* state */
+  /* state-success */
   --state-success: #34c759;
   --state-success-dark: #30d158;
   --state-success-surface: #e9f9ee;
   --state-success-foreground: #ffffff;
 
+  /* state-error */
   --state-error: #ff3b30;
   --state-error-dark: #ff453a;
   --state-error-surface: #ffecea;
   --state-error-foreground: #ffffff;
 
-  /* ===== SEMANTIC ROLES (light) ===== */
+  /* ===== SEMANTIC ROLES ===== */
+
   --background: var(--background-50);
   --foreground: var(--text-800);
   --card: var(--background-50);
@@ -86,7 +90,6 @@
   --destructive-foreground: var(--state-error-foreground);
   --success: var(--state-success);
   --success-foreground: var(--state-success-foreground);
-  --success-surface: var(--state-success-surface);
   --border: var(--background-300);
   --input: var(--background-400);
   --ring: var(--brand-500);
@@ -94,24 +97,10 @@
   --icon: var(--icon-900);
   --icon-muted: var(--icon-500);
 
-  --chart-1: var(--state-success);
-  --chart-2: var(--brand-500);
-  --chart-3: #ff9500;
-  --chart-4: #5856d6;
-  --chart-5: #af52de;
-
-  --sidebar: var(--background-200);
-  --sidebar-foreground: var(--text-800);
-  --sidebar-primary: var(--brand-500);
-  --sidebar-primary-foreground: var(--background-50);
-  --sidebar-accent: var(--background-300);
-  --sidebar-accent-foreground: var(--text-800);
-  --sidebar-border: var(--background-300);
-  --sidebar-ring: var(--brand-500);
-
-  /* TYPOGRAPHY - 严格遵循 PRD §9.1 字体策略 */
+  /* TYPOGRAPHY */
   --font-sans: "Noto Sans CJK SC", "Noto Sans", sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --font-serif: DM Sans, ui-sans-serif, sans-serif, system-ui;
+  --font-mono: JetBrains Mono, monospace;
   --tracking-normal: 0em;
 
   /* RADIUS */
@@ -119,15 +108,6 @@
   --radius-compact: 8px;
   --radius-button: 6px;
   --radius-tag: 4px;
-
-  /* LAYOUT SIZES */
-  --ribbon-width: 48px;
-  --file-explorer-width: 220px;
-  --outline-panel-width: 240px;
-  --titlebar-height: 32px;
-  --statusbar-height: 24px;
-  --tabbar-height: 32px;
-  --toolbar-height: 40px;
 
   /* SHADOWS */
   --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.04);
@@ -139,16 +119,25 @@
   --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.10), 0 8px 16px -8px rgba(0, 0, 0, 0.06);
   --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.12);
 
+  /* SPACING */
   --spacing: 0.24rem;
 
-  /* A4 纸张尺寸:210mm × 297mm,按 96dpi ≈ 794px × 1123px */
-  --a4-width: 794px;
-  --a4-min-height: 1123px;
+  /* ===== AI CHAT SPECIFIC TOKENS ===== */
 
-  /* AI 浮窗专用 */
+  /* Conversation list */
   --conversation-active-bar: var(--brand-500);
   --conversation-active-bg: var(--brand-50);
+
+  /* Code block */
   --code-bg: rgba(0, 0, 0, 0.06);
+
+  /* Layout dimensions */
+  --floating-width: 480px;
+  --floating-height: 600px;
+  --floating-min-width: 360px;
+  --floating-min-height: 450px;
+  --conversation-list-width: 160px;
+  --conversation-list-collapsed-width: 40px;
 }
 
 /* ===== SEMANTIC ROLES - dark ===== */
@@ -172,28 +161,12 @@
   --destructive-foreground: var(--state-error-foreground);
   --success: var(--state-success-dark);
   --success-foreground: var(--state-success-foreground);
-  --success-surface: #1a3d28;
   --border: var(--background-700);
   --input: var(--background-700);
   --ring: var(--brand-400);
 
   --icon: var(--icon-50);
   --icon-muted: var(--icon-500);
-
-  --chart-1: var(--state-success-dark);
-  --chart-2: var(--brand-400);
-  --chart-3: #ff9f0a;
-  --chart-4: #5e5ce6;
-  --chart-5: #bf5af2;
-
-  --sidebar: var(--background-800);
-  --sidebar-foreground: var(--text-50);
-  --sidebar-primary: var(--brand-400);
-  --sidebar-primary-foreground: var(--background-900);
-  --sidebar-accent: var(--background-700);
-  --sidebar-accent-foreground: var(--text-50);
-  --sidebar-border: var(--background-700);
-  --sidebar-ring: var(--brand-400);
 
   --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.30);
   --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
@@ -204,79 +177,7 @@
   --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.55), 0 8px 16px -8px rgba(0, 0, 0, 0.44);
   --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.60);
 
-  /* AI 浮窗专用 */
   --conversation-active-bar: var(--brand-400);
   --conversation-active-bg: rgba(46, 141, 255, 0.12);
   --code-bg: rgba(255, 255, 255, 0.06);
-}
-
-/* ===== 全局基础样式 ===== */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html,
-body,
-#app {
-  height: 100%;
-  width: 100%;
-}
-
-body {
-  font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--foreground);
-  background: var(--background);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  overflow: hidden;
-}
-
-button {
-  font-family: inherit;
-  cursor: pointer;
-  border: none;
-  background: none;
-  color: inherit;
-}
-
-input,
-textarea {
-  font-family: inherit;
-  color: inherit;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-/* 隐藏滚动条工具类 */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-/* 通用工具类 */
-.truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 焦点可见性 */
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-a:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
 }

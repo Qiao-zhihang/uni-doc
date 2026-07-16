@@ -5,6 +5,11 @@
 
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool'
 
+/** 多模态内容块（用于图片理解等场景） */
+export interface TextContent { type: 'text'; text: string }
+export interface ImageUrlContent { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } }
+export type MessageContent = TextContent | ImageUrlContent
+
 export interface ToolCall {
   id: string
   type: 'function'
@@ -13,7 +18,7 @@ export interface ToolCall {
 
 export interface ChatMessage {
   role: ChatRole
-  content: string
+  content: string | MessageContent[]
   tool_calls?: ToolCall[]
   tool_call_id?: string
 }
@@ -49,6 +54,10 @@ export interface ModelConfig {
   model: string
   temperature: number
   maxTokens: number
+  /** 提供商标识，用于决定原生联网参数格式 */
+  provider?: string
+  /** 模型是否支持原生联网搜索（优先使用，不走 function calling） */
+  nativeSearch?: boolean
 }
 
 export interface AgentContextBlock {

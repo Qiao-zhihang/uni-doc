@@ -635,6 +635,177 @@ fn clear_ai_history() -> Result<(), String> {
     Ok(())
 }
 
+/// 保存 AI 会话列表 JSON 到 ~/.unidoc/ai_conversations.json
+#[tauri::command]
+fn save_ai_conversations(json: String) -> Result<(), String> {
+    let home = dirs::home_dir().ok_or("无法获取用户主目录")?;
+    let dir = home.join(".unidoc");
+    fs::create_dir_all(&dir).map_err(|e| format!("创建配置目录失败: {}", e))?;
+    let file_path = dir.join("ai_conversations.json");
+    fs::write(&file_path, json).map_err(|e| format!("写入会话数据失败: {}", e))?;
+    Ok(())
+}
+
+/// 读取 ~/.unidoc/ai_conversations.json,不存在返回空字符串
+#[tauri::command]
+fn load_ai_conversations() -> Result<String, String> {
+    let home = dirs::home_dir().ok_or("无法获取用户主目录")?;
+    let file_path = home.join(".unidoc").join("ai_conversations.json");
+    if !file_path.exists() {
+        return Ok(String::new());
+    }
+    fs::read_to_string(&file_path).map_err(|e| format!("读取会话数据失败: {}", e))
+}
+
+/// 联网搜索：使用 Bing 搜索，国内连通性好，绕过 CORS
+/// 返回搜索结果的纯文本摘要
+#[tauri::command]
+fn web_search(query: String) -> Result<String, String> {
+    use html_escape::decode_html_entities;
+    let url = format!(
+        "https://www.bing.com/search?q={}&setlang=zh-CN",
+        urlencoding::encode(&query)
+    );
+    let resp = ureq::get(&url)
+        .set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+        .set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        .timeout(std::time::Duration::from_secs(15))
+        .call()
+        .map_err(|e| format!("搜索请求失败: {}", e))?;
+    let html = resp.into_string().map_err(|e| format!("读取响应失败: {}", e))?;
+
+    let mut results: Vec<(String, String, String)> = Vec::new();
+
+    // 找到搜索结果容器 id="b_results"
+    let start_pos = match html.find(r#"id="b_results""#) {
+        Some(i) => i,
+        None => return Ok("未找到相关搜索结果。".to_string()),
+    };
+
+    // 解析 Bing 搜索结果:
+    // 每个结果在 <li class="b_algo"> 中
+    // 标题: <h2><a>...</a></h2>
+    // 链接: h2 内 a 标签的 href
+    // 摘要: <div class="b_caption"> 内的 <p> 标签
+    let mut pos = start_pos;
+    while let Some(idx) = html[pos..].find(r#"<li class="b_algo""#) {
+        let li_start = pos + idx;
+        // 找到 <li 标签结束位置
+        let li_tag_end = match html[li_start..].find('>') {
+            Some(i) => li_start + i + 1,
+            None => { pos = li_start + 20; continue; }
+        };
+        // 查找下一个 <li class="b_algo" 作为当前结果的大致结束点
+        let next_li = html[li_tag_end..]
+            .find(r#"<li class="b_algo""#)
+            .map_or(html.len(), |i| li_tag_end + i);
+        let chunk = &html[li_tag_end..next_li];
+        pos = next_li;
+
+        // 提取标题和链接: 在 <h2> 标签内的 <a> 中
+        let (title, link) = if let Some(h2_start) = chunk.find("<h2") {
+            let h2_end = match chunk[h2_start..].find("</h2>") {
+                Some(i) => h2_start + i,
+                None => { continue; }
+            };
+            let h2_html = &chunk[h2_start..h2_end];
+            // 找 <a 标签
+            if let Some(a_start) = h2_html.find("<a") {
+                // 找 href
+                let href = if let Some(href_idx) = h2_html[a_start..].find(r#"href=""#) {
+                    let href_val_start = a_start + href_idx + 6;
+                    let href_val_end = match h2_html[href_val_start..].find('"') {
+                        Some(i) => href_val_start + i,
+                        None => { continue; }
+                    };
+                    h2_html[href_val_start..href_val_end].to_string()
+                } else {
+                    continue;
+                };
+                // 找 a 标签文本内容
+                let a_text = if let Some(a_open_end) = h2_html[a_start..].find('>') {
+                    let text_start = a_start + a_open_end + 1;
+                    let text_end = match h2_html[text_start..].find("</a>") {
+                        Some(i) => text_start + i,
+                        None => { continue; }
+                    };
+                    let raw = &h2_html[text_start..text_end];
+                    // 移除嵌套的 HTML 标签（如 <strong> 等）
+                    let cleaned = strip_html_tags(raw);
+                    decode_html_entities(&cleaned).to_string()
+                } else {
+                    continue;
+                };
+                (a_text, href)
+            } else {
+                continue;
+            }
+        } else {
+            continue;
+        };
+
+        let snippet = if let Some(cap_start) = chunk.find(r#"class="b_caption""#) {
+            let cap_tag_start = match chunk[..cap_start].rfind('<') {
+                Some(i) => i,
+                None => continue,
+            };
+            let cap_chunk = &chunk[cap_tag_start..];
+            if let Some(p_start) = cap_chunk.find("<p") {
+                let p_open_end = match cap_chunk[p_start..].find('>') {
+                    Some(i) => p_start + i + 1,
+                    None => continue,
+                };
+                let p_end = match cap_chunk[p_open_end..].find("</p>") {
+                    Some(i) => p_open_end + i,
+                    None => cap_chunk.len(),
+                };
+                let raw = &cap_chunk[p_open_end..p_end];
+                let cleaned = strip_html_tags(raw);
+                decode_html_entities(&cleaned).to_string()
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+        results.push((title, link, snippet));
+        if results.len() >= 10 { break; }
+    }
+
+    if results.is_empty() {
+        return Ok("未找到相关搜索结果。".to_string());
+    }
+
+    let mut output = String::new();
+    output.push_str(&format!("搜索关键词: {}\n\n", query));
+    for (i, (title, link, snippet)) in results.iter().enumerate() {
+        output.push_str(&format!("{}. {}\n", i + 1, title));
+        if !snippet.is_empty() {
+            output.push_str(&format!("   {}\n", snippet));
+        }
+        output.push_str(&format!("   {}\n\n", link));
+    }
+
+    Ok(output)
+}
+
+/// 移除字符串中的 HTML 标签
+fn strip_html_tags(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut in_tag = false;
+    for c in s.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => result.push(c),
+            _ => {}
+        }
+    }
+    result
+}
+
 /// 从 ZIP 中读取指定条目为字符串
 fn read_zip_entry<R: std::io::Read + std::io::Seek>(
     archive: &mut zip::ZipArchive<R>,
@@ -696,6 +867,9 @@ pub fn run() {
             save_ai_history,
             load_ai_history,
             clear_ai_history,
+            save_ai_conversations,
+            load_ai_conversations,
+            web_search,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
