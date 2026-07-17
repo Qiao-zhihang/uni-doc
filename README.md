@@ -35,7 +35,7 @@ We firmly believe **Markdown** is the optimal bridge connecting human thought wi
 The installer is only **10MB**, built on Tauri v2 without embedding the massive Chrome kernel.
 Utilizing the system WebView for rendering, it achieves instant cold starts so your inspiration never has to wait.
 
-#### 2. 📝 A Three-in-One Creative Experience
+#### 2. A Three-in-One Creative Experience
 One Markdown file, three presentation modes:
 - **Document Mode**: A smooth reading and writing experience, supporting outlines and code highlighting.
 - **Table Insertion**: Insert tables within documents to handle data statistics easily, bidding farewell to the heaviness of Excel.
@@ -126,7 +126,7 @@ This project is open-sourced under the [MIT License](LICENSE).
 安装包仅 **10MB**，基于 Tauri v2 构建，不内嵌庞大的 Chrome 内核。
 利用系统 WebView 进行渲染，冷启动速度极快，让您的灵感无需等待。
 
-#### 2. 📝 三位一体的创作体验
+#### 2. 三位一体的创作体验
 一份 Markdown 文件，三种展现形态：
 - **文档模式**：流畅的阅读与写作体验，支持大纲、代码高亮。
 - **表格插入**：在文档中插入表格，轻松处理数据统计，告别 Excel 的繁重。
