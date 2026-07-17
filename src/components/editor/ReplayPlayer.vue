@@ -195,8 +195,8 @@ const currentInfo = computed(() => {
 /** 类型图标颜色 */
 const typeColor = (type: string) => {
   switch (type) {
-    case 'milestone': return 'var(--brand-500)'
-    case 'manual': return 'var(--warning, #f59e0b)'
+    case 'milestone': return 'var(--primary)'
+    case 'manual': return '#f59e0b'
     default: return 'var(--muted-foreground)'
   }
 }
@@ -338,11 +338,11 @@ const typeColor = (type: string) => {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: #0a0a0a;
+  background: var(--muted);
   display: flex;
   flex-direction: column;
   font-family: var(--font-sans);
-  color: #e0e0e0;
+  color: var(--foreground);
 }
 
 /* 顶部信息栏 */
@@ -351,8 +351,8 @@ const typeColor = (type: string) => {
   align-items: center;
   justify-content: space-between;
   padding: 10px 20px;
-  background: rgba(20, 20, 20, 0.95);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 .top-left {
@@ -362,12 +362,12 @@ const typeColor = (type: string) => {
   font-size: 13px;
 }
 .replay-icon {
-  color: var(--brand-500);
+  color: var(--primary);
   font-size: 14px;
 }
 .replay-title {
   font-weight: 600;
-  color: #fff;
+  color: var(--foreground);
 }
 .replay-meta {
   color: var(--muted-foreground);
@@ -386,17 +386,17 @@ const typeColor = (type: string) => {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #aaa;
+  color: var(--muted-foreground);
   cursor: pointer;
   transition: all 0.15s;
 }
 .top-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: var(--accent);
+  color: var(--foreground);
 }
 .top-btn.exit:hover {
-  background: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
+  background: color-mix(in srgb, var(--destructive) 20%, transparent);
+  color: var(--destructive);
 }
 
 /* 内容展示区 */
@@ -410,12 +410,12 @@ const typeColor = (type: string) => {
 .content-paper {
   width: 100%;
   max-width: 794px;
-  background: #fff;
-  color: #1a1a1a;
+  background: var(--card);
+  color: var(--card-foreground);
   border-radius: 8px;
   padding: 48px 56px;
   min-height: 200px;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-2xl);
 }
 .content-paper :deep(.paragraph-block) {
   font-size: 16px;
@@ -433,7 +433,7 @@ const typeColor = (type: string) => {
 .content-paper :deep(.quote-block) {
   font-size: 16px;
   padding: 12px 20px;
-  border-left: 4px solid var(--brand-500);
+  border-left: 4px solid var(--primary);
   background: var(--secondary);
 }
 .content-paper :deep(.code-block) {
@@ -441,7 +441,7 @@ const typeColor = (type: string) => {
 }
 .empty-hint {
   text-align: center;
-  color: #999;
+  color: var(--muted-foreground);
   padding: 40px;
   font-size: 14px;
 }
@@ -452,8 +452,8 @@ const typeColor = (type: string) => {
   align-items: center;
   gap: 8px;
   padding: 6px 20px;
-  background: rgba(20, 20, 20, 0.9);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--card);
+  border-top: 1px solid var(--border);
   font-size: 12px;
   flex-shrink: 0;
 }
@@ -464,7 +464,7 @@ const typeColor = (type: string) => {
   flex-shrink: 0;
 }
 .label-text {
-  color: #ccc;
+  color: var(--foreground);
   font-weight: 500;
 }
 .label-time {
@@ -475,9 +475,9 @@ const typeColor = (type: string) => {
 /* 设置面板 */
 .settings-panel {
   padding: 12px 20px;
-  background: rgba(20, 20, 20, 0.95);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 .settings-row {
@@ -488,22 +488,22 @@ const typeColor = (type: string) => {
   font-size: 13px;
 }
 .settings-label {
-  color: #ccc;
+  color: var(--foreground);
 }
 .toggle-btn {
   padding: 4px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--border);
   border-radius: 6px;
   background: transparent;
-  color: #aaa;
+  color: var(--muted-foreground);
   font-size: 12px;
   cursor: pointer;
   transition: all 0.15s;
 }
 .toggle-btn.on {
-  background: var(--brand-500);
-  border-color: var(--brand-500);
-  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
 }
 .interval-input {
   display: flex;
@@ -513,17 +513,17 @@ const typeColor = (type: string) => {
 .interval-input input {
   width: 60px;
   padding: 4px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--input);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
+  background: var(--secondary);
+  color: var(--foreground);
   font-size: 12px;
   font-family: var(--font-mono);
   text-align: center;
 }
 .interval-input input:focus {
   outline: none;
-  border-color: var(--brand-500);
+  border-color: var(--ring);
 }
 .interval-unit {
   color: var(--muted-foreground);
@@ -535,27 +535,27 @@ const typeColor = (type: string) => {
 }
 .speed-option {
   padding: 4px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--border);
   border-radius: 6px;
   background: transparent;
-  color: #aaa;
+  color: var(--muted-foreground);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
 }
 .speed-option:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--accent);
 }
 .speed-option.active {
-  background: var(--brand-500);
-  border-color: var(--brand-500);
-  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
 }
 .settings-info {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--border);
   color: var(--muted-foreground);
   font-size: 11px;
 }
@@ -578,8 +578,8 @@ const typeColor = (type: string) => {
 /* 底部控制栏 */
 .bottom-bar {
   padding: 12px 20px 16px;
-  background: rgba(15, 15, 15, 0.98);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--card);
+  border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -597,7 +597,7 @@ const typeColor = (type: string) => {
   left: 0;
   right: 0;
   height: 3px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--border);
   border-radius: 2px;
   transform: translateY(-50%);
 }
@@ -606,7 +606,7 @@ const typeColor = (type: string) => {
   top: 50%;
   left: 0;
   height: 3px;
-  background: var(--brand-500);
+  background: var(--primary);
   border-radius: 2px;
   transform: translateY(-50%);
   transition: width 0.3s ease;
@@ -617,32 +617,32 @@ const typeColor = (type: string) => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--muted-foreground);
+  border: 1px solid var(--border);
   transform: translate(-50%, -50%);
   transition: all 0.15s;
   cursor: pointer;
 }
 .timeline-marker:hover {
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--foreground);
   transform: translate(-50%, -50%) scale(1.3);
 }
 .timeline-marker.manual {
-  background: rgba(245, 158, 11, 0.6);
-  border-color: rgba(245, 158, 11, 0.8);
+  background: #f59e0b;
+  border-color: #f59e0b;
 }
 .timeline-marker.milestone {
-  background: var(--brand-500);
-  border-color: var(--brand-400);
+  background: var(--primary);
+  border-color: var(--ring);
   width: 10px;
   height: 10px;
 }
 .timeline-marker.active {
-  background: #fff;
-  border-color: var(--brand-500);
+  background: var(--foreground);
+  border-color: var(--primary);
   width: 12px;
   height: 12px;
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--foreground) 50%, transparent);
 }
 
 /* 控制按钮 */
@@ -660,14 +660,14 @@ const typeColor = (type: string) => {
   height: 36px;
   border: none;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #ddd;
+  background: var(--accent);
+  color: var(--foreground);
   cursor: pointer;
   transition: all 0.15s;
 }
 .ctrl-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: var(--secondary);
+  color: var(--foreground);
 }
 .ctrl-btn:disabled {
   opacity: 0.3;
@@ -676,26 +676,26 @@ const typeColor = (type: string) => {
 .ctrl-btn.play-btn {
   width: 44px;
   height: 44px;
-  background: var(--brand-500);
-  color: #fff;
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 .ctrl-btn.play-btn:hover {
-  background: var(--brand-400);
+  background: var(--ring);
 }
 .speed-btn {
   margin-left: 8px;
   padding: 6px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--border);
   border-radius: 6px;
   background: transparent;
-  color: #ccc;
+  color: var(--foreground);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
 }
 .speed-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: var(--accent);
+  color: var(--foreground);
 }
 </style>
