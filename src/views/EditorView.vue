@@ -19,8 +19,10 @@ import Toolbar from '@/components/editor/Toolbar.vue'
 import EditorTabs from '@/components/editor/EditorTabs.vue'
 import BlockEditor from '@/components/editor/BlockEditor.vue'
 import PresentationMode from '@/components/editor/PresentationMode.vue'
+import ReplayPlayer from '@/components/editor/ReplayPlayer.vue'
 import { useEditorStore } from '@/stores/editor'
 import { useDocumentStore } from '@/stores/document'
+import { useReplayStore } from '@/stores/replay'
 import { useBreakpoint } from '@/composables/useBreakpoint'
 
 /* ===== 空状态鲨鱼图(eager + ?url,避免动态 import 在 Tauri WebView 中失败) ===== */
@@ -60,6 +62,7 @@ function randomShark() {
 
 const editor = useEditorStore()
 const doc = useDocumentStore()
+const replay = useReplayStore()
 const breakpoint = useBreakpoint()
 
 // 演示模式
@@ -75,6 +78,37 @@ function exitPresentation() {
     doc.renderTick++
   })
 }
+
+// 回放模式
+const replayMode = ref(false)
+function enterReplay() {
+  if (doc.openTabs.length === 0 || !replay.hasSnapshots) return
+  replayMode.value = true
+  replay.play()
+}
+function exitReplay() {
+  replayMode.value = false
+  replay.exitReplay()
+}
+
+// 回放快照生命周期:文档切换时加载/卸载 history
+watch(
+  () => doc.activeTabId,
+  (newId, oldId) => {
+    if (oldId) replay.unload()
+    if (newId) {
+      const tab = doc.openTabs.find((t) => t.id === newId)
+      if (tab?.path) {
+        void replay.loadForDoc(tab.path)
+      }
+    }
+  },
+  { immediate: true }
+)
+
+onUnmounted(() => {
+  replay.dispose()
+})
 
 // 进入空状态(打开文件数从 >0 变 0,或初始即为 0)时随机选一张鲨鱼
 watch(
@@ -165,7 +199,7 @@ onUnmounted(() => {
     <div class="main-area">
       <TitleBar />
       <EditorTabs />
-      <Toolbar @presentation="enterPresentation" />
+      <Toolbar @presentation="enterPresentation" @replay="enterReplay" />
 
       <!-- 编辑器 + 右侧大纲面板 -->
       <div class="editor-area">
@@ -195,6 +229,12 @@ onUnmounted(() => {
       v-if="presentationMode && doc.openTabs.length > 0"
       :blocks="doc.blocks"
       @exit="exitPresentation"
+    />
+
+    <!-- 文档回放模式(全屏覆盖) -->
+    <ReplayPlayer
+      v-if="replayMode"
+      @exit="exitReplay"
     />
   </main>
 </template>

@@ -6,29 +6,20 @@ created_at: "2026-07-17T14:32:43.322Z"
 updated_at: "2026-07-17T14:40:57.687Z"
 ---
 
+## 🇺🇸 English Version
+
 <div align="center">
 
 # unidoc
 **A Lightweight Document Engine Reimagined for the AI Era**
 
----
+<span>One Markdown file, seamlessly integrating documents, tables, and slides, enabling AI to truly comprehend your data.</span>
 
-# unidoc
-**为 AI 时代重塑的轻量级文档引擎**
+<a href="#">Download</a> · <a href="#">Documentation</a> · <a href="#">Contribute</a>
 
 </div>
 
 ---
-
-## 🇺🇸 English Version
-
-<p align="center">
-  <span>One Markdown file, seamlessly integrating documents, tables, and slides, enabling AI to truly comprehend your data.</span>
-</p>
-
-<p align="center">
-  <a href="#">Download</a> · <a href="#">Documentation</a> · <a href="#">Contribute</a>
-</p>
 
 ### Our Design Philosophy
 
@@ -44,7 +35,7 @@ We firmly believe **Markdown** is the optimal bridge connecting human thought wi
 The installer is only **10MB**, built on Tauri v2 without embedding the massive Chrome kernel.
 Utilizing the system WebView for rendering, it achieves instant cold starts so your inspiration never has to wait.
 
-#### 2. A Three-in-One Creative Experience
+#### 2. 📝 A Three-in-One Creative Experience
 One Markdown file, three presentation modes:
 - **Document Mode**: A smooth reading and writing experience, supporting outlines and code highlighting.
 - **Table Insertion**: Insert tables within documents to handle data statistics easily, bidding farewell to the heaviness of Excel.
@@ -96,7 +87,7 @@ unidoc is currently in its early stages, and we warmly welcome all forms of cont
 - Submit Pull Requests to participate in code development.
 - Share your experience using unidoc and your templates.
 
-### License
+### 📜 License
 
 This project is open-sourced under the [MIT License](LICENSE).
 
@@ -108,13 +99,18 @@ This project is open-sourced under the [MIT License](LICENSE).
 
 ## 🇨🇳 中文版
 
-<p align="center">
-  <span>一份 Markdown 文件，融合文档、表格与幻灯片，让 AI 真正理解您的数据。</span>
-</p>
+<div align="center">
 
-<p align="center">
-  <a href="#">下载体验</a> · <a href="#">使用文档</a> · <a href="#">参与贡献</a>
-</p>
+# unidoc
+**为 AI 时代重塑的轻量级文档引擎**
+
+<span>一份 Markdown 文件，融合文档、表格与幻灯片，让 AI 真正理解您的数据。</span>
+
+<a href="#">下载体验</a> · <a href="#">使用文档</a> · <a href="#">参与贡献</a>
+
+</div>
+
+---
 
 ### 我们的设计哲学
 
@@ -130,7 +126,7 @@ This project is open-sourced under the [MIT License](LICENSE).
 安装包仅 **10MB**，基于 Tauri v2 构建，不内嵌庞大的 Chrome 内核。
 利用系统 WebView 进行渲染，冷启动速度极快，让您的灵感无需等待。
 
-#### 2. 三位一体的创作体验
+#### 2. 📝 三位一体的创作体验
 一份 Markdown 文件，三种展现形态：
 - **文档模式**：流畅的阅读与写作体验，支持大纲、代码高亮。
 - **表格插入**：在文档中插入表格，轻松处理数据统计，告别 Excel 的繁重。
@@ -182,7 +178,7 @@ unidoc 目前处于早期阶段，我们热忱欢迎各种形式的贡献：
 - 提交 Pull Request 参与代码共建。
 - 分享您使用 unidoc 的体验与模版。
 
-### 开源协议
+### 📜 开源协议
 
 本项目基于 [MIT License](LICENSE) 开源。
 

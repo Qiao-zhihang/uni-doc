@@ -20,6 +20,8 @@ const emit = defineEmits<{
 
 const el = ref<HTMLElement | null>(null)
 const selfUpdate = ref(false)
+/** Enter 换块时跳过 onBlur 提交(此时 DOM 还显示旧文本,会覆盖已提交的截断内容) */
+const skipNextBlur = ref(false)
 const autocomplete = useWikilinkAutocomplete({ el })
 
 const content = () => props.block.content as HeadingContent
@@ -139,12 +141,14 @@ function onKeydown(e: KeyboardEvent) {
       const afterText = fullText.slice(offset)
       commitWithMarks(beforeText)
       selfUpdate.value = false
+      skipNextBlur.value = true
       emit('enter', afterText)
     } else {
       emit('enter', '')
     }
   } else if (e.key === 'Backspace' && isCursorAtStart()) {
     e.preventDefault()
+    skipNextBlur.value = true
     emit('backspace-merge')
   }
 }
@@ -155,6 +159,10 @@ function onInput() {
 
 function onBlur() {
   autocomplete.close()
+  if (skipNextBlur.value) {
+    skipNextBlur.value = false
+    return
+  }
   if (el.value) {
     commitWithMarks(el.value.innerText)
   }

@@ -21,6 +21,8 @@ const emit = defineEmits<{
 
 const el = ref<HTMLElement | null>(null)
 const selfUpdate = ref(false)
+/** Enter 换块时跳过 onBlur 提交(此时 DOM 还显示旧文本,会覆盖已提交的截断内容) */
+const skipNextBlur = ref(false)
 
 // wikilink 自动补全
 const autocomplete = useWikilinkAutocomplete({ el })
@@ -142,12 +144,17 @@ function onKeydown(e: KeyboardEvent) {
       const afterText = fullText.slice(offset)
       commitWithMarks(beforeText)
       selfUpdate.value = false
+      // 跳过即将触发的 onBlur:selectBlock 会导致本块失焦,
+      // 但此时 DOM 仍显示旧文本,onBlur 会错误覆盖已提交的截断内容
+      skipNextBlur.value = true
       emit('enter', afterText)
     } else {
       emit('enter', '')
     }
   } else if (e.key === 'Backspace' && isCursorAtStart()) {
     e.preventDefault()
+    // 同理:Backspace 合并也会导致失焦,跳过 onBlur
+    skipNextBlur.value = true
     emit('backspace-merge')
   }
 }
@@ -160,6 +167,11 @@ function onInput() {
 /** 失焦时提交并切回阅读态(由 isSelected watch 处理渲染) */
 function onBlur() {
   autocomplete.close()
+  // Enter/Backspace 换块时已显式提交,跳过(此时 DOM 可能还显示旧文本)
+  if (skipNextBlur.value) {
+    skipNextBlur.value = false
+    return
+  }
   if (el.value) {
     commitWithMarks(el.value.innerText)
   }

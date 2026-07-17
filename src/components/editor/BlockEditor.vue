@@ -21,6 +21,8 @@ const editor = useEditorStore()
 
 const canvasRef = ref<HTMLElement | null>(null)
 const sourceText = ref('')
+/** 源码模式下用户正在输入时阻止 syncSource 覆盖 textarea */
+const isSourceInputting = ref(false)
 
 const selectedId = computed(() => editor.selectedBlockId)
 
@@ -238,9 +240,22 @@ function syncSource() {
 }
 
 function onSourceInput() {
+  isSourceInputting.value = true
   const parsed = deserializeMarkdown(sourceText.value)
   doc.replaceBlocks(parsed, '编辑源码')
+  nextTick(() => { isSourceInputting.value = false })
 }
+
+// 源码模式:blocks 变化时(撤销/重做/外部修改)自动同步 textarea
+watch(
+  () => doc.blocks,
+  () => {
+    if (editor.mode === 'source' && !isSourceInputting.value) {
+      syncSource()
+    }
+  },
+  { deep: true }
+)
 
 /* ===== 全局快捷键 ===== */
 function onKeydown(e: KeyboardEvent) {

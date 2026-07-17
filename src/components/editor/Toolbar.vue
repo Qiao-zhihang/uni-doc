@@ -25,13 +25,18 @@ import {
   Save,
   FolderOpen,
   Plus,
-  Presentation
+  Presentation,
+  History,
+  Flag
 } from 'lucide-vue-next'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
+import { useReplayStore } from '@/stores/replay'
 import type { BlockType, ListType } from '@/core/blocks/types'
 
-const emit = defineEmits<{ (e: 'presentation'): void }>()
+const emit = defineEmits<{ (e: 'presentation'): void; (e: 'replay'): void }>()
+
+const replay = useReplayStore()
 
 const doc = useDocumentStore()
 const editor = useEditorStore()
@@ -276,6 +281,27 @@ function onRedo() {
     >
       <Presentation :size="14" />
       <span>演示</span>
+    </button>
+
+    <!-- 标记里程碑 -->
+    <button
+      class="mode-btn"
+      :disabled="!hasActiveTab || !replay.config.enabled"
+      title="标记回放里程碑"
+      @click.stop="replay.markMilestone('里程碑')"
+    >
+      <Flag :size="14" />
+    </button>
+
+    <!-- 文档回放 -->
+    <button
+      class="mode-btn"
+      :disabled="!hasActiveTab || !replay.hasSnapshots"
+      title="文档回放"
+      @click.stop="emit('replay')"
+    >
+      <History :size="14" />
+      <span>回放</span>
     </button>
   </div>
 </template>
