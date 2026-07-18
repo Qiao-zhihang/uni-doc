@@ -57,12 +57,6 @@ export const useReplayStore = defineStore('replay', () => {
     return JSON.parse(JSON.stringify(blocks))
   }
 
-  /** 获取当前文档的 vault 路径 */
-  function getDocPath(): string | null {
-    const tab = doc.openTabs.find((t) => t.id === doc.activeTabId)
-    return tab?.path ?? null
-  }
-
   /** 获取文档标题 */
   function getDocTitle(): string {
     const tab = doc.openTabs.find((t) => t.id === doc.activeTabId)

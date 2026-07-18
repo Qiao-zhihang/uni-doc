@@ -3,7 +3,7 @@
  * 文档回放播放器
  * 视频播放器风格:顶部极简 + 左侧目录 + 中间内容 + 底部悬浮控制栏
  */
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   Play,
   Pause,
@@ -483,7 +483,7 @@ const typeColor = (type: string) => {
           class="label-wrapper"
           :class="{ hovered: labelHovered || isEditing }"
           @mouseenter="labelHovered = true"
-          @mouseleave="labelHovered = false && !isEditing ? labelHovered = false : null"
+          @mouseleave="!isEditing && (labelHovered = false)"
         >
           <span class="label-dot" :style="{ background: typeColor(currentInfo.type) }"></span>
 
