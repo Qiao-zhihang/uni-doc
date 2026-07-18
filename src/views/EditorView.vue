@@ -84,7 +84,6 @@ const replayMode = ref(false)
 function enterReplay() {
   if (doc.openTabs.length === 0 || !replay.hasSnapshots) return
   replayMode.value = true
-  replay.play()
 }
 function exitReplay() {
   replayMode.value = false

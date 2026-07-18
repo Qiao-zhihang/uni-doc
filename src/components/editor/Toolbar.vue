@@ -23,11 +23,13 @@ import {
   ListOrdered,
   ListChecks,
   Save,
-  FolderOpen,
   Plus,
   Presentation,
-  History,
-  Flag
+  Film,
+  Flag,
+  Play,
+  Settings,
+  X
 } from 'lucide-vue-next'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
@@ -43,9 +45,20 @@ const editor = useEditorStore()
 
 const showHeadingMenu = ref(false)
 const showInsertMenu = ref(false)
+const showHistoryMenu = ref(false)
+const showReplaySettings = ref(false)
+const milestoneAnimating = ref(false)
 
 /** 是否有活动文档(无文档时编辑类按钮禁用) */
 const hasActiveTab = computed(() => doc.activeTabId !== '')
+
+/** 当前文档文件名（用于设置弹窗提示） */
+const historyFileName = computed(() => {
+  const path = doc.activeTabPath
+  if (!path) return ''
+  const name = path.split('/').pop() || path.split('\\').pop() || path
+  return `${name}.history.json`
+})
 
 const headingOptions = [
   { label: '正文', type: 'paragraph' as BlockType },
@@ -79,11 +92,19 @@ function toggleHeadingMenu() {
 function toggleInsertMenu() {
   showInsertMenu.value = !showInsertMenu.value
   showHeadingMenu.value = false
+  showHistoryMenu.value = false
+}
+
+function toggleHistoryMenu() {
+  showHistoryMenu.value = !showHistoryMenu.value
+  showHeadingMenu.value = false
+  showInsertMenu.value = false
 }
 
 function closeMenus() {
   showHeadingMenu.value = false
   showInsertMenu.value = false
+  showHistoryMenu.value = false
 }
 
 function convertTo(opt: { type: BlockType; level?: number }) {
@@ -138,6 +159,28 @@ function onUndo() {
 }
 function onRedo() {
   doc.redo()
+}
+
+function handleMarkMilestone() {
+  if (!replay.config.enabled) return
+  replay.markMilestone('里程碑')
+  milestoneAnimating.value = true
+  setTimeout(() => { milestoneAnimating.value = false }, 800)
+}
+
+function openReplaySettings() {
+  showReplaySettings.value = true
+  showHistoryMenu.value = false
+}
+
+function closeReplaySettings() {
+  showReplaySettings.value = false
+}
+
+function handleEnterReplay() {
+  if (!replay.hasSnapshots) return
+  closeMenus()
+  emit('replay')
 }
 </script>
 
@@ -253,12 +296,50 @@ function onRedo() {
 
     <!-- 文件操作 -->
     <div class="group" @click.stop>
-      <button class="tool-btn" title="打开 .md" @click="doc.openFromFile()">
-        <FolderOpen :size="16" />
-      </button>
       <button class="tool-btn" title="保存为 .md(Ctrl+S)" :disabled="!hasActiveTab" @click="doc.saveToFile()">
         <Save :size="16" />
       </button>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- 历史菜单 -->
+    <div class="history-select" @click.stop>
+      <button
+        class="history-btn"
+        :disabled="!hasActiveTab"
+        :class="{ 'milestone-flash': milestoneAnimating }"
+        @click="toggleHistoryMenu"
+      >
+        <Film :size="15" />
+      </button>
+      <div v-if="showHistoryMenu && hasActiveTab" class="menu history-menu">
+        <button
+          class="menu-item"
+          :class="{ disabled: !replay.config.enabled }"
+          :disabled="!replay.config.enabled"
+          @click="handleMarkMilestone"
+        >
+          <Flag :size="14" :class="{ 'flag-bounce': milestoneAnimating }" />
+          <span>标记里程碑</span>
+          <span class="menu-shortcut">Ctrl+M</span>
+        </button>
+        <button
+          class="menu-item"
+          :class="{ disabled: !replay.hasSnapshots }"
+          :disabled="!replay.hasSnapshots"
+          @click="handleEnterReplay"
+        >
+          <Play :size="14" />
+          <span>文档回放</span>
+          <span class="menu-shortcut">F6</span>
+        </button>
+        <div class="menu-divider"></div>
+        <button class="menu-item" @click="openReplaySettings">
+          <Settings :size="14" />
+          <span>回放设置</span>
+        </button>
+      </div>
     </div>
 
     <div class="divider"></div>
@@ -282,28 +363,49 @@ function onRedo() {
       <Presentation :size="14" />
       <span>演示</span>
     </button>
-
-    <!-- 标记里程碑 -->
-    <button
-      class="mode-btn"
-      :disabled="!hasActiveTab || !replay.config.enabled"
-      title="标记回放里程碑"
-      @click.stop="replay.markMilestone('里程碑')"
-    >
-      <Flag :size="14" />
-    </button>
-
-    <!-- 文档回放 -->
-    <button
-      class="mode-btn"
-      :disabled="!hasActiveTab || !replay.hasSnapshots"
-      title="文档回放"
-      @click.stop="emit('replay')"
-    >
-      <History :size="14" />
-      <span>回放</span>
-    </button>
   </div>
+
+  <!-- 回放设置弹窗 -->
+  <transition name="modal-fade">
+    <div v-if="showReplaySettings" class="replay-settings-modal" @click="closeReplaySettings">
+      <div class="replay-settings-card" @click.stop>
+        <div class="settings-header">
+          <span>回放设置</span>
+          <button class="close-btn" @click="closeReplaySettings">
+            <X :size="16" />
+          </button>
+        </div>
+        <div class="settings-body">
+          <div class="setting-row">
+            <label>启用快照采集</label>
+            <button
+              class="toggle-btn"
+              :class="{ on: replay.config.enabled }"
+              @click="replay.updateConfig({ enabled: !replay.config.enabled })"
+            >
+              {{ replay.config.enabled ? '已开启' : '已关闭' }}
+            </button>
+          </div>
+          <div class="setting-row">
+            <label>自动快照间隔</label>
+            <div class="interval-input">
+              <input
+                type="number"
+                min="0"
+                max="3600"
+                :value="replay.config.autoIntervalSec"
+                @change="replay.updateConfig({ autoIntervalSec: Math.max(0, parseInt(($event.target as HTMLInputElement).value) || 0) })"
+              />
+              <span class="unit">秒 (0=不自动)</span>
+            </div>
+          </div>
+          <div class="settings-footer">
+            共 {{ replay.snapshotCount }} 个快照 · 配置以「{{ historyFileName }}」保存在文档同目录
+          </div>
+        </div>
+      </div>
+    </div>
+  </transition>
 </template>
 
 <style scoped>
@@ -429,5 +531,205 @@ function onRedo() {
 .mode-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* 历史菜单 */
+.history-select {
+  position: relative;
+  flex-shrink: 0;
+}
+.history-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  color: var(--foreground);
+  background: transparent;
+  transition: all 0.15s;
+}
+.history-btn:hover:not(:disabled) {
+  background: var(--secondary);
+}
+.history-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.history-btn.milestone-flash {
+  animation: flash 0.6s ease;
+}
+@keyframes flash {
+  0% { background: var(--primary); color: var(--primary-foreground); }
+  100% { background: transparent; color: var(--foreground); }
+}
+.history-menu {
+  right: 0;
+  left: auto;
+  min-width: 160px;
+}
+.menu-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border);
+}
+.menu-shortcut {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+}
+.flag-bounce {
+  animation: flagBounce 0.6s ease;
+}
+@keyframes flagBounce {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-4px) scale(1.1); }
+  60% { transform: translateY(1px); }
+}
+
+/* 回放设置弹窗 */
+.replay-settings-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+}
+.replay-settings-card {
+  width: 360px;
+  max-width: 90vw;
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 600;
+}
+.close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.close-btn:hover {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+.settings-body {
+  padding: 16px;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  font-size: 13px;
+}
+.setting-row + .setting-row {
+  border-top: 1px solid var(--border);
+}
+.toggle-btn {
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.toggle-btn.on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.interval-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.interval-input input {
+  width: 56px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  text-align: center;
+}
+.interval-input input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.unit {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.speed-options {
+  display: flex;
+  gap: 4px;
+}
+.speed-option {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.speed-option:hover {
+  background: var(--secondary);
+}
+.speed-option.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.settings-footer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: all 0.2s ease;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+.modal-fade-enter-from .replay-settings-card,
+.modal-fade-leave-to .replay-settings-card {
+  transform: scale(0.95);
+  opacity: 0;
 }
 </style>

@@ -45,8 +45,8 @@ export interface HistoryFileData {
 /** 默认回放配置 */
 export function defaultReplayConfig(): ReplayConfig {
   return {
-    enabled: true,
-    autoIntervalSec: 60,
+    enabled: false,
+    autoIntervalSec: 0,
     playbackSpeed: 1
   }
 }

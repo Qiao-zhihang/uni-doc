@@ -115,6 +115,24 @@ export const useReplayStore = defineStore('replay', () => {
     captureSnapshot(label, 'milestone')
   }
 
+  /** 更新快照标签（用于重命名里程碑） */
+  function updateSnapshotLabel(id: string, label: string) {
+    const snap = snapshots.value.find(s => s.id === id)
+    if (snap) {
+      snap.label = label
+      schedulePersist()
+    }
+  }
+
+  /** 更新快照类型（切换里程碑/普通） */
+  function updateSnapshotType(id: string, type: ReplaySnapshot['type']) {
+    const snap = snapshots.value.find(s => s.id === id)
+    if (snap) {
+      snap.type = type
+      schedulePersist()
+    }
+  }
+
   /** 手动快照 */
   function captureManual(label: string = '手动快照') {
     captureSnapshot(label, 'manual')
@@ -230,7 +248,14 @@ export const useReplayStore = defineStore('replay', () => {
   // ===== 配置更新 =====
 
   function updateConfig(patch: Partial<ReplayConfig>) {
-    config.value = { ...config.value, ...patch }
+    const wasEnabled = config.value.enabled
+    const newEnabled = patch.enabled ?? wasEnabled
+    // 开启时如果间隔为 0,默认设为 60 秒(1分钟)
+    if (newEnabled && !wasEnabled && config.value.autoIntervalSec <= 0) {
+      config.value = { ...config.value, ...patch, autoIntervalSec: 60 }
+    } else {
+      config.value = { ...config.value, ...patch }
+    }
     // 如果间隔或启用状态变化,重启定时器
     if ('autoIntervalSec' in patch || 'enabled' in patch) {
       startAutoCapture()
@@ -260,6 +285,8 @@ export const useReplayStore = defineStore('replay', () => {
     // 采集
     captureSnapshot,
     markMilestone,
+    updateSnapshotLabel,
+    updateSnapshotType,
     captureManual,
     // 加载
     loadForDoc,
