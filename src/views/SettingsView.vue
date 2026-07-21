@@ -37,6 +37,7 @@ const draft = reactive<ApiProfile>({
   model: '',
   temperature: 0.7,
   maxTokens: 4096,
+  stream: true,
   vision: false,
   webSearch: false,
   nativeSearch: false,
@@ -69,7 +70,8 @@ function startAddProfile() {
     apiUrl: '',
     model: '',
     temperature: 0.7,
-    maxTokens: 4096
+    maxTokens: 4096,
+    stream: true,
   })
   showApiKey.value = false
   editing.value = true
@@ -99,6 +101,7 @@ function saveDraft() {
     model: draft.model.trim(),
     temperature: draft.temperature,
     maxTokens: draft.maxTokens,
+    stream: draft.stream !== false,
     vision: draft.vision,
     webSearch: draft.webSearch,
     nativeSearch: draft.nativeSearch,
@@ -184,6 +187,7 @@ async function testConnection() {
     const errs: string[] = []
     if (!caps.vision && caps.visionError) errs.push(`图片: ${caps.visionError.slice(0, 60)}`)
     if (!caps.webSearch && !caps.nativeSearch && caps.webSearchError) errs.push(`联网: ${caps.webSearchError.slice(0, 60)}`)
+    if (!caps.nativeSearch && caps.nativeSearchError) errs.push(`原生联网: ${caps.nativeSearchError.slice(0, 60)}`)
     const note = errs.length ? ` [检测失败: ${errs.join(' | ')}]` : ''
     toast.value = { type: 'success', msg: `连接成功${tags.length ? '（支持: ' + tags.join('、') + '）' : ''}${note}` }
   } catch (e) {
@@ -373,6 +377,22 @@ const markdownSyntax = [
           <div class="form-row">
             <label class="form-label">Max Tokens</label>
             <input type="number" min="100" max="32768" v-model.number="draft.maxTokens" class="form-input" />
+          </div>
+
+          <div class="form-row">
+            <label class="form-label">流式输出</label>
+            <div class="toggle-wrapper">
+              <button
+                type="button"
+                class="toggle-switch"
+                :class="{ on: draft.stream }"
+                @click="draft.stream = !draft.stream"
+                :title="draft.stream ? '已启用' : '已禁用'"
+              >
+                <span class="toggle-knob"></span>
+              </button>
+              <span class="toggle-label">{{ draft.stream ? '启用' : '禁用' }}</span>
+            </div>
           </div>
 
           <div class="form-row">
@@ -738,6 +758,42 @@ kbd {
   font-size: 12px;
   font-family: var(--font-mono);
   color: var(--foreground);
+}
+.toggle-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.toggle-switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border: none;
+  border-radius: 11px;
+  background: var(--muted);
+  cursor: pointer;
+  transition: background 0.2s;
+  padding: 0;
+}
+.toggle-switch.on {
+  background: var(--primary);
+}
+.toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.2s;
+}
+.toggle-switch.on .toggle-knob {
+  transform: translateX(18px);
+}
+.toggle-label {
+  font-size: 12px;
+  color: var(--muted-foreground);
 }
 /* Profile 列表 */
 .profile-list {

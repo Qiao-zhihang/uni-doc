@@ -87,7 +87,9 @@ watch(() => doc.renderTick, () => {
 
 function commitWithMarks(text: string) {
   if (!el.value) return
-  const parsed = parseInlineMarkdown(text)
+  // 引用块编辑态显示源码时含 > 前缀,提交前需剥离
+  const stripped = text.replace(/^>\s?/, '')
+  const parsed = parseInlineMarkdown(stripped)
   selfUpdate.value = true
   emit('update', { content: { text: parsed.text, marks: parsed.marks } })
 }
@@ -132,6 +134,8 @@ function onKeydown(e: KeyboardEvent) {
     }
   } else if (e.key === 'Backspace' && isCursorAtStart()) {
     e.preventDefault()
+    // 合并前先保存当前块的最新内容,防止拼接时使用旧内容
+    commitWithMarks(el.value?.innerText || '')
     skipNextBlur.value = true
     emit('backspace-merge')
   }

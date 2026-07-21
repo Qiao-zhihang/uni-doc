@@ -22,6 +22,8 @@ export interface ApiProfile {
   model: string
   temperature: number
   maxTokens: number
+  /** 是否启用流式输出（默认 true） */
+  stream?: boolean
   /** 探针检测结果（测试连接时自动检测） */
   vision?: boolean
   webSearch?: boolean
@@ -59,7 +61,8 @@ function createDefaultProfile(): ApiProfile {
     apiUrl: '',
     model: '',
     temperature: 0.7,
-    maxTokens: 4096
+    maxTokens: 4096,
+    stream: true,
   }
 }
 
@@ -168,6 +171,7 @@ export const useSettingsStore = defineStore('settings', () => {
       maxTokens: p.maxTokens,
       provider: p.provider,
       nativeSearch: !!p.nativeSearch,
+      stream: p.stream !== false,
     }
   }
 
@@ -277,6 +281,7 @@ export const useSettingsStore = defineStore('settings', () => {
       const errs: string[] = []
       if (!caps.vision && caps.visionError) errs.push(`图片: ${caps.visionError.slice(0, 60)}`)
       if (!caps.webSearch && !caps.nativeSearch && caps.webSearchError) errs.push(`联网: ${caps.webSearchError.slice(0, 60)}`)
+      if (!caps.nativeSearch && caps.nativeSearchError) errs.push(`原生联网: ${caps.nativeSearchError.slice(0, 60)}`)
       const note = errs.length ? ` [检测失败: ${errs.join(' | ')}]` : ''
       return { ok: true, message: `连接成功${tags.length ? '（支持: ' + tags.join('、') + '）' : ''}${note}` }
     } catch (e) {

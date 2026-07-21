@@ -112,8 +112,8 @@ const emit = defineEmits<{
         >
           <Folder :size="16" class="vault-icon" />
           <div class="vault-info">
-            <div class="vault-name">{{ vault.name }}</div>
-            <div class="vault-path">{{ vault.path }}</div>
+            <div class="vault-name" :title="vault.name">{{ vault.name }}</div>
+            <div class="vault-path" :title="vault.path">{{ vault.path }}</div>
           </div>
           <div class="vault-actions" @click.stop>
             <span v-if="vaultStore.currentVaultPath === vault.path" class="current-badge">

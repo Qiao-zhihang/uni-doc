@@ -53,6 +53,8 @@ function replaceAll() {
   tab.savedStatus = 'unsaved'
   tab.meta.updated_at = new Date().toISOString()
   tab.history.push(tab.blocks, '全部替换为分页符')
+  // 显式触发自动保存:replaceAll 绕过 store.commit,需手动调度
+  doc.scheduleAutoSave(tab.id)
   closeContextMenu()
 }
 

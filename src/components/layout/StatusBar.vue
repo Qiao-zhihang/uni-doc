@@ -3,7 +3,9 @@
  * 状态栏(改造版)
  * 参考 UI 改造方案 §3.2.G 和设计稿 editor-light.html
  * 高度 24px,中间显示软件署名;右下角演示按钮方便够不到顶部工具栏的用户
+ * 左侧显示三态保存状态:编辑中…(橙)/ 保存中…(蓝脉冲)/ 已保存(绿)
  */
+import { computed } from 'vue'
 import { Presentation } from 'lucide-vue-next'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
@@ -12,12 +14,27 @@ const doc = useDocumentStore()
 const editor = useEditorStore()
 
 const emit = defineEmits<{ (e: 'presentation'): void }>()
+
+const saveStatusText = computed(() => {
+  switch (doc.savedStatus) {
+    case 'unsaved': return '编辑中…'
+    case 'saving': return '保存中…'
+    case 'saved': return '已保存'
+    default: return '已保存'
+  }
+})
+const saveStatusClass = computed(() => doc.savedStatus)
 </script>
 
 <template>
   <div class="status-bar">
     <!-- 左侧 -->
     <div class="group">
+      <div class="save-status" :class="saveStatusClass">
+        <span class="dot"></span>
+        <span>{{ saveStatusText }}</span>
+      </div>
+      <span class="sep"></span>
       <span>{{ doc.wordCount.toLocaleString() }} 字</span>
       <span class="sep"></span>
       <span>{{ doc.blockCount }} 区块</span>
@@ -62,6 +79,33 @@ const emit = defineEmits<{ (e: 'presentation'): void }>()
   display: flex;
   align-items: center;
   gap: 10px;
+}
+.save-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  user-select: none;
+}
+.save-status .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transition: background 0.2s ease;
+  background: var(--muted-foreground);
+}
+.save-status.unsaved .dot {
+  background: #f59e0b; /* orange-500:编辑中 */
+}
+.save-status.saving .dot {
+  background: #3b82f6; /* blue-500:保存中 */
+  animation: save-pulse 1s ease-in-out infinite;
+}
+.save-status.saved .dot {
+  background: var(--state-success); /* 绿:已保存 */
+}
+@keyframes save-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.3); }
 }
 .copyright {
   color: var(--muted-foreground);

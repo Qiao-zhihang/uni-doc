@@ -41,6 +41,10 @@ const isExpanded = computed(() => props.expanded.has(props.node.path))
 const isActive = computed(
   () => !props.node.isDir && props.openedPaths.has(props.node.path)
 )
+/** 空文件夹:无 children 或 children.length === 0 */
+const isEmptyDir = computed(
+  () => props.node.isDir && (!props.node.children || props.node.children.length === 0)
+)
 const indentStyle = computed(() => ({
   paddingLeft: `${8 + props.depth * 20}px`
 }))
@@ -82,7 +86,7 @@ function onChildContextmenu(e: MouseEvent, node: VaultNode) {
         v-if="node.isDir"
         :size="12"
         class="chevron"
-        :class="{ expanded: isExpanded }"
+        :class="{ expanded: isExpanded, disabled: isEmptyDir }"
       />
       <span v-else class="chevron-placeholder"></span>
       <Folder v-if="node.isDir" :size="14" class="icon folder" />
@@ -145,6 +149,9 @@ function onChildContextmenu(e: MouseEvent, node: VaultNode) {
 }
 .chevron.expanded {
   transform: rotate(90deg);
+}
+.chevron.disabled {
+  opacity: 0.3;
 }
 .chevron-placeholder {
   width: 12px;

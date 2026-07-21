@@ -9,6 +9,7 @@ import type { Block, CodeBlockContent, CodeBlockProps } from '@/core/blocks/type
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { useThemeStore } from '@/stores/theme'
+import mermaid from 'mermaid'
 
 const props = defineProps<{ block: Block }>()
 const doc = useDocumentStore()
@@ -63,7 +64,6 @@ async function renderMermaid() {
   }
   mermaidRendering.value = true
   try {
-    const mermaid = (await import('mermaid')).default
     mermaid.initialize({
       startOnLoad: false,
       theme: mermaidTheme(),
@@ -153,10 +153,19 @@ function isCursorAtStart(): boolean {
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
-    if (el.value) emit('update', { content: { code: el.value.innerText } })
+    if (el.value) {
+      // 设 selfUpdate=true 跳过 watch 内的 syncText,避免 emit 后 innerText 被重置导致光标异常
+      selfUpdate.value = true
+      emit('update', { content: { code: el.value.innerText } })
+    }
     emit('enter', '')
   } else if (e.key === 'Backspace' && isCursorAtStart()) {
     e.preventDefault()
+    // 合并前先保存当前块的最新内容,防止拼接时使用旧内容
+    if (el.value) {
+      selfUpdate.value = true
+      emit('update', { content: { code: el.value.innerText } })
+    }
     emit('backspace-merge')
   }
 }

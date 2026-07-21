@@ -11,6 +11,7 @@ import type { ToolDefinition, ToolResult } from './types'
 import type { BlockType, ListType } from '@/core/blocks/types'
 import type { Block } from '@/core/blocks/types'
 import { createBlock } from '@/core/blocks/factory'
+import { parseInlineMarkdown } from '@/core/parser/inlineMarkdown'
 import {
   readVaultFile,
   writeVaultFile,
@@ -18,11 +19,36 @@ import {
   readVaultTree,
   type VaultNode
 } from '@/core/vault/vault'
+import { isTauri } from '@/core/serializer/markdownFile'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 
 type DocumentStore = ReturnType<typeof useDocumentStore>
 type EditorStore = ReturnType<typeof useEditorStore>
+
+/**
+ * 工具名 → 中文标签(单一事实源)
+ * 新增工具时同步更新此处,agent.ts 与 AiFloatingWindow.vue 都从此导入
+ */
+export const TOOL_LABELS: Record<string, string> = {
+  get_document: '获取文档',
+  get_outline: '获取大纲',
+  list_blocks: '列出区块',
+  insert_block: '插入区块',
+  update_block: '更新区块',
+  delete_block: '删除区块',
+  move_block: '移动区块',
+  convert_block: '转换类型',
+  batch_edit: '批量编辑',
+  replace_document: '替换文档',
+  search_files: '搜索文件',
+  read_file: '读取文件',
+  write_file: '写入文件',
+  create_file: '创建文件',
+  list_dir: '列出目录',
+  switch_tab: '切换标签',
+  web_search: '联网搜索',
+}
 
 const BLOCK_TYPES: BlockType[] = ['paragraph', 'heading', 'list', 'divider', 'page_break', 'quote', 'code_block', 'table', 'image']
 const LIST_TYPES: ListType[] = ['bullet', 'ordered', 'task']
@@ -49,7 +75,8 @@ function buildContentPatch(type: BlockType, args: Record<string, unknown>): { co
   const patch: { content?: Record<string, unknown>; props?: Record<string, unknown> } = {}
   // 文本类区块: paragraph / heading / quote
   if (typeof args.text === 'string' && (type === 'paragraph' || type === 'heading' || type === 'quote')) {
-    patch.content = { text: args.text, marks: [] }
+    const parsed = parseInlineMarkdown(args.text)
+    patch.content = { text: parsed.text, marks: parsed.marks }
   }
   // heading level
   if (type === 'heading' && typeof args.level === 'number') {
@@ -59,12 +86,15 @@ function buildContentPatch(type: BlockType, args: Record<string, unknown>): { co
   // list: items 数组
   if (type === 'list' && Array.isArray(args.items)) {
     patch.content = {
-      items: (args.items as Array<Record<string, unknown>>).map((it) => ({
-        id: crypto.randomUUID(),
-        text: String(it.text ?? ''),
-        marks: [],
-        checked: typeof it.checked === 'boolean' ? it.checked : undefined
-      }))
+      items: (args.items as Array<Record<string, unknown>>).map((it) => {
+        const parsed = parseInlineMarkdown(String(it.text ?? ''))
+        return {
+          id: crypto.randomUUID(),
+          text: parsed.text,
+          marks: parsed.marks,
+          checked: typeof it.checked === 'boolean' ? it.checked : undefined
+        }
+      })
     }
   }
   // code_block: code 字段
@@ -75,14 +105,19 @@ function buildContentPatch(type: BlockType, args: Record<string, unknown>): { co
   // table: headers + rows
   if (type === 'table' && Array.isArray(args.headers)) {
     patch.content = {
-      headers: (args.headers as Array<string | Record<string, unknown>>).map((h) => ({
-        text: String(typeof h === 'string' ? h : (h.text ?? '')),
-        marks: []
-      })),
+      headers: (args.headers as Array<string | Record<string, unknown>>).map((h) => {
+        const text = String(typeof h === 'string' ? h : (h.text ?? ''))
+        const parsed = parseInlineMarkdown(text)
+        return { text: parsed.text, marks: parsed.marks }
+      }),
       rows: Array.isArray(args.rows)
         ? (args.rows as Array<string[] | Record<string, unknown>[]>).map((r) =>
             Array.isArray(r)
-              ? r.map((t) => ({ text: String(t), marks: [] }))
+              ? r.map((t) => {
+                  const text = String(t)
+                  const parsed = parseInlineMarkdown(text)
+                  return { text: parsed.text, marks: parsed.marks }
+                })
               : [{ text: String((r as Record<string, unknown>).text ?? ''), marks: [] }]
           )
         : [],
@@ -564,7 +599,7 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
   if (enableWebSearch) {
     tools.push({
       name: 'web_search',
-      description: '联网搜索：当用户的问题涉及实时信息、最新事件、具体事实或你需要查找网络资料时使用。返回搜索结果摘要（含标题、摘要、链接）。',
+      description: '联网搜索：使用 Bing 搜索引擎查找网络资料。返回网页搜索结果（每条含标题、摘要、网页链接）。注意：返回的是网页链接，不是图片直接 URL。如需找图片，可搜索相关网页后从中提取图片 URL。',
       parameters: {
         type: 'object',
         properties: {
@@ -574,53 +609,17 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
       },
       execute: async (args) => {
         const q = String(args.query)
+        // Web 环境无法绕过 CORS,且 DuckDuckGo 国内不可访问,直接报错
+        if (!isTauri()) {
+          return { ok: false, error: 'Web 环境暂不支持联网搜索,请在 Tauri 桌面端使用' }
+        }
         try {
-          // 优先用 Tauri Rust 端搜索（绕过 CORS，结果更全）
-          // Tauri 环境下 web_search 命令返回纯文本搜索结果
+          // Tauri 环境下走 Rust 端 web_search 命令(基于 Bing,绕过 CORS)
           const { invoke } = await import('@tauri-apps/api/core')
           const result = await invoke<string>('web_search', { query: q })
           return { ok: true, data: result }
         } catch (e) {
-          // 非 Tauri 环境或调用失败，降级到浏览器 fetch（可能受 CORS 限制）
-          try {
-            const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`
-            const res = await fetch(url)
-            if (!res.ok) return { ok: false, error: `搜索请求失败: HTTP ${res.status}` }
-            const data = await res.json() as {
-              Abstract?: string
-              AbstractText?: string
-              AbstractSource?: string
-              AbstractURL?: string
-              Heading?: string
-              RelatedTopics?: Array<{ Text?: string; FirstURL?: string }>
-              Results?: Array<{ Text?: string; FirstURL?: string }>
-            }
-            const parts: string[] = []
-            if (data.Heading) parts.push(`主题: ${data.Heading}`)
-            if (data.AbstractText) parts.push(`摘要: ${data.AbstractText}`)
-            if (data.AbstractSource && data.AbstractURL) {
-              parts.push(`来源: ${data.AbstractSource} (${data.AbstractURL})`)
-            }
-            if (data.Results?.length) {
-              parts.push('结果:')
-              data.Results.slice(0, 5).forEach((r, i) => {
-                if (r.Text) parts.push(`  ${i + 1}. ${r.Text}`)
-                if (r.FirstURL) parts.push(`     ${r.FirstURL}`)
-              })
-            }
-            if (data.RelatedTopics?.length) {
-              parts.push('相关话题:')
-              data.RelatedTopics.slice(0, 5).forEach((t) => {
-                if (t.Text) parts.push(`  - ${t.Text}`)
-              })
-            }
-            if (parts.length === 0) {
-              return { ok: true, data: '未找到相关结果，请尝试不同的关键词。' }
-            }
-            return { ok: true, data: parts.join('\n') }
-          } catch (e2) {
-            return { ok: false, error: `搜索失败: ${e2 instanceof Error ? e2.message : String(e2)}` }
-          }
+          return { ok: false, error: `搜索失败: ${e instanceof Error ? e.message : String(e)}` }
         }
       }
     })

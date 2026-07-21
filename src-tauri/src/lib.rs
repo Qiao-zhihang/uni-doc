@@ -1,127 +1,18 @@
 // UniDoc Tauri 后端入口
-// 参考 PRD §8.2(架构分层)— 后端层负责窗口/系统交互、文件 I/O(.uni-doc 读写)
-
-mod markdown;
+// 参考 PRD §8.2(架构分层)— 后端层负责窗口/系统交互、文件 I/O(.md 读写)
 
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use tauri_plugin_dialog::DialogExt;
 
-/// .uni-doc 文件格式常量
-/// 参考 PRD §7.1:本质为 ZIP,包含 content.md / blocks.json / assets/ / meta.json
-const UNIDOC_VERSION: &str = "1.0.0";
-
-/// 保存 .uni-doc 文件
-/// 接收前端传来的 JSON 字符串,用 zip crate 创建 ZIP 文件
-/// 参考 PRD §7.1(专属文件格式)
-#[tauri::command]
-fn save_uni_doc(
-    file_path: String,
-    blocks_json: String,
-    meta_json: String,
-) -> Result<(), String> {
-    // 将 blocks 序列化为 Markdown(与前端 serializeMarkdown 一致)
-    let content_md = markdown::serialize_markdown(&blocks_json)?;
-
-    // 解析并更新 meta 的 updated_at
-    let mut meta: serde_json::Value = if meta_json.trim().is_empty() {
-        serde_json::json!({})
-    } else {
-        serde_json::from_str(&meta_json).map_err(|e| format!("解析 meta JSON 失败: {}", e))?
-    };
-    let now = chrono::Utc::now().to_rfc3339();
-    if let Some(obj) = meta.as_object_mut() {
-        obj.entry("updated_at").or_insert(serde_json::Value::String(now.clone()));
-        // 若缺少 version,补充默认值
-        if !obj.contains_key("version") {
-            obj.insert("version".to_string(), serde_json::Value::String(UNIDOC_VERSION.to_string()));
-        }
-    }
-    let meta_str = serde_json::to_string_pretty(&meta)
-        .map_err(|e| format!("序列化 meta 失败: {}", e))?;
-
-    // 美化 blocks JSON(与前端 JSON.stringify(blocks, null, 2) 一致)
-    let blocks_pretty = prettify_json(&blocks_json)?;
-
-    // 创建 ZIP 文件
-    let file = File::create(&file_path)
-        .map_err(|e| format!("创建文件失败: {}", e))?;
-    let mut zip = zip::ZipWriter::new(file);
-    let options = zip::write::SimpleFileOptions::default();
-
-    // 写入 content.md
-    zip.start_file("content.md", options)
-        .map_err(|e| format!("写入 content.md 失败: {}", e))?;
-    zip.write_all(content_md.as_bytes())
-        .map_err(|e| format!("写入 content.md 内容失败: {}", e))?;
-
-    // 写入 blocks.json
-    zip.start_file("blocks.json", options)
-        .map_err(|e| format!("写入 blocks.json 失败: {}", e))?;
-    zip.write_all(blocks_pretty.as_bytes())
-        .map_err(|e| format!("写入 blocks.json 内容失败: {}", e))?;
-
-    // 写入 meta.json
-    zip.start_file("meta.json", options)
-        .map_err(|e| format!("写入 meta.json 失败: {}", e))?;
-    zip.write_all(meta_str.as_bytes())
-        .map_err(|e| format!("写入 meta.json 内容失败: {}", e))?;
-
-    // 创建空的 assets/ 目录
-    zip.add_directory("assets/", options)
-        .map_err(|e| format!("创建 assets 目录失败: {}", e))?;
-
-    zip.finish()
-        .map_err(|e| format!("完成 ZIP 写入失败: {}", e))?;
-
-    Ok(())
-}
-
-/// 加载 .uni-doc 文件
-/// 读取 ZIP 文件,解压 content.md / blocks.json / meta.json,返回 JSON 字符串
-/// 返回格式: { "content": "...", "blocks": "...", "meta": "..." }
-/// (前端解析 blocks 和 meta 字段为对象)
-#[tauri::command]
-fn load_uni_doc(file_path: String) -> Result<String, String> {
-    let file = File::open(&file_path)
-        .map_err(|e| format!("打开文件失败: {}", e))?;
-    let mut archive = zip::ZipArchive::new(file)
-        .map_err(|e| format!("读取 ZIP 失败: {}", e))?;
-
-    // 读取 content.md
-    let content = read_zip_entry(&mut archive, "content.md")?;
-
-    // 读取 blocks.json
-    let blocks_json = read_zip_entry(&mut archive, "blocks.json")?;
-
-    // 读取 meta.json(若不存在则使用默认值)
-    let meta_json = read_zip_entry(&mut archive, "meta.json")
-        .unwrap_or_else(|_| {
-            let now = chrono::Utc::now().to_rfc3339();
-            serde_json::json!({
-                "title": "未命名文档",
-                "created_at": now,
-                "updated_at": now,
-                "version": UNIDOC_VERSION,
-                "author": "UniDoc User"
-            })
-            .to_string()
-        });
-
-    // 构建返回的 JSON 对象
-    let result = serde_json::json!({
-        "content": content,
-        "blocks": blocks_json,
-        "meta": meta_json,
-    });
-
-    Ok(result.to_string())
-}
-
 /// 保存 .md 文件(纯文本)
 #[tauri::command]
 fn save_md_file(file_path: String, content: String) -> Result<(), String> {
+    let path = Path::new(&file_path);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("创建父目录失败: {}", e))?;
+    }
     let mut file = File::create(&file_path)
         .map_err(|e| format!("创建文件失败: {}", e))?;
     file.write_all(content.as_bytes())
@@ -185,49 +76,6 @@ fn open_md_dialog(
         None => Ok(None),
     }
 }
-#[tauri::command]
-fn save_uni_doc_dialog(
-    app: tauri::AppHandle,
-    title: String,
-    default_name: String,
-) -> Result<Option<String>, String> {
-    let file_path = app
-        .dialog()
-        .file()
-        .set_title(&title)
-        .set_file_name(&default_name)
-        .add_filter("UniDoc 文档", &["uni-doc"])
-        .blocking_save_file();
-
-    match file_path {
-        Some(fp) => {
-            let path = fp.simplified();
-            Ok(Some(path.to_string()))
-        }
-        None => Ok(None),
-    }
-}
-
-/// 弹出打开文件对话框,返回用户选择的路径
-#[tauri::command]
-fn open_uni_doc_dialog(
-    app: tauri::AppHandle,
-) -> Result<Option<String>, String> {
-    let file_path = app
-        .dialog()
-        .file()
-        .set_title("打开 UniDoc 文档")
-        .add_filter("UniDoc 文档", &["uni-doc"])
-        .blocking_pick_file();
-
-    match file_path {
-        Some(fp) => {
-            let path = fp.simplified();
-            Ok(Some(path.to_string()))
-        }
-        None => Ok(None),
-    }
-}
 
 /// Vault 操作:选择 vault 根目录
 /// 返回用户选择的文件夹路径,None 表示用户取消
@@ -276,11 +124,22 @@ fn read_vault_tree(root_path: String) -> Result<Vec<VaultNode>, String> {
     let root_canonical = root
         .canonicalize()
         .map_err(|e| format!("规范化路径失败: {}", e))?;
-    Ok(scan_dir(&root_canonical, &root_canonical)?)
+    Ok(scan_dir(&root_canonical, &root_canonical, 0, 32)?)
 }
 
 /// 递归扫描目录
-fn scan_dir(dir: &Path, root: &Path) -> Result<Vec<VaultNode>, String> {
+/// max_depth 限制递归深度,防止过深嵌套或恶意结构
+/// 跳过 symlink(不跟随),防止路径逃逸或循环
+fn scan_dir(dir: &Path, root: &Path, depth: usize, max_depth: usize) -> Result<Vec<VaultNode>, String> {
+    if depth >= max_depth {
+        eprintln!(
+            "[scan_dir] 已达最大深度 {} (路径: {}),停止递归",
+            max_depth,
+            dir.display()
+        );
+        return Ok(Vec::new());
+    }
+
     let entries = fs::read_dir(dir).map_err(|e| format!("读取目录失败: {}", e))?;
     let mut nodes: Vec<VaultNode> = Vec::new();
 
@@ -301,9 +160,22 @@ fn scan_dir(dir: &Path, root: &Path) -> Result<Vec<VaultNode>, String> {
             continue;
         }
 
-        if path.is_dir() {
+        // 跳过 symlink(不跟随),防止路径逃逸或循环
+        // 使用 entry.file_type() 而非 path.is_dir() 以避免自动跟随 symlink
+        let file_type = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(e) => {
+                eprintln!("[scan_dir] 读取文件类型失败 ({}): {}", path.display(), e);
+                continue;
+            }
+        };
+        if file_type.is_symlink() {
+            continue;
+        }
+
+        if file_type.is_dir() {
             dirs.push(path);
-        } else if is_markdown_file(&name) {
+        } else if file_type.is_file() && is_vault_file(&name) {
             files.push(path);
         }
     }
@@ -315,7 +187,7 @@ fn scan_dir(dir: &Path, root: &Path) -> Result<Vec<VaultNode>, String> {
     for d in dirs {
         let name = file_name_display(&d);
         let rel = relative_path(&d, root)?;
-        let children = scan_dir(&d, root)?;
+        let children = scan_dir(&d, root, depth + 1, max_depth)?;
         // 保留所有非隐藏文件夹(包括空文件夹),让用户看到完整目录结构
         nodes.push(VaultNode {
             name,
@@ -345,6 +217,21 @@ fn is_markdown_file(name: &str) -> bool {
     lower.ends_with(".md") || lower.ends_with(".markdown")
 }
 
+/// 判断是否为 vault 中需要展示的文件(markdown + 图片)
+fn is_vault_file(name: &str) -> bool {
+    if is_markdown_file(name) {
+        return true;
+    }
+    let lower = name.to_lowercase();
+    lower.ends_with(".png")
+        || lower.ends_with(".jpg")
+        || lower.ends_with(".jpeg")
+        || lower.ends_with(".gif")
+        || lower.ends_with(".webp")
+        || lower.ends_with(".svg")
+        || lower.ends_with(".bmp")
+}
+
 /// 提取路径末尾文件名(小写,用于排序比较)
 /// Path::file_name() 返回 Option<&OsStr>,此处统一解包为 &str
 fn file_name_lower(p: &Path) -> String {
@@ -371,6 +258,55 @@ fn relative_path(p: &Path, root: &Path) -> Result<String, String> {
     Ok(rel.to_string_lossy().replace('\\', "/"))
 }
 
+/// 路径逃逸校验:确保 target 在 vault 根目录内
+/// 目标可能尚不存在(创建场景),此时 canonicalize 父目录后再拼接文件名
+fn ensure_within_vault(root: &Path, target: &Path) -> Result<PathBuf, String> {
+    let root_canon = root
+        .canonicalize()
+        .map_err(|e| format!("无效的 vault 根路径: {}", e))?;
+    let target_canon = target.canonicalize().or_else(|_| {
+        // 目标可能尚不存在(创建场景),canonicalize 父目录
+        if let Some(parent) = target.parent() {
+            parent
+                .canonicalize()
+                .map(|p| p.join(target.file_name().unwrap_or_default()))
+        } else {
+            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "no parent"))
+        }
+    }).map_err(|e| format!("无效的目标路径: {}", e))?;
+    if !target_canon.starts_with(&root_canon) {
+        return Err(format!("路径逃逸: {} 不在 vault 内", target.display()));
+    }
+    Ok(target_canon)
+}
+
+/// 校验扩展名:仅允许字母数字,非法时回退 "png"
+/// 等价于正则 ^[a-zA-Z0-9]+$
+fn sanitize_ext(ext: &str) -> String {
+    let valid = !ext.is_empty()
+        && ext
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric());
+    if valid {
+        ext.to_string()
+    } else {
+        "png".to_string()
+    }
+}
+
+/// 过滤文件名中的危险字符(`..`、`/`、`\`、`:`、`<`、`>`、`"`、`|`、`?`、`*`)
+fn sanitize_file_name(name: &str) -> String {
+    let mut s = name.replace("..", "");
+    for c in ['/', '\\', ':', '<', '>', '"', '|', '?', '*'] {
+        s = s.replace(c, "");
+    }
+    if s.is_empty() {
+        "image".to_string()
+    } else {
+        s
+    }
+}
+
 /// 重命名 vault 条目(文件或文件夹)
 #[tauri::command]
 fn rename_vault_entry(root_path: String, old_rel: String, new_rel: String) -> Result<(), String> {
@@ -381,11 +317,14 @@ fn rename_vault_entry(root_path: String, old_rel: String, new_rel: String) -> Re
     if !old_path.exists() {
         return Err(format!("源路径不存在: {}", old_path.display()));
     }
+    // 路径逃逸校验:确保新旧路径都在 vault 内
+    ensure_within_vault(root, &old_path)?;
+    let new_canon = ensure_within_vault(root, &new_path)?;
     // 确保新路径的父目录存在
     if let Some(parent) = new_path.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("创建父目录失败: {}", e))?;
     }
-    fs::rename(&old_path, &new_path).map_err(|e| format!("重命名失败: {}", e))?;
+    fs::rename(&old_path, &new_canon).map_err(|e| format!("重命名失败: {}", e))?;
     Ok(())
 }
 
@@ -415,13 +354,14 @@ fn delete_vault_entry(root_path: String, rel: String) -> Result<(), String> {
         fs::remove_file(&target).map_err(|e| format!("删除文件失败: {}", e))?;
     } else if target.is_dir() {
         // 仅允许删除空文件夹(避免误删大量文件)
+        // TOCTOU 安全:捕获 remove_dir 错误,即便 read_dir 与 remove_dir 之间状态变化也返回友好信息
         let count = fs::read_dir(&target)
             .map_err(|e| format!("读取目录失败: {}", e))?
             .count();
         if count > 0 {
-            return Err("仅允许删除空文件夹".to_string());
+            return Err("文件夹非空".to_string());
         }
-        fs::remove_dir(&target).map_err(|e| format!("删除文件夹失败: {}", e))?;
+        fs::remove_dir(&target).map_err(|_| "文件夹非空".to_string())?;
     }
     Ok(())
 }
@@ -435,6 +375,8 @@ fn create_vault_file(root_path: String, rel: String, content: String) -> Result<
     if target.exists() {
         return Err(format!("文件已存在: {}", target.display()));
     }
+    // 路径逃逸校验
+    ensure_within_vault(root, &target)?;
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("创建父目录失败: {}", e))?;
     }
@@ -452,7 +394,20 @@ fn create_vault_dir(root_path: String, rel: String) -> Result<(), String> {
     if target.exists() {
         return Err(format!("文件夹已存在: {}", target.display()));
     }
+    // 路径逃逸校验
+    ensure_within_vault(root, &target)?;
     fs::create_dir_all(&target).map_err(|e| format!("创建文件夹失败: {}", e))?;
+    Ok(())
+}
+
+/// 创建任意目录(用于新建仓库)
+#[tauri::command]
+fn create_dir_at_path(path: String) -> Result<(), String> {
+    let target = Path::new(&path);
+    if target.exists() {
+        return Ok(());
+    }
+    fs::create_dir_all(target).map_err(|e| format!("创建文件夹失败: {}", e))?;
     Ok(())
 }
 
@@ -478,11 +433,15 @@ fn write_image_to_vault(
     } else {
         root.join(&dir).join("assets")
     };
+    // 校验扩展名:仅允许字母数字,非法时回退 "png"
+    let safe_ext = sanitize_ext(&ext);
     if !assets_dir.exists() {
         fs::create_dir_all(&assets_dir).map_err(|e| format!("创建 assets 目录失败: {}", e))?;
     }
+    // 路径逃逸校验:assets_dir 必须在 vault 内
+    ensure_within_vault(root, &assets_dir)?;
     let ts = chrono::Utc::now().timestamp_millis();
-    let dest_name = format!("paste_{}.{}", ts, ext);
+    let dest_name = format!("paste_{}.{}", ts, safe_ext);
     let dest_abs = assets_dir.join(&dest_name);
     let mut file = File::create(&dest_abs).map_err(|e| format!("创建文件失败: {}", e))?;
     file.write_all(&data).map_err(|e| format!("写入文件失败: {}", e))?;
@@ -509,11 +468,13 @@ fn pick_image_to_vault(
     };
 
     let src = Path::new(&selected);
-    let ext = src
+    let raw_ext = src
         .extension()
         .and_then(|s| s.to_str())
         .unwrap_or("png")
         .to_lowercase();
+    // 校验扩展名:仅允许字母数字,非法时回退 "png"
+    let safe_ext = sanitize_ext(&raw_ext);
 
     // 读取源文件
     let mut file = File::open(src).map_err(|e| format!("打开源文件失败: {}", e))?;
@@ -536,14 +497,17 @@ fn pick_image_to_vault(
     if !assets_dir.exists() {
         fs::create_dir_all(&assets_dir).map_err(|e| format!("创建 assets 目录失败: {}", e))?;
     }
-    // 保留原文件名,加时间戳防重名
-    let original_name = src
+    // 路径逃逸校验:assets_dir 必须在 vault 内
+    ensure_within_vault(root, &assets_dir)?;
+    // 保留原文件名,加时间戳防重名;对 original_name 做 sanitize
+    let original_name_raw = src
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("image")
         .to_string();
+    let original_name = sanitize_file_name(&original_name_raw);
     let ts = chrono::Utc::now().timestamp_millis();
-    let dest_name = format!("{}_{}.{}", original_name, ts, ext);
+    let dest_name = format!("{}_{}.{}", original_name, ts, safe_ext);
     let dest_abs = assets_dir.join(&dest_name);
     let mut dest_file = File::create(&dest_abs).map_err(|e| format!("创建文件失败: {}", e))?;
     dest_file
@@ -554,12 +518,19 @@ fn pick_image_to_vault(
 }
 
 /// 在系统默认浏览器中打开外部 URL
+/// 安全限制:仅允许 http:// 或 https:// 协议,防止 file://、javascript:、cmd 等注入
 #[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {
+    // 协议白名单校验:必须以 http:// 或 https:// 开头(大小写不敏感)
+    let lower = url.to_lowercase();
+    if !lower.starts_with("http://") && !lower.starts_with("https://") {
+        return Err(format!("仅允许 http/https 协议: {}", url));
+    }
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", &url])
+        // 改用 explorer 打开 URL,绕开 cmd.exe,避免命令注入风险
+        std::process::Command::new("explorer")
+            .arg(&url)
             .spawn()
             .map_err(|e| format!("打开链接失败: {}", e))?;
     }
@@ -806,32 +777,9 @@ fn strip_html_tags(s: &str) -> String {
     result
 }
 
-/// 从 ZIP 中读取指定条目为字符串
-fn read_zip_entry<R: std::io::Read + std::io::Seek>(
-    archive: &mut zip::ZipArchive<R>,
-    name: &str,
-) -> Result<String, String> {
-    let mut entry = archive
-        .by_name(name)
-        .map_err(|e| format!("ZIP 中未找到 {}: {}", name, e))?;
-    let mut buf = String::new();
-    entry
-        .read_to_string(&mut buf)
-        .map_err(|e| format!("读取 {} 失败: {}", name, e))?;
-    Ok(buf)
-}
-
-/// 将 JSON 字符串美化输出(pretty print)
-/// 与前端 JSON.stringify(obj, null, 2) 一致
-fn prettify_json(json_str: &str) -> Result<String, String> {
-    let value: serde_json::Value = serde_json::from_str(json_str)
-        .map_err(|e| format!("解析 JSON 失败: {}", e))?;
-    serde_json::to_string_pretty(&value).map_err(|e| format!("序列化 JSON 失败: {}", e))
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    if let Err(e) = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
@@ -849,16 +797,13 @@ pub fn run() {
             load_md_file,
             save_md_dialog,
             open_md_dialog,
-            save_uni_doc,
-            load_uni_doc,
-            save_uni_doc_dialog,
-            open_uni_doc_dialog,
             pick_vault_folder,
             read_vault_tree,
             rename_vault_entry,
             delete_vault_entry,
             create_vault_file,
             create_vault_dir,
+            create_dir_at_path,
             write_image_to_vault,
             pick_image_to_vault,
             open_external_url,
@@ -872,5 +817,8 @@ pub fn run() {
             web_search,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    {
+        eprintln!("Tauri 启动失败: {}", e);
+        std::process::exit(1);
+    }
 }

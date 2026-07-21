@@ -17,7 +17,6 @@ const vaultName = computed(() => {
 })
 
 const title = computed(() => doc.meta.title)
-const saved = computed(() => doc.savedStatus === 'saved')
 
 // 面包屑路径(从 active tab 的 path 解析)
 const breadcrumbs = computed<string[]>(() => {
@@ -65,12 +64,6 @@ function commitEdit() {
     </div>
 
     <div class="spacer"></div>
-
-    <!-- 保存状态 -->
-    <div class="save-status">
-      <span class="dot" :class="{ saved }"></span>
-      <span>{{ saved ? '已保存' : '未保存' }}</span>
-    </div>
   </div>
 </template>
 
@@ -125,22 +118,5 @@ function commitEdit() {
 }
 .spacer {
   flex: 1;
-}
-.save-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--muted-foreground);
-}
-.dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--muted-foreground);
-  transition: background 0.2s ease;
-}
-.dot.saved {
-  background: var(--state-success);
 }
 </style>

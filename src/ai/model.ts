@@ -60,13 +60,23 @@ function buildBody(
 
 /**
  * 流式聊天：POST /chat/completions，逐 chunk 解析 SSE，返回聚合后的内容与工具调用
+ * 如果 stream 配置为 false 或流式解析失败，自动降级为非流式
+ * 支持通过 signal 参数取消请求
  */
 export async function streamChat(
   messages: ChatMessage[],
   tools: ToolSpec[],
   config: ModelConfig,
-  onDelta?: (text: string) => void
+  onDelta?: (text: string) => void,
+  signal?: AbortSignal
 ): Promise<StreamResult> {
+  const useStream = config.stream !== false
+
+  if (!useStream) {
+    const result = await chat(messages, tools, config, signal)
+    return { content: result.content, toolCalls: result.toolCalls, finishReason: 'stop' }
+  }
+
   let response: Response
   try {
     response = await fetch(`${config.apiUrl}/chat/completions`, {
@@ -76,8 +86,12 @@ export async function streamChat(
         Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify(buildBody(messages, tools, config, true)),
+      signal,
     })
   } catch (err) {
+    if ((err as Error).name === 'AbortError') {
+      throw err
+    }
     throw new Error(`网络错误: ${err instanceof Error ? err.message : String(err)}`)
   }
 
@@ -86,7 +100,38 @@ export async function streamChat(
     throw new Error(`HTTP ${response.status}: ${text}`)
   }
 
-  const reader = response.body!.getReader()
+  // 检查响应是否为 SSE 流
+  const contentType = response.headers.get('content-type') || ''
+  const isStreamResponse = contentType.includes('text/event-stream') || !!response.body
+
+  if (!isStreamResponse || !response.body) {
+    // 非流式响应，直接解析 JSON
+    const json = (await response.json()) as {
+      choices?: Array<{
+        message?: {
+          content?: string
+          tool_calls?: Array<{
+            id: string
+            type: 'function'
+            function: { name: string; arguments: string }
+          }>
+        }
+        finish_reason?: string
+      }>
+    }
+    const message = json.choices?.[0]?.message
+    const finishReason = json.choices?.[0]?.finish_reason ?? 'stop'
+    const toolCalls: ToolCall[] = (message?.tool_calls ?? []).map((tc) => ({
+      id: tc.id,
+      type: 'function',
+      function: { name: tc.function.name, arguments: tc.function.arguments },
+    }))
+    const content = message?.content ?? ''
+    if (content && onDelta) onDelta(content)
+    return { content, toolCalls, finishReason }
+  }
+
+  const reader = response.body.getReader()
   const decoder = new TextDecoder('utf-8')
   let buffer = ''
   let content = ''
@@ -144,16 +189,56 @@ export async function streamChat(
     }
   }
 
+  // 处理 buffer 中剩余的内容（某些实现可能没有正确的 \n\n 结尾）
+  if (buffer.trim().length > 0) {
+    for (const line of buffer.split('\n')) {
+      const clean = line.replace(/\r/g, '')
+      if (!clean.startsWith('data: ')) continue
+      const data = clean.slice(6)
+      if (data === '[DONE]') break
+      try {
+        const json = JSON.parse(data) as { choices?: Array<{ delta?: StreamDelta; finish_reason?: string }> }
+        const choice = json.choices?.[0]
+        const delta = choice?.delta
+        if (choice?.finish_reason) finishReason = choice.finish_reason
+        if (!delta) continue
+        if (delta.content) {
+          content += delta.content
+          onDelta?.(delta.content)
+        }
+        if (delta.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            if (!toolCalls[tc.index]) {
+              toolCalls[tc.index] = {
+                id: '',
+                type: 'function',
+                function: { name: '', arguments: '' },
+              }
+            }
+            const slot = toolCalls[tc.index]!
+            if (tc.id) slot.id = tc.id
+            if (tc.function?.name) slot.function.name = tc.function.name
+            if (tc.function?.arguments) slot.function.arguments += tc.function.arguments
+          }
+        }
+      } catch {
+        // 忽略无法解析的 chunk
+      }
+    }
+  }
+
   return { content, toolCalls, finishReason }
 }
 
 /**
  * 非流式聊天：POST /chat/completions，一次性返回，供测试连接使用
+ * 支持通过 signal 参数取消请求
  */
 export async function chat(
   messages: ChatMessage[],
   tools: ToolSpec[],
-  config: ModelConfig
+  config: ModelConfig,
+  signal?: AbortSignal
 ): Promise<{ content: string; toolCalls: ToolCall[] }> {
   let response: Response
   try {
@@ -164,8 +249,12 @@ export async function chat(
         Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify(buildBody(messages, tools, config, false)),
+      signal,
     })
   } catch (err) {
+    if ((err as Error).name === 'AbortError') {
+      throw err
+    }
     throw new Error(`网络错误: ${err instanceof Error ? err.message : String(err)}`)
   }
 
@@ -219,7 +308,7 @@ const PROBE_TOOL: ToolSpec = {
  */
 export async function probeCapabilities(
   config: ModelConfig
-): Promise<{ vision: boolean; webSearch: boolean; nativeSearch: boolean; visionError?: string; webSearchError?: string }> {
+): Promise<{ vision: boolean; webSearch: boolean; nativeSearch: boolean; visionError?: string; webSearchError?: string; nativeSearchError?: string }> {
   // ===== Vision 探针：发送带图片的消息 =====
   let vision = false
   let visionError: string | undefined
@@ -256,14 +345,16 @@ export async function probeCapabilities(
 
   // ===== 原生联网搜索探针：发送带 enable_search 的请求 =====
   let nativeSearch = false
+  let nativeSearchError: string | undefined
   if (config.provider === 'qwen') {
     try {
       await chat([{ role: 'user', content: 'ping' }], [], { ...config, nativeSearch: true })
       nativeSearch = true
-    } catch {
+    } catch (e) {
+      nativeSearchError = (e as Error).message
       nativeSearch = false
     }
   }
 
-  return { vision, webSearch, nativeSearch, visionError, webSearchError }
+  return { vision, webSearch, nativeSearch, visionError, webSearchError, nativeSearchError }
 }

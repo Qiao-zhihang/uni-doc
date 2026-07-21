@@ -64,7 +64,7 @@ export function renderMarkdown(md: string): string {
   }
   function closeQuote() {
     if (inQuote) {
-      html.push(`<blockquote>${renderInline(quoteBuf.join('\n'))}</blockquote>`)
+      html.push(`<blockquote>${renderInline(escapeHtml(quoteBuf.join('\n')))}</blockquote>`)
       quoteBuf.length = 0
       inQuote = false
     }

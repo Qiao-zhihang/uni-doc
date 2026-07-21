@@ -99,7 +99,7 @@ const outlineItems = computed(() => {
 
 function scrollToHeading(blockId: string) {
   if (!contentRef.value) return
-  const el = contentRef.value.querySelector(`[data-block-id="${blockId}"]`)
+  const el = contentRef.value.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`)
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
@@ -144,7 +144,7 @@ function formatTime(ts: number): string {
 }
 
 function formatRelative(ts: number, firstTs: number): string {
-  const diff = ts - firstTs
+  const diff = Math.max(0, ts - firstTs)
   if (diff < 60000) return `${Math.round(diff / 1000)}s`
   if (diff < 3600000) return `${Math.round(diff / 60000)}m`
   return `${Math.round(diff / 3600000)}h`
@@ -194,23 +194,40 @@ function clearPlayTimer() {
   }
 }
 
+function playTick() {
+  if (!replay.isPlaying) return
+  if (replay.currentIndex >= replay.snapshots.length - 1) {
+    replay.pause()
+    return
+  }
+  replay.next()
+  const interval = PLAY_INTERVAL_MS / replay.playSpeed
+  playTimer = setTimeout(playTick, interval)
+}
+
+function startPlayTimer() {
+  if (playTimer) clearTimeout(playTimer)
+  playTimer = setTimeout(playTick, PLAY_INTERVAL_MS / replay.playSpeed)
+}
+
 watch(
   () => replay.isPlaying,
   (playing) => {
     clearPlayTimer()
     if (!playing) return
     if (replay.currentIndex < 0) replay.jumpTo(0)
-    const tick = () => {
-      if (!replay.isPlaying) return
-      if (replay.currentIndex >= replay.snapshots.length - 1) {
-        replay.pause()
-        return
-      }
-      replay.next()
-      const interval = PLAY_INTERVAL_MS / replay.playSpeed
-      playTimer = setTimeout(tick, interval)
+    startPlayTimer()
+  }
+)
+
+// 切换播放速度后立即用新速度重新调度下一次 tick
+watch(
+  () => replay.playSpeed,
+  () => {
+    if (replay.isPlaying) {
+      clearPlayTimer()
+      startPlayTimer()
     }
-    playTimer = setTimeout(tick, PLAY_INTERVAL_MS / replay.playSpeed)
   }
 )
 
@@ -241,6 +258,8 @@ function cycleSpeed() {
 // ===== 标签编辑 =====
 function startEdit() {
   if (!currentInfo.value) return
+  // 重置 skipBlurSave,防止上次 cancelEdit 设置的 true 残留导致本次 blur 被吞
+  skipBlurSave.value = false
   editingLabel.value = currentInfo.value.label
   isEditing.value = true
   labelHovered.value = false
@@ -267,9 +286,21 @@ function cancelEdit() {
 }
 
 function toggleMilestone() {
-  if (!currentInfo.value) return
-  const newType = currentInfo.value.type === 'milestone' ? 'auto' : 'milestone'
-  replay.updateSnapshotType(currentInfo.value.id, newType)
+  const info = currentInfo.value
+  if (!info) return
+  const snap = replay.snapshots.find((s) => s.id === info.id)
+  if (!snap) return
+  if (snap.type === 'milestone') {
+    // 取消里程碑:恢复 previousType,否则默认 'auto'
+    snap.type = snap.previousType ?? 'auto'
+    snap.previousType = undefined
+  } else {
+    // 设为里程碑:记录原 type 到 previousType,以便后续恢复
+    snap.previousType = snap.type
+    snap.type = 'milestone'
+  }
+  // 通过 store 触发 schedulePersist(snap 引用已在数组中,直接修改即生效)
+  replay.updateSnapshotType(snap.id, snap.type)
 }
 
 // ===== 版本回退 =====
@@ -287,7 +318,7 @@ async function revertToCurrentSnapshot() {
   doc.replaceBlocks(newBlocks, `回退到：${snap.label}`)
   doc.renderTick++
 
-  replay.exitReplay()
+  // 不在此处调 replay.exitReplay()——父组件 EditorView.vue 监听 'exit' 后会统一调用
   clearPlayTimer()
   if (hideTimer) clearTimeout(hideTimer)
   emit('exit')
@@ -303,6 +334,8 @@ function handleExit() {
 
 // ===== 键盘导航 =====
 function onKeydown(e: KeyboardEvent) {
+  // 输入法组合键输入中不拦截,避免影响中文/日文等输入
+  if (e.isComposing) return
   if (isEditing.value) {
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -547,6 +580,7 @@ const typeColor = (type: string) => {
           :style="{ left: `${replay.snapshots.length > 1 ? (idx / (replay.snapshots.length - 1)) * 100 : 0}%` }"
           :title="`${formatTime(snap.timestamp)} - ${snap.label}`"
           @click.stop="replay.jumpTo(idx)"
+          @mousedown.stop
         ></div>
       </div>
 

@@ -14,6 +14,8 @@ export interface ReplaySnapshot {
   label: string
   /** 快照类型 */
   type: 'manual' | 'auto' | 'milestone'
+  /** 切换为 milestone 前的原始类型,用于取消里程碑时恢复 */
+  previousType?: 'manual' | 'auto'
   /** 完整 blocks 深拷贝 */
   blocks: Block[]
 }

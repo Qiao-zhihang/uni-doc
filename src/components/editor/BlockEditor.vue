@@ -135,15 +135,13 @@ async function onBackspaceMerge(id: string) {
 
   const prevText = (prev.content.text as string) || ''
   const prevMarks: Mark[] = (prev.content.marks as Mark[]) || []
-  const currentRawText = (current.content.text as string) || ''
-
-  // 解析当前行原始文本（可能含 md 语法），得到纯净文本 + marks
-  const parsed = parseInlineMarkdown(currentRawText)
+  const currentText = (current.content.text as string) || ''
+  const currentMarks: Mark[] = (current.content.marks as Mark[]) || []
 
   // 将当前行 marks 偏移到上一行文本末尾
   const offset = prevText.length
-  const offsetMarks: Mark[] = parsed.marks.map((m) => ({
-    type: m.type,
+  const offsetMarks: Mark[] = currentMarks.map((m) => ({
+    ...m,
     start: m.start + offset,
     end: m.end + offset
   }))
@@ -151,7 +149,7 @@ async function onBackspaceMerge(id: string) {
   // 合并文本 + marks，更新上一行
   doc.updateBlock(prev.id, {
     content: {
-      text: prevText + parsed.text,
+      text: prevText + currentText,
       marks: [...prevMarks, ...offsetMarks]
     }
   }, '合并区块')

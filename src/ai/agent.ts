@@ -9,7 +9,7 @@
 
 import type { ChatMessage, MessageContent, ModelConfig, StreamCallbacks, ToolCall } from './types'
 import { streamChat, type StreamResult } from './model'
-import { createTools, getToolDefinitions, executeTool } from './tools'
+import { createTools, getToolDefinitions, executeTool, TOOL_LABELS } from './tools'
 import { buildContext, buildSystemPrompt } from './context'
 import type { useDocumentStore } from '@/stores/document'
 import type { useEditorStore } from '@/stores/editor'
@@ -19,26 +19,6 @@ const MAX_CONTINUE = 3
 
 /** OpenAI 函数调用工具描述格式（与 model.ts 中的 ToolSpec 一致） */
 type ToolSpec = Array<{ type: 'function'; function: { name: string; description: string; parameters: unknown } }>
-
-const TOOL_LABELS: Record<string, string> = {
-  get_document: '获取文档',
-  get_outline: '获取大纲',
-  list_blocks: '列出区块',
-  insert_block: '插入区块',
-  update_block: '更新区块',
-  delete_block: '删除区块',
-  move_block: '移动区块',
-  convert_block: '转换类型',
-  batch_edit: '批量编辑',
-  replace_document: '替换文档',
-  search_files: '搜索文件',
-  read_file: '读取文件',
-  create_file: '创建文件',
-  open_file: '打开文件',
-  get_vault_tree: '获取文件树',
-  switch_tab: '切换标签',
-  web_search: '联网搜索'
-}
 
 function formatToolResultForAI(toolName: string, result: { ok: boolean; data?: unknown; error?: string; total?: number }): string {
   if (!result.ok) {
@@ -121,12 +101,14 @@ function formatToolResultForAI(toolName: string, result: { ok: boolean; data?: u
 /**
  * 流式聊天 + 自动续写（检测到 finish_reason=length 时自动续推）
  * 返回最终聚合结果
+ * 支持通过 signal 参数取消请求
  */
 async function streamChatWithContinue(
   messages: ChatMessage[],
   tools: ToolSpec,
   config: ModelConfig,
-  onDelta?: (text: string) => void
+  onDelta?: (text: string) => void,
+  signal?: AbortSignal
 ): Promise<StreamResult> {
   // 用临时消息数组保存状态，避免修改原 messages
   const tempMessages = [...messages]
@@ -135,7 +117,8 @@ async function streamChatWithContinue(
   let finalFinishReason = ''
 
   for (let i = 0; i < MAX_CONTINUE; i++) {
-    const result = await streamChat(tempMessages, tools, config, onDelta)
+    if (signal?.aborted) break
+    const result = await streamChat(tempMessages, tools, config, onDelta, signal)
     fullContent += result.content
     finalToolCalls = result.toolCalls
     finalFinishReason = result.finishReason
@@ -169,8 +152,9 @@ export interface Agent {
   /**
    * 执行一轮对话，直接修改传入的 messages 数组（push 消息）
    * 调用方负责持久化
+   * 返回一个 AbortController，可用于取消对话
    */
-  chat: (messages: ChatMessage[], userInput: string | MessageContent[], callbacks?: StreamCallbacks) => Promise<void>
+  chat: (messages: ChatMessage[], userInput: string | MessageContent[], callbacks?: StreamCallbacks) => AbortController
 }
 
 /** 工具调用最大轮次，超过则强制生成最终回复 */
@@ -199,148 +183,190 @@ export function createAgent(deps: AgentDeps): Agent {
 
   const MAX_CONTEXT_ROUNDS = 30
 
-  async function chat(messages: ChatMessage[], userInput: string | MessageContent[], callbacks?: StreamCallbacks): Promise<void> {
-    try {
-      const config = getConfig()
-      // 联网搜索总开关由 enableWebSearch 控制（浮窗的「联网」按钮）
-      // 开启时：qwen 走原生联网（enable_search），其他模型走 function calling 工具
-      const webSearchOn = enableWebSearch()
-      const useNativeSearch = webSearchOn && !!config.nativeSearch
-      const useToolSearch = webSearchOn && !useNativeSearch
+  function chat(messages: ChatMessage[], userInput: string | MessageContent[], callbacks?: StreamCallbacks): AbortController {
+    const abortController = new AbortController()
+    const signal = abortController.signal
 
-      const context = buildContext(doc, editor, canvasEl())
-      const systemPrompt = buildSystemPrompt(context, useToolSearch, useNativeSearch)
+    ;(async () => {
+      try {
+        const config = getConfig()
+        // 联网搜索总开关由 enableWebSearch 控制（浮窗的「联网」按钮）
+        // 开启时：qwen 走原生联网（enable_search），其他模型走 function calling 工具
+        const webSearchOn = enableWebSearch()
+        const useNativeSearch = webSearchOn && !!config.nativeSearch
+        const useToolSearch = webSearchOn && !useNativeSearch
+        // 构造运行时配置:把 useNativeSearch 注入到 config,覆盖持久化的探针结果
+        // 这样 buildBody 是否注入 enable_search 取决于用户开关,而非仅看探针结果
+        // useToolSearch 由 createTools 的工具数组控制,不需要进 ModelConfig
+        const runtimeConfig: ModelConfig = { ...config, nativeSearch: useNativeSearch }
 
-      // 保留 tool 角色消息，确保 tool_calls 序列完整
-      const historyMessages = messages.filter((m) => m.role !== 'system')
-      // 截断时不能从 tool 消息中间切断，回退到最近的 user 消息边界
-      let truncatedHistory = historyMessages
-      if (historyMessages.length > MAX_CONTEXT_ROUNDS * 2) {
-        const sliced = historyMessages.slice(-MAX_CONTEXT_ROUNDS * 2)
-        // 如果截断后第一条是 tool/assistant(with tool_calls) 消息，向前找到 user 消息边界
-        let startIdx = 0
-        for (let i = 0; i < sliced.length; i++) {
-          if (sliced[i].role === 'user') {
-            startIdx = i
-            break
+        const context = buildContext(doc, editor, canvasEl())
+        const systemPrompt = buildSystemPrompt(context, useToolSearch, useNativeSearch)
+
+        // 保留 tool 角色消息，确保 tool_calls 序列完整
+        const historyMessages = messages.filter((m) => m.role !== 'system')
+        // 截断时不能从 tool 消息中间切断，回退到最近的 user 消息边界
+        let truncatedHistory = historyMessages
+        if (historyMessages.length > MAX_CONTEXT_ROUNDS * 2) {
+          const sliced = historyMessages.slice(-MAX_CONTEXT_ROUNDS * 2)
+          // 如果截断后第一条是 tool/assistant(with tool_calls) 消息，向前找到 user 消息边界
+          let startIdx = 0
+          for (let i = 0; i < sliced.length; i++) {
+            if (sliced[i].role === 'user') {
+              startIdx = i
+              break
+            }
           }
-        }
-        truncatedHistory = sliced.slice(startIdx)
-      }
-
-      const contextMessages: ChatMessage[] = [
-        { role: 'system', content: systemPrompt },
-        ...truncatedHistory,
-        { role: 'user', content: userInput },
-      ]
-
-      messages.push({ role: 'user', content: userInput })
-
-      // 准备工具：内部 ToolDefinition[] 与 OpenAI Function Calling 格式
-      const tools = createTools(doc, editor, useToolSearch)
-      const toolDefs = getToolDefinitions(tools)
-
-      // 多轮工具调用循环
-      let lastCallKey = ''
-      let consecutiveSame = 0
-
-      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-        // a. 先推入空 assistant 消息到两个数组
-        contextMessages.push({ role: 'assistant', content: '', tool_calls: undefined })
-        messages.push({ role: 'assistant', content: '', tool_calls: undefined })
-
-        // b. 调用模型流式接口（使用 contextMessages）
-        const streamResult = await streamChatWithContinue(
-          contextMessages,
-          toolDefs,
-          getConfig(),
-          callbacks?.onDelta
-        )
-
-        // c. 用最终结果更新两个数组中的 assistant 消息
-        const lastCtxMsg = contextMessages[contextMessages.length - 1]
-        lastCtxMsg.content = streamResult.content
-        lastCtxMsg.tool_calls = streamResult.toolCalls?.length ? streamResult.toolCalls : undefined
-
-        const lastMsg = messages[messages.length - 1]
-        lastMsg.content = streamResult.content
-        lastMsg.tool_calls = streamResult.toolCalls?.length ? streamResult.toolCalls : undefined
-
-        // d. 无工具调用则结束循环
-        if (!streamResult.toolCalls || streamResult.toolCalls.length === 0) {
-          break
+          truncatedHistory = sliced.slice(startIdx)
         }
 
-        // e. 死循环检测：连续调用完全相同的工具+参数，直接终止
-        const callKey = streamResult.toolCalls
-          .map((tc) => `${tc.function.name}:${tc.function.arguments}`)
-          .join('|')
-        if (callKey === lastCallKey) {
-          consecutiveSame++
-          if (consecutiveSame >= MAX_CONSECUTIVE_SAME_CALLS) {
-            callbacks?.onError?.(`检测到工具调用循环 (${streamResult.toolCalls[0].function.name})，已终止`)
-            break
-          }
-        } else {
-          consecutiveSame = 0
-          lastCallKey = callKey
-        }
+        const contextMessages: ChatMessage[] = [
+          { role: 'system', content: systemPrompt },
+          ...truncatedHistory,
+          { role: 'user', content: userInput },
+        ]
 
-        // g. 遍历执行所有工具调用
-        for (const toolCall of streamResult.toolCalls) {
-          const toolName = toolCall.function.name
+        messages.push({ role: 'user', content: userInput })
 
-          // 解析参数（失败用空对象）
-          let args: Record<string, unknown> = {}
+        // 准备工具：内部 ToolDefinition[] 与 OpenAI Function Calling 格式
+        const tools = createTools(doc, editor, useToolSearch)
+        const toolDefs = getToolDefinitions(tools)
+
+        // 多轮工具调用循环
+        let lastCallKey = ''
+        let consecutiveSame = 0
+
+        for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+          if (signal.aborted) break
+
+          // a. 先推入空 assistant 消息到两个数组
+          contextMessages.push({ role: 'assistant', content: '', tool_calls: undefined })
+          messages.push({ role: 'assistant', content: '', tool_calls: undefined })
+
+          // b. 调用模型流式接口（使用 contextMessages）
+          let streamResult: StreamResult
           try {
-            args = JSON.parse(toolCall.function.arguments)
-          } catch {
-            args = {}
+            streamResult = await streamChatWithContinue(
+              contextMessages,
+              toolDefs,
+              runtimeConfig,
+              callbacks?.onDelta,
+              signal
+            )
+          } catch (e) {
+            if ((e as Error).name === 'AbortError') {
+              break
+            }
+            throw e
           }
 
-          // 先回调一次表示"开始调用工具"
-          callbacks?.onToolCall?.(toolName, args, { ok: true, data: '__calling__' })
+          if (signal.aborted) break
 
-          // 执行工具
-          const toolResult = await executeTool(tools, toolName, args)
+          // c. 用最终结果更新两个数组中的 assistant 消息
+          const lastCtxMsg = contextMessages[contextMessages.length - 1]
+          lastCtxMsg.content = streamResult.content
+          lastCtxMsg.tool_calls = streamResult.toolCalls?.length ? streamResult.toolCalls : undefined
 
-          // 文档修改类工具执行成功后,递增 renderTick 强制 DOM 重新同步
-          if (toolResult.ok && DOC_MODIFYING_TOOLS.has(toolName)) {
-            doc.renderTick++
+          const lastMsg = messages[messages.length - 1]
+          lastMsg.content = streamResult.content
+          lastMsg.tool_calls = streamResult.toolCalls?.length ? streamResult.toolCalls : undefined
+
+          // d. 无工具调用则结束循环
+          if (!streamResult.toolCalls || streamResult.toolCalls.length === 0) {
+            break
           }
 
-          // 再回调一次表示"工具执行完成"
-          callbacks?.onToolCall?.(toolName, args, toolResult)
-
-          // 把结果回灌给模型（同时推入 contextMessages 和 messages）
-          const resultText = formatToolResultForAI(toolName, toolResult)
-          const toolMsg: ChatMessage = {
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: resultText,
+          // e. 死循环检测：连续调用完全相同的工具+参数，直接终止
+          const callKey = streamResult.toolCalls
+            .map((tc) => `${tc.function.name}:${tc.function.arguments}`)
+            .join('|')
+          if (callKey === lastCallKey) {
+            consecutiveSame++
+            if (consecutiveSame >= MAX_CONSECUTIVE_SAME_CALLS) {
+              callbacks?.onError?.(`检测到工具调用循环 (${streamResult.toolCalls[0].function.name})，已终止`)
+              break
+            }
+          } else {
+            consecutiveSame = 0
+            lastCallKey = callKey
           }
-          contextMessages.push(toolMsg)
-          messages.push(toolMsg)
+
+          // g. 遍历执行所有工具调用
+          for (const toolCall of streamResult.toolCalls) {
+            if (signal.aborted) break
+
+            const toolName = toolCall.function.name
+
+            // 解析参数（失败用空对象）
+            let args: Record<string, unknown> = {}
+            try {
+              args = JSON.parse(toolCall.function.arguments)
+            } catch {
+              args = {}
+            }
+
+            // 先回调一次表示"开始调用工具"
+            callbacks?.onToolCall?.(toolName, args, { ok: true, data: '__calling__' })
+
+            // 执行工具
+            const toolResult = await executeTool(tools, toolName, args)
+
+            // 文档修改类工具执行成功后,递增 renderTick 强制 DOM 重新同步
+            if (toolResult.ok && DOC_MODIFYING_TOOLS.has(toolName)) {
+              doc.renderTick++
+            }
+
+            // 再回调一次表示"工具执行完成"
+            callbacks?.onToolCall?.(toolName, args, toolResult)
+
+            // 把结果回灌给模型（同时推入 contextMessages 和 messages）
+            const resultText = formatToolResultForAI(toolName, toolResult)
+            const toolMsg: ChatMessage = {
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: resultText,
+            }
+            contextMessages.push(toolMsg)
+            messages.push(toolMsg)
+          }
+
+          if (signal.aborted) break
+
+          // h. 最后一轮了，还有工具调用 → 强制模型生成最终回复（不带 tool_calls）
+          if (round === MAX_TOOL_ROUNDS - 1) {
+            try {
+              const finalResult = await streamChatWithContinue(
+                contextMessages,
+                [],
+                runtimeConfig,
+                callbacks?.onDelta,
+                signal
+              )
+              messages.push({
+                role: 'assistant',
+                content: finalResult.content,
+              })
+            } catch (e) {
+              if ((e as Error).name === 'AbortError') {
+                break
+              }
+              throw e
+            }
+          }
         }
-
-        // h. 最后一轮了，还有工具调用 → 强制模型生成最终回复（不带 tool_calls）
-        if (round === MAX_TOOL_ROUNDS - 1) {
-          const finalResult = await streamChatWithContinue(
-            contextMessages,
-            [],
-            getConfig(),
-            callbacks?.onDelta
-          )
-          messages.push({
-            role: 'assistant',
-            content: finalResult.content,
-          })
+      } catch (e) {
+        // AbortError 不算错误，直接返回
+        if ((e as Error).name === 'AbortError') {
+          return
         }
+        // 任何异常都通过 onError 回调，不向外抛
+        callbacks?.onError?.(e instanceof Error ? e.message : String(e))
+      } finally {
+        callbacks?.onComplete?.()
       }
-    } catch (e) {
-      // 任何异常都通过 onError 回调，不向外抛
-      callbacks?.onError?.(e instanceof Error ? e.message : String(e))
-    }
+    })()
+
+    return abortController
   }
 
   return { chat }

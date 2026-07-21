@@ -18,6 +18,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import {
   FilePlus,
+  FileText,
   FolderOpen,
   RefreshCw,
   Pencil,
@@ -26,12 +27,12 @@ import {
   Library
 } from 'lucide-vue-next'
 import { useDocumentStore } from '@/stores/document'
+import { useVaultStore } from '@/stores/vault'
 import ContextMenu, { type MenuItem } from '@/components/common/ContextMenu.vue'
 import VaultTreeNode from '@/components/layout/VaultTreeNode.vue'
 import VaultManagerDialog from '@/components/common/VaultManagerDialog.vue'
 import { confirmDialog, promptDialog } from '@/composables/useDialog'
 import {
-  pickVaultFolder,
   readVaultTree,
   renameVaultEntry,
   deleteVaultEntry,
@@ -41,6 +42,7 @@ import {
 } from '@/core/vault/vault'
 
 const doc = useDocumentStore()
+const vaultStore = useVaultStore()
 
 const tree = ref<VaultNode[]>([])
 const loading = ref(false)
@@ -66,18 +68,12 @@ const openedPaths = computed(() => {
   return new Set(activeTab?.path ? [activeTab.path] : [])
 })
 
-/** 选择并加载 vault */
+/** 选择并加载 vault(统一走 vaultStore.pickAndAddVault,与 VaultManagerDialog 一致) */
 async function selectVault() {
   loading.value = true
   errorMsg.value = null
   try {
-    const root = await pickVaultFolder()
-    if (!root) {
-      loading.value = false
-      return
-    }
-    doc.setVaultRoot(root)
-    await refreshTree()
+    await vaultStore.pickAndAddVault()
   } catch (e) {
     errorMsg.value = String(e)
   } finally {
@@ -123,8 +119,8 @@ async function refreshTree() {
   try {
     const data = await readVaultTree(doc.vaultRoot)
     tree.value = data
-    // 同步到 store,供 wikilink 等功能使用
-    doc.vaultTree.splice(0, doc.vaultTree.length, ...data)
+    // 同步到 store,供 wikilink 等功能使用(直接赋值触发响应式)
+    doc.vaultTree = data
     // 默认展开所有文件夹,让用户立刻看到完整文件树
     expanded.value = collectAllDirPaths(data)
   } catch (e) {
@@ -223,8 +219,22 @@ async function renameNode(node: VaultNode) {
   try {
     await renameVaultEntry(doc.vaultRoot!, node.path, newPath)
     // 同步更新已打开 tab 的 path
-    const tab = doc.openTabs.find((t) => t.path === node.path)
-    if (tab) tab.path = newPath
+    if (node.isDir) {
+      // 文件夹重命名:替换所有子文件 tab 的路径前缀
+      const prefix = node.path + '/'
+      for (const t of doc.openTabs) {
+        if (!t.path) continue
+        if (t.path.startsWith(prefix)) {
+          t.path = newPath + t.path.slice(node.path.length)
+        } else if (t.path === node.path) {
+          // tab 自身指向该文件夹(理论上文件 tab 不会指向文件夹,但稳妥处理)
+          t.path = newPath
+        }
+      }
+    } else {
+      const tab = doc.openTabs.find((t) => t.path === node.path)
+      if (tab) tab.path = newPath
+    }
     await refreshTree()
   } catch (e) {
     await confirmDialog('重命名失败: ' + String(e), '错误')
@@ -236,17 +246,40 @@ async function deleteNode(node: VaultNode) {
   if (!ok) return
   try {
     await deleteVaultEntry(doc.vaultRoot!, node.path)
-    // 关闭对应 tab(如果开着)
-    const tab = doc.openTabs.find((t) => t.path === node.path)
-    if (tab) doc.closeTab(tab.id)
+    // 关闭对应 tab(如果开着);文件夹则关闭所有子文件 tab
+    if (node.isDir) {
+      const prefix = node.path + '/'
+      const toClose = doc.openTabs.filter((t) => t.path && t.path.startsWith(prefix))
+      // 复制一份再遍历,closeTab 会修改 openTabs 数组
+      for (const t of toClose) {
+        doc.closeTab(t.id)
+      }
+    } else {
+      const tab = doc.openTabs.find((t) => t.path === node.path)
+      if (tab) doc.closeTab(tab.id)
+    }
     await refreshTree()
   } catch (e) {
     await confirmDialog('删除失败: ' + String(e), '错误')
   }
 }
 
+/** 校验文件名是否合法(不含 < > : " | ? * \ /),并自动补全 .md 扩展名 */
+async function validateMdFileName(rawName: string): Promise<string | null> {
+  const trimmed = rawName.trim()
+  if (!trimmed) return null
+  if (/[<>:"|?*\\/]/.test(trimmed)) {
+    await confirmDialog('文件名包含非法字符(< > : " | ? * \\ /)', '错误')
+    return null
+  }
+  // 缺 .md 扩展名时自动补全
+  return /\.md$/i.test(trimmed) ? trimmed : `${trimmed}.md`
+}
+
 async function newFileInDir(dirPath: string) {
-  const name = await promptDialog('新文件名(含 .md 扩展名):', '新文件.md', '新建文件')
+  const raw = await promptDialog('新文件名:', '新文件.md', '新建文件')
+  if (!raw) return
+  const name = await validateMdFileName(raw)
   if (!name) return
   const rel = dirPath ? `${dirPath}/${name}` : name
   try {
@@ -260,7 +293,9 @@ async function newFileInDir(dirPath: string) {
 
 async function newFileAtRoot() {
   if (!doc.vaultRoot) return
-  const name = await promptDialog('新文件名(含 .md 扩展名):', '新文件.md', '新建文件')
+  const raw = await promptDialog('新文件名:', '新文件.md', '新建文件')
+  if (!raw) return
+  const name = await validateMdFileName(raw)
   if (!name) return
   try {
     await createVaultFile(doc.vaultRoot, name, `# ${name.replace(/\.md$/i, '')}\n`)

@@ -47,16 +47,26 @@ export class UndoRedo {
    * 推入一个新快照(在执行变更前调用)
    * @param blocks 变更前的 blocks 快照
    * @param label 操作描述
+   *
+   * 合并策略:同 label 且距上次 push <1s 时,视为同一连续操作,跳过新快照(滑动窗口,
+   * 更新 timestamp)。这样连续打字/连续微调不会产生大量撤销点。
    */
   push(blocks: Block[], label = '编辑'): void {
+    // 新操作总是清空重做栈(分支撤销语义),即使本次被合并
+    this.redoStack = []
+    const now = Date.now()
+    const last = this.undoStack[this.undoStack.length - 1]
+    if (last && last.label === label && now - last.timestamp < 1000) {
+      // 合并:滑动窗口,更新 timestamp,不 push 新快照
+      last.timestamp = now
+      return
+    }
     const snapshot: HistorySnapshot = {
       blocks: this.cloneBlocks(blocks),
       label,
-      timestamp: Date.now()
+      timestamp: now
     }
     this.undoStack.push(snapshot)
-    // 新操作后清空重做栈(分支撤销语义)
-    this.redoStack = []
     // 超出上限丢弃最早历史
     if (this.undoStack.length > this.limit) {
       this.undoStack.shift()

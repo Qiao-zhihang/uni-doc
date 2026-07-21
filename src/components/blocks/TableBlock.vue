@@ -80,11 +80,12 @@ onMounted(() => {
     syncCells()
     requestAnimationFrame(syncCells)
   })
-  window.addEventListener('click', closeContextMenu)
+  // capture 阶段:先于目标元素处理,避免被块组件 stopPropagation 吞掉
+  window.addEventListener('click', closeContextMenu, true)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('click', closeContextMenu)
+  window.removeEventListener('click', closeContextMenu, true)
   cellRefs.value.clear()
 })
 

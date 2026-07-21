@@ -148,6 +148,8 @@ function onKeydown(e: KeyboardEvent) {
     }
   } else if (e.key === 'Backspace' && isCursorAtStart()) {
     e.preventDefault()
+    // 合并前先保存当前块的最新内容,防止拼接时使用旧内容
+    commitWithMarks(el.value?.innerText || '')
     skipNextBlur.value = true
     emit('backspace-merge')
   }

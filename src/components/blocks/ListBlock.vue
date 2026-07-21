@@ -27,6 +27,8 @@ const emit = defineEmits<{
 
 const itemRefs = ref<HTMLElement[]>([])
 const selfUpdate = ref(false)
+/** Enter/Backspace 切换 item 时跳过 onBlur 提交(此时 DOM 仍显示旧文本,会覆盖已提交内容) */
+const skipNextBlur = ref(false)
 // 当前编辑中的 item 元素(用于 wikilink 自动补全)
 const activeItemEl = ref<HTMLElement | null>(null)
 const autocomplete = useWikilinkAutocomplete({ el: activeItemEl })
@@ -139,6 +141,8 @@ function onItemKeydown(e: KeyboardEvent, idx: number) {
     if (el) {
       commitItemWithMarks(idx, el.innerText)
       selfUpdate.value = false
+      // 跳过即将触发的 onBlur:Enter 会切到新 item,旧 item blur 时 DOM 仍显示旧文本
+      skipNextBlur.value = true
     }
     const newItem: ListItem = { id: uuid(), text: '', marks: [], checked: false }
     const newItems = [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)]
@@ -147,8 +151,10 @@ function onItemKeydown(e: KeyboardEvent, idx: number) {
     nextTick(() => {
       itemRefs.value[idx + 1]?.focus()
     })
-  } else if (e.key === 'Backspace' && el && isCursorAtStart(el) && items[idx].text === '') {
+  } else if (e.key === 'Backspace' && el && isCursorAtStart(el) && el.innerText.trim() === '') {
     e.preventDefault()
+    // 跳过即将触发的 onBlur:Backspace 会切到 prev item,当前 item blur 时 DOM 仍显示旧文本
+    skipNextBlur.value = true
     if (items.length <= 1) {
       emit('backspace-merge')
     } else {
@@ -187,6 +193,11 @@ function isTask() {
 /** 列表项失焦时提交 */
 function onBlurItem(idx: number, text: string) {
   autocomplete.close()
+  // Enter/Backspace 切换 item 时已显式提交,跳过(此时 DOM 可能还显示旧文本)
+  if (skipNextBlur.value) {
+    skipNextBlur.value = false
+    return
+  }
   commitItemWithMarks(idx, text)
 }
 

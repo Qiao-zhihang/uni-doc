@@ -36,8 +36,8 @@ export function detectBlockSyntax(text: string): BlockSyntaxMatch | null {
     }
   }
 
-  // 分隔线: --- / *** / ___
-  if (/^[-*_]{3,}$/.test(text.trim())) {
+  // 分隔线(CommonMark thematic break): 由 - * _ 中任一字符重复 3 次以上组成,字符必须相同
+  if (/^([-*_])\1{2,}$/.test(text.trim())) {
     return { type: 'divider', strippedText: '' }
   }
 

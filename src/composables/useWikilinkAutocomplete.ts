@@ -31,15 +31,15 @@ export function useWikilinkAutocomplete({ el }: WikilinkAutocompleteOptions) {
   // [[ 在 innerText 中的起始偏移
   let triggerStart = -1
 
-  /** 从 vault tree 扁平化所有 .md 文件 */
+  /** 从 vault tree 扁平化所有 .md 文件(Map 按 path 去重缓存) */
   const allFiles = computed<AutocompleteItem[]>(() => {
-    const result: AutocompleteItem[] = []
+    const cache = new Map<string, AutocompleteItem>()
     function walk(nodes: VaultNode[]) {
       for (const node of nodes) {
         if (node.isDir && node.children) {
           walk(node.children)
         } else if (/\.md$/i.test(node.name)) {
-          result.push({
+          cache.set(node.path, {
             name: node.name.replace(/\.md$/i, ''),
             path: node.path
           })
@@ -47,7 +47,7 @@ export function useWikilinkAutocomplete({ el }: WikilinkAutocompleteOptions) {
       }
     }
     walk(doc.vaultTree)
-    return result
+    return Array.from(cache.values())
   })
 
   /** 过滤后的文件列表 */
@@ -130,6 +130,24 @@ export function useWikilinkAutocomplete({ el }: WikilinkAutocompleteOptions) {
     return true
   }
 
+  /**
+   * 用 TreeWalker 找到 innerText 偏移对应的文本节点和字符偏移
+   * 用于将 innerText 偏移转换为 DOM Range 位置
+   */
+  function findTextNodeAtOffset(element: HTMLElement, targetOffset: number): { node: Text; offset: number } | null {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+    let currentOffset = 0
+    while (walker.nextNode()) {
+      const textNode = walker.currentNode as Text
+      const textLen = (textNode.textContent || '').length
+      if (currentOffset + textLen >= targetOffset) {
+        return { node: textNode, offset: targetOffset - currentOffset }
+      }
+      currentOffset += textLen
+    }
+    return null
+  }
+
   /** 确认选择:将 [[query 替换为 [[选中的文件名]] */
   function confirm(): boolean {
     if (!visible.value || selectedIndex.value < 0) return false
@@ -143,34 +161,42 @@ export function useWikilinkAutocomplete({ el }: WikilinkAutocompleteOptions) {
     if (!sel || sel.rangeCount === 0) return false
     const range = sel.getRangeAt(0)
 
-    // 删除从 triggerStart+2 到光标的文本(即 query 部分),插入文件名 + ]]
-    // 需要在 DOM 中操作:找到 [[ 之后到光标的范围
+    // 计算光标前的文本总长度
     const fullRange = document.createRange()
     fullRange.selectNodeContents(element)
     fullRange.setEnd(range.startContainer, range.startOffset)
-
-    // 从光标往回删除 query 长度 + 2( [[ 的长度)
     const textBefore = fullRange.toString()
-    const deleteLen = textBefore.length - triggerStart - 2 // 减去 [[ 的 2 个字符
-    // 光标所在的文本节点
-    const startOffset = range.startOffset
-    const node = range.startContainer
 
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent || ''
-      // 删除从 [[ 开始到光标处的文本(含 [[ 和 query),插入 [[文件名]]
-      const before = text.slice(0, startOffset - deleteLen - 2)
-      const after = text.slice(startOffset)
-      const insertText = `[[${item.name}]]`
-      node.textContent = before + insertText + after
-
-      // 将光标移到 ]] 之后
-      const newRange = document.createRange()
-      newRange.setStart(node, before.length + insertText.length)
-      newRange.collapse(true)
-      sel.removeAllRanges()
-      sel.addRange(newRange)
+    // 边界检查:triggerStart 有效且 [[ 在光标前
+    if (triggerStart < 0 || triggerStart + 2 > textBefore.length) {
+      close()
+      return false
     }
+
+    // 用 TreeWalker 找到 [[ 起始位置对应的文本节点和字符偏移
+    // 支持 non-text cursor(如光标在 <br> 后或元素节点边界)
+    const startPos = findTextNodeAtOffset(element, triggerStart)
+    if (!startPos) {
+      close()
+      return false
+    }
+
+    // 创建从 [[ 到光标的 Range,删除内容并插入 [[文件名]]
+    const replaceRange = document.createRange()
+    replaceRange.setStart(startPos.node, startPos.offset)
+    replaceRange.setEnd(range.startContainer, range.startOffset)
+    replaceRange.deleteContents()
+
+    const insertText = `[[${item.name}]]`
+    const textNode = document.createTextNode(insertText)
+    replaceRange.insertNode(textNode)
+
+    // 将光标移到插入的文本之后
+    const newRange = document.createRange()
+    newRange.setStartAfter(textNode)
+    newRange.collapse(true)
+    sel.removeAllRanges()
+    sel.addRange(newRange)
 
     close()
     return true

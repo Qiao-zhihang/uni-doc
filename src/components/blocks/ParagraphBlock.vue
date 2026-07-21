@@ -153,7 +153,9 @@ function onKeydown(e: KeyboardEvent) {
     }
   } else if (e.key === 'Backspace' && isCursorAtStart()) {
     e.preventDefault()
-    // 同理:Backspace 合并也会导致失焦,跳过 onBlur
+    // 合并前先保存当前块的最新内容,防止拼接时使用旧内容
+    commitWithMarks(el.value?.innerText || '')
+    // Backspace 合并也会导致失焦,跳过 onBlur
     skipNextBlur.value = true
     emit('backspace-merge')
   }
@@ -221,13 +223,25 @@ async function onPaste(e: ClipboardEvent) {
       const ext = blob.type.split('/')[1]?.split(';')[0] || 'png'
       const data = new Uint8Array(await blob.arrayBuffer())
       const rel = await writeImageToVault(doc.vaultRoot, doc.activeTabPath ?? '', data, ext)
-      // 当前段落块转换为图片块(id 不变,保持选中)
-      selfUpdate.value = true
-      emit('update', {
-        type: 'image',
-        content: { src: rel, alt: '' },
-        props: { align: 'center', width: 100 }
-      })
+
+      const hasContent = (content().text || '').trim().length > 0
+
+      if (hasContent) {
+        commitWithMarks(el.value?.innerText || '')
+        await nextTick()
+        const newId = doc.insertBlockAfter(props.block.id, 'image', '粘贴图片')
+        doc.updateBlock(newId, {
+          content: { src: rel, alt: '' },
+          props: { align: 'center', width: 100 }
+        }, '更新图片属性')
+      } else {
+        selfUpdate.value = true
+        emit('update', {
+          type: 'image',
+          content: { src: rel, alt: '' },
+          props: { align: 'center', width: 100 }
+        })
+      }
       return
     }
   }

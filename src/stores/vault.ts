@@ -6,7 +6,8 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { useDocumentStore } from './document'
-import { pickVaultFolder, createVaultDir } from '@/core/vault/vault'
+import { pickVaultFolder, createDirAtPath } from '@/core/vault/vault'
+import { isTauri } from '@/core/serializer/markdownFile'
 
 export interface VaultEntry {
   /** 仓库根路径(绝对路径) */
@@ -65,8 +66,10 @@ export const useVaultStore = defineStore('vault', () => {
   function removeVault(path: string) {
     vaults.value = vaults.value.filter((v) => v.path !== path)
     saveVaults(vaults.value)
-    // 如果删除的是当前仓库,关闭当前仓库
+    // 如果删除的是当前仓库:先关闭所有 tab(避免热保存把旧 vault 的 tab 写到磁盘),
+    // 再清空 vaultRoot
     if (currentVaultPath.value === path) {
+      doc.closeAllTabs()
       void doc.setVaultRoot(null)
     }
   }
@@ -75,6 +78,10 @@ export const useVaultStore = defineStore('vault', () => {
   async function switchVault(path: string) {
     const entry = vaults.value.find((v) => v.path === path)
     if (!entry) return
+    // 切换到不同仓库时,关闭旧 vault 的所有 tab(避免热保存创建垃圾文件)
+    if (currentVaultPath.value && currentVaultPath.value !== path) {
+      doc.closeAllTabs()
+    }
     entry.lastOpened = Date.now()
     // 重新排序:最近使用的在最前
     vaults.value.sort((a, b) => b.lastOpened - a.lastOpened)
@@ -108,10 +115,19 @@ export const useVaultStore = defineStore('vault', () => {
       return null
     }
 
-    const fullPath = parentPath + '/' + name.replace(/[\\/]/g, '_')
+    const safeName = name.replace(/[\\/]/g, '_')
+
+    // 用平台原生分隔符拼接,避免 Windows 上混合分隔符
+    let fullPath: string
+    if (isTauri()) {
+      const { join } = await import('@tauri-apps/api/path')
+      fullPath = await join(parentPath, safeName)
+    } else {
+      fullPath = `${parentPath}/${safeName}`
+    }
 
     // 创建文件夹
-    await createVaultDir(parentPath, name.replace(/[\\/]/g, '_'))
+    await createDirAtPath(fullPath)
 
     const entry = addVault(fullPath, name)
     await switchVault(entry.path)

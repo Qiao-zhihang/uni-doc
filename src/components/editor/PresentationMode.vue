@@ -43,8 +43,8 @@ const slides = computed<Block[][]>(() => {
       result[result.length - 1].push(block)
     }
   }
-  // 过滤掉完全空的幻灯片(首尾的空幻灯片)
-  return result.filter((s) => s.length > 0)
+  // 保留空幻灯片:显式分页符应产生对应的空页(如文档以分页符开头/结尾或连续分页符)
+  return result
 })
 
 const currentSlide = ref(0)

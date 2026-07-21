@@ -13,7 +13,8 @@ import { useSettingsStore } from '@/stores/settings'
 import { useAiConversationStore } from '@/stores/aiConversation'
 import { createAgent, type Agent } from '@/ai/agent'
 import { renderMarkdown } from '@/ai/markdown'
-import type { MessageContent } from '@/ai/types'
+import { TOOL_LABELS } from '@/ai/tools'
+import type { MessageContent, ToolResult } from '@/ai/types'
 import AiIconUrl from '@/assets/UUshark/icon.svg'
 
 const router = useRouter()
@@ -24,10 +25,12 @@ const settings = useSettingsStore()
 const convStore = useAiConversationStore()
 const agent = ref<Agent | null>(null)
 const sending = ref(false)
+const abortController = ref<AbortController | null>(null)
 
 const input = ref('')
 const toolStatus = ref<'idle' | 'calling' | 'completed'>('idle')
 const currentToolName = ref('')
+const currentToolResult = ref<ToolResult | null>(null)
 const chatAreaRef = ref<HTMLElement | null>(null)
 const localWebSearch = ref(true)
 const attachedImages = ref<Array<{ name: string; base64: string; mimeType: string }>>([])
@@ -86,20 +89,39 @@ const caps = computed(() => settings.modelCapabilities)
 /** 滚动对话区到底部 */
 function scrollToBottom() {
   nextTick(() => {
-    if (chatAreaRef.value) {
-      chatAreaRef.value.scrollTop = chatAreaRef.value.scrollHeight
-    }
+    requestAnimationFrame(() => {
+      if (chatAreaRef.value) {
+        chatAreaRef.value.scrollTop = chatAreaRef.value.scrollHeight
+      }
+    })
   })
 }
 
 // 消息变化时自动滚动
 watch(() => displayMessages.value.length, () => scrollToBottom())
-// 流式输出时持续滚动
+// 流式输出时持续滚动(100ms 节流,避免每个 delta 都触发)
+let streamScrollTs = 0
+let streamScrollTimer: ReturnType<typeof setTimeout> | null = null
 watch(() => {
   const msgs = displayMessages.value
   const last = msgs[msgs.length - 1]
   return last?.role === 'assistant' ? last.content.length : 0
-}, () => scrollToBottom())
+}, () => {
+  const now = Date.now()
+  if (now - streamScrollTs < 100) {
+    // 节流:100ms 内的后续触发用 trailing 调用补一次
+    if (streamScrollTimer === null) {
+      streamScrollTimer = setTimeout(() => {
+        streamScrollTimer = null
+        streamScrollTs = Date.now()
+        scrollToBottom()
+      }, 100 - (now - streamScrollTs))
+    }
+    return
+  }
+  streamScrollTs = now
+  scrollToBottom()
+})
 // 窗口打开 / 切换会话时滚动到底部
 watch(isOpen, (open) => { if (open) scrollToBottom() })
 watch(() => convStore.activeConversationId, () => scrollToBottom())
@@ -241,6 +263,7 @@ function handleNewConversation() {
   if (sending.value) return
   convStore.createConversation(settings.activeProfileId)
   localWebSearch.value = true
+  attachedImages.value = []
 }
 
 /** 切换会话 */
@@ -305,6 +328,9 @@ function toggleSidebar() {
     windowSize.value.w -= SIDEBAR_DELTA
     windowPos.value.x += SIDEBAR_DELTA
   }
+  // 折叠/展开后钳制到视口内,避免越界
+  const clamped = clampToViewport(windowPos.value.x, windowPos.value.y, windowSize.value.w, windowSize.value.h)
+  windowPos.value = clamped
   sidebarCollapsed.value = !sidebarCollapsed.value
   // 动画结束后移除动画类，避免影响拖动/调整大小
   setTimeout(() => {
@@ -329,8 +355,16 @@ function goToSettings() {
   router.push('/settings')
 }
 
+/** 停止生成 */
+function stopGeneration() {
+  if (abortController.value) {
+    abortController.value.abort()
+    abortController.value = null
+  }
+}
+
 /** 执行对话 */
-async function execute() {
+function execute() {
   if (!input.value.trim() || sending.value || !agent.value || !convStore.activeConversation) return
   const userText = input.value
   input.value = ''
@@ -358,36 +392,56 @@ async function execute() {
 
   sending.value = true
   let accumulatedContent = ''
-  try {
-    await agent.value.chat(
-      conv.messages,
-      userContent,
-      {
-        onDelta: (text) => {
-          accumulatedContent += text
-          convStore.updateLastMessage(convId, accumulatedContent)
-        },
-        onToolCall: (toolName, _args, result) => {
-          if (result.data === '__calling__') {
-            toolStatus.value = 'calling'
-            currentToolName.value = toolName
-          } else {
-            toolStatus.value = 'completed'
-            setTimeout(() => {
-              toolStatus.value = 'idle'
-              currentToolName.value = ''
-            }, 2000)
+  let isAborted = false
+
+  const controller = agent.value.chat(
+    conv.messages,
+    userContent,
+    {
+      onDelta: (text) => {
+        accumulatedContent += text
+        convStore.updateLastMessage(convId, accumulatedContent)
+      },
+      onToolCall: (toolName, _args, result) => {
+        if (result.data === '__calling__') {
+          toolStatus.value = 'calling'
+          currentToolName.value = toolName
+          currentToolResult.value = null
+        } else {
+          toolStatus.value = 'completed'
+          currentToolResult.value = result
+          setTimeout(() => {
+            toolStatus.value = 'idle'
+            currentToolName.value = ''
+            currentToolResult.value = null
+          }, 2000)
+        }
+      },
+      onError: (err) => {
+        convStore.addMessage(convId, { role: 'assistant', content: `⚠️ ${err}` })
+      },
+      onComplete: () => {
+        if (!isAborted) {
+          sending.value = false
+          abortController.value = null
+          // 若最后 assistant 消息仍为空，移除它
+          const lastMsg = conv.messages[conv.messages.length - 1]
+          if (lastMsg && lastMsg.role === 'assistant' && (!lastMsg.content || lastMsg.content === '')) {
+            conv.messages.pop()
           }
-        },
-        onError: (err) => {
-          convStore.addMessage(convId, { role: 'assistant', content: `⚠️ ${err}` })
-        },
-      }
-    )
-  } catch (e) {
-    convStore.addMessage(convId, { role: 'assistant', content: `⚠️ ${e instanceof Error ? e.message : String(e)}` })
-  } finally {
+          // 持久化
+          convStore.flushSave()
+        }
+      },
+    }
+  )
+
+  abortController.value = controller
+
+  controller.signal.addEventListener('abort', () => {
+    isAborted = true
     sending.value = false
+    abortController.value = null
     // 若最后 assistant 消息仍为空，移除它
     const lastMsg = conv.messages[conv.messages.length - 1]
     if (lastMsg && lastMsg.role === 'assistant' && (!lastMsg.content || lastMsg.content === '')) {
@@ -395,7 +449,7 @@ async function execute() {
     }
     // 持久化
     convStore.flushSave()
-  }
+  })
 }
 
 /** 选择图片 */
@@ -442,28 +496,107 @@ function onPaste(e: ClipboardEvent) {
 }
 
 /** 工具名映射 */
-const TOOL_LABELS: Record<string, string> = {
-  get_document: '获取文档',
-  get_outline: '获取大纲',
-  list_blocks: '列出区块',
-  insert_block: '插入区块',
-  update_block: '更新区块',
-  delete_block: '删除区块',
-  move_block: '移动区块',
-  convert_block: '转换类型',
-  batch_edit: '批量编辑',
-  replace_document: '替换文档',
-  search_files: '搜索文件',
-  read_file: '读取文件',
-  create_file: '创建文件',
-  open_file: '打开文件',
-  get_vault_tree: '获取文件树',
-  switch_tab: '切换标签',
-  web_search: '联网搜索',
-}
-
 function formatToolName(name: string): string {
   return TOOL_LABELS[name] ?? name
+}
+
+/** 区块类型 → 中文名 */
+const BLOCK_TYPE_LABELS: Record<string, string> = {
+  paragraph: '段落',
+  heading: '标题',
+  list: '列表',
+  divider: '分割线',
+  page_break: '分页符',
+  quote: '引用',
+  code_block: '代码块',
+  table: '表格',
+  image: '图片',
+}
+
+function blockTypeLabel(type?: string): string {
+  return type ? (BLOCK_TYPE_LABELS[type] ?? type) : ''
+}
+
+/**
+ * 格式化工具执行结果为友好中文摘要(UI 显示)
+ * 与 agent.ts 的 formatToolResultForAI 不同,这里只输出简短摘要给用户看
+ */
+function formatToolResult(toolName: string, result: ToolResult): string {
+  if (!result.ok) {
+    return `${formatToolName(toolName)}失败: ${result.error ?? '未知错误'}`
+  }
+  const data = result.data
+  const r = result as ToolResult & { total?: number }
+  switch (toolName) {
+    case 'insert_block': {
+      const d = data as { type?: string; index?: number }
+      return `已插入${blockTypeLabel(d.type)}区块${d.index != null ? `,位置=${d.index}` : ''}`
+    }
+    case 'update_block':
+      return `已更新区块`
+    case 'delete_block':
+      return `已删除区块`
+    case 'move_block': {
+      const d = data as { direction?: string }
+      return `已${d.direction === 'up' ? '上移' : '下移'}区块`
+    }
+    case 'convert_block': {
+      const d = data as { type?: string }
+      return `已转换为${blockTypeLabel(d.type)}`
+    }
+    case 'batch_edit': {
+      const d = data as { total?: number; success?: number; failed?: number }
+      return `批量操作: 成功 ${d.success ?? 0}/${d.total ?? 0}`
+    }
+    case 'replace_document': {
+      const d = data as { blockCount?: number }
+      return `已替换文档,共 ${d.blockCount ?? 0} 个区块`
+    }
+    case 'list_blocks': {
+      const items = (data ?? []) as unknown[]
+      const total = r.total ?? items.length
+      return `已列出 ${total} 个区块`
+    }
+    case 'search_files': {
+      const files = (data ?? []) as string[]
+      return `找到 ${files.length} 个文件`
+    }
+    case 'read_file': {
+      const text = String(data ?? '')
+      return `已读取文件,共 ${text.length} 字`
+    }
+    case 'write_file': {
+      const d = data as { path?: string }
+      return `已写入文件 ${d.path ?? ''}`
+    }
+    case 'create_file': {
+      const d = data as { path?: string }
+      return `已创建文件 ${d.path ?? ''}`
+    }
+    case 'list_dir': {
+      const items = (data ?? []) as unknown[]
+      return `已列出 ${items.length} 个节点`
+    }
+    case 'switch_tab':
+      return `已切换标签`
+    case 'get_document': {
+      const text = String(data ?? '')
+      return `已获取文档,共 ${text.length} 字`
+    }
+    case 'get_outline': {
+      const items = (data ?? []) as unknown[]
+      return `已获取大纲,共 ${items.length} 个条目`
+    }
+    case 'web_search': {
+      const text = String(data ?? '')
+      // 数以"数字."开头的行为实际结果条数（每条结果占标题/摘要/链接多行）
+      const matches = text.match(/^\d+\.\s/gm)
+      const count = matches ? matches.length : 0
+      return `已搜索到 ${Math.max(1, count)} 条结果`
+    }
+    default:
+      return `已完成 ${formatToolName(toolName)}`
+  }
 }
 
 /** 渲染消息内容 */
@@ -649,7 +782,11 @@ onUnmounted(() => {
           <svg v-if="toolStatus === 'calling'" class="spinner" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
             <path d="M10 6A4 4 0 0 1 6 10" />
           </svg>
-          <span>{{ toolStatus === 'calling' ? `正在调用 ${formatToolName(currentToolName)}...` : `已完成 ${formatToolName(currentToolName)}` }}</span>
+          <span>{{
+            toolStatus === 'calling'
+              ? `正在调用 ${formatToolName(currentToolName)}...`
+              : (currentToolResult ? formatToolResult(currentToolName, currentToolResult) : `已完成 ${formatToolName(currentToolName)}`)
+          }}</span>
         </div>
 
         <!-- 消息区 -->
@@ -734,14 +871,26 @@ onUnmounted(() => {
               :placeholder="sending ? 'UU鲨正在响应...' : '输入指令... (Enter 发送)'"
               :disabled="sending"
               rows="2"
-              @keydown.enter.prevent="execute"
+              @keydown.enter.exact.prevent="execute"
               @paste="onPaste"
             ></textarea>
-            <button class="send-btn" :disabled="!input.trim() || sending" @click="execute">
-              <svg v-if="sending" class="spinner" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                <path d="M10 7A3 3 0 0 1 7 10" />
+            <button
+              v-if="sending"
+              class="stop-btn"
+              title="停止生成"
+              @click="stopGeneration"
+            >
+              <svg viewBox="0 0 14 14" fill="currentColor">
+                <rect x="3" y="3" width="8" height="8" rx="1.5" />
               </svg>
-              <svg v-else viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            </button>
+            <button
+              v-else
+              class="send-btn"
+              :disabled="!input.trim()"
+              @click="execute"
+            >
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M2 7L12 2L7 12L6 8L2 7Z" />
               </svg>
             </button>
@@ -1416,6 +1565,28 @@ onUnmounted(() => {
   filter: brightness(0.96);
 }
 .send-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.stop-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-button);
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+  border: none;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+.stop-btn:hover {
+  filter: brightness(0.96);
+}
+.stop-btn svg {
   width: 14px;
   height: 14px;
 }

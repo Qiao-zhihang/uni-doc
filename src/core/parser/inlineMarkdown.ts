@@ -84,10 +84,19 @@ function filterAttrs(attrStr: string): string {
     if (value === '') {
       safeAttrs.push(name)
     } else {
-      safeAttrs.push(`${name}="${value}"`)
+      safeAttrs.push(`${name}="${escapeAttr(value)}"`)
     }
   }
   return safeAttrs.join(' ')
+}
+
+/** 转义 HTML 属性值中的特殊字符,防止属性注入 XSS */
+function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }
 
 /**
@@ -213,8 +222,9 @@ export function parseInlineMarkdown(text: string): { text: string; marks: Mark[]
       const alt = imgMatch[1]
       const url = imgMatch[2]
       const start = plain.length
-      plain += alt
-      marks.push({ type: 'image', start, end: plain.length, href: url, alt })
+      // image mark 作为 selfClosing 处理:alt 仅存于属性,不进入 plain text
+      // 避免 marksToHtml 时 alt 文本被重复渲染(属性 + 内容)
+      marks.push({ type: 'image', start, end: start, href: url, alt, selfClosing: true })
       i += imgMatch[0].length
       matched = true
     }
@@ -257,6 +267,11 @@ export function parseInlineMarkdown(text: string): { text: string; marks: Mark[]
         plain += parsed.text
         marks.push({ type: 'link', start, end: plain.length, href: url })
         for (const nested of parsed.marks) {
+          // 不保留 link 类型的 nested marks:
+          // 标准 Markdown 不支持链接 label 中嵌套另一个链接,
+          // 且外层 link 已包裹整个 label,内层 link(来自裸URL/<url>)与之范围重叠,
+          // 会导致 marksToSource 生成 [[text](url)](url) 形式的嵌套链接源码(看起来像链接翻倍)
+          if (nested.type === 'link') continue
           marks.push({ ...nested, start: start + nested.start, end: start + nested.end })
         }
         i += linkMatch[0].length
@@ -422,6 +437,19 @@ function mergeAdjacentMarks(marks: Mark[]): Mark[] {
   const merged: Mark[] = []
   for (const mark of sorted) {
     const last = merged[merged.length - 1]
+    // 去重:完全相同的 mark(同 type/start/end/href/target/alias)只保留一个
+    // 防止 [label](url) 中 label 含 URL 时,外层 link 与内层 link(裸URL/<url>)重复
+    if (
+      last &&
+      last.type === mark.type &&
+      last.start === mark.start &&
+      last.end === mark.end &&
+      (last as any).href === (mark as any).href &&
+      (last as any).target === (mark as any).target &&
+      (last as any).alias === (mark as any).alias
+    ) {
+      continue
+    }
     // html 标签不合并:不同 tag(如 table/tr/td)即使位置相同也不应合并
     const isHtml = mark.type === 'html' || last?.type === 'html'
     if (

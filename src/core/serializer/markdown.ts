@@ -43,7 +43,8 @@ const ORDERED_RE = /^\d+\.\s+(.*)$/
 const TASK_RE = /^[-*+]\s+\[([ xX])\]\s+(.*)$/
 const HEADING_RE = /^(#{1,6})\s+(.*)$/
 const PAGE_BREAK = '---page---'
-const DIVIDER_RE = /^---+$/
+// 分隔线(CommonMark thematic break):由 - * _ 任一字符重复 3 次以上,字符必须相同
+const DIVIDER_RE = /^([-*_])\1{2,}$/
 const FRONTMATTER_DELIM = '---'
 
 /* ============== 行内标记(Mark)处理 ============== */
@@ -112,12 +113,12 @@ function serializeBlock(block: Block): string {
       const { src = '', alt = '' } = block.content as ImageContent
       const props = block.props as ImageProps
       const width = props.width
-      // Obsidian 语法:![[]] 嵌入,| 后跟宽度(像素)
-      // 无宽度时也用 ![[]] 保持一致性,alt 信息丢失(Obsidian wikilink 不支持 alt)
+      // Obsidian 嵌入语法:![[]],扩展三段式 ![[src|width|alt]] 保留 alt
+      // 无 alt 时省略第三段,保持与旧版 ![[src|width]] 兼容
       if (width && width > 0) {
-        return `![[${src}|${width}]]`
+        return alt ? `![[${src}|${width}|${alt}]]` : `![[${src}|${width}]]`
       }
-      // 无宽度:优先用标准 ![](src) 保留 alt,兼容性更好
+      // 无宽度:用标准 ![](src) 保留 alt,兼容性更好
       return `![${alt}](${src})`
     }
     default:
@@ -149,9 +150,10 @@ function serializeMetaToYaml(meta: DocumentMeta): string {
   return lines.join('\n')
 }
 
-/** YAML 字符串转义(简单处理:含特殊字符时加双引号) */
+/** YAML 字符串转义(简单处理:含特殊字符或行首 -? 时加双引号) */
 function escapeYaml(value: string): string {
-  if (/[:\[\]{}&*!|>'"%@`#?,]/.test(value) || value.includes('\n')) {
+  // 行首 - 或 ? 会被 YAML 解析为列表项或映射键,需加引号
+  if (/[:\[\]{}&*!|>'"%@`#?,]/.test(value) || /^[-?]/.test(value) || value.includes('\n')) {
     return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
   }
   return value
@@ -392,12 +394,13 @@ export function deserializeMarkdown(markdown: string): Block[] {
       continue
     }
 
-    // 图片(Obsidian 嵌入语法): ![[src|width]] 或 ![[src|widthxheight]] 或 ![[src]]
-    const obsidianImageMatch = line.match(/^!\[\[([^\]|]+)(?:\|(\d+)(?:x\d+)?)?\]\]\s*$/)
+    // 图片(Obsidian 嵌入语法): ![[src]] / ![[src|width]] / ![[src|widthxheight]] / ![[src|width|alt]]
+    const obsidianImageMatch = line.match(/^!\[\[([^\]|]+)(?:\|(\d+)(?:x\d+)?)?(?:\|([^\]]*))?\]\]\s*$/)
     if (obsidianImageMatch) {
       const src = obsidianImageMatch[1]
       const width = obsidianImageMatch[2] ? Number(obsidianImageMatch[2]) : undefined
-      blocks.push(createImageBlock(src, '', width ? { width } : {}))
+      const alt = obsidianImageMatch[3] ?? ''
+      blocks.push(createImageBlock(src, alt, width ? { width } : {}))
       i++
       continue
     }

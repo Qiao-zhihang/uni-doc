@@ -47,6 +47,8 @@ interface TabInstance {
   savedStatus: 'saved' | 'saving' | 'unsaved'
   /** 强制重渲染信号(导入/打开文件后递增) */
   renderTick: number
+  /** 历史栈变更信号(push/undo/redo/reset 后递增,用于驱动 canUndo/canRedo 响应式更新) */
+  historyTick: number
   /** 独立的撤销重做栈 */
   history: UndoRedo
 }
@@ -77,6 +79,7 @@ function createBlankTab(title = '未命名文档'): TabInstance {
     meta: defaultMeta(title),
     savedStatus: 'saved',
     renderTick: 0,
+    historyTick: 0,
     history
   }
 }
@@ -207,9 +210,16 @@ export const useDocumentStore = defineStore('document', () => {
     const tab = getActive()
     if (!tab) return
     tab.history.push(tab.blocks, label)
+    tab.historyTick++
     tab.savedStatus = 'unsaved'
     tab.meta.updated_at = new Date().toISOString()
     scheduleAutoSave(tab.id)
+
+    // 在块编辑完成时触发快照(动态导入避免循环依赖)
+    void import('@/stores/replay').then(({ useReplayStore }) => {
+      const replay = useReplayStore()
+      replay.captureSnapshot(label, 'auto')
+    })
   }
 
   function replaceBlocks(newBlocks: Block[], label: string) {
@@ -330,6 +340,9 @@ export const useDocumentStore = defineStore('document', () => {
       tab.blocks = JSON.parse(JSON.stringify(snap.blocks))
       tab.savedStatus = 'unsaved'
       scheduleAutoSave(tab.id)
+      // 递增 renderTick,触发 Mermaid 等需要重新渲染的块更新
+      tab.renderTick++
+      tab.historyTick++
     }
   }
 
@@ -341,15 +354,25 @@ export const useDocumentStore = defineStore('document', () => {
       tab.blocks = JSON.parse(JSON.stringify(snap.blocks))
       tab.savedStatus = 'unsaved'
       scheduleAutoSave(tab.id)
+      // 递增 renderTick,触发 Mermaid 等需要重新渲染的块更新
+      tab.renderTick++
+      tab.historyTick++
     }
   }
 
   function canUndo() {
-    return getActive()?.history.canUndo() ?? false
+    const tab = getActive()
+    if (!tab) return false
+    // 读取 historyTick 建立响应式依赖(markRaw 的 history 内部状态不响应)
+    void tab.historyTick
+    return tab.history.canUndo()
   }
 
   function canRedo() {
-    return getActive()?.history.canRedo() ?? false
+    const tab = getActive()
+    if (!tab) return false
+    void tab.historyTick
+    return tab.history.canRedo()
   }
 
   /** 从 Markdown 字符串导入到当前 active tab(覆盖) */
@@ -386,6 +409,7 @@ export const useDocumentStore = defineStore('document', () => {
       if (fm.tags) tab.meta.tags = fm.tags
     }
     tab.history.reset(result.blocks, '打开文档')
+    tab.historyTick++
     tab.savedStatus = 'saved'
     openTabs.value.push(tab)
     activeTabId.value = tab.id
@@ -424,6 +448,7 @@ export const useDocumentStore = defineStore('document', () => {
         if (fmMeta.tags) tab.meta.tags = fmMeta.tags
       }
       tab.history.reset(parsed, '打开 vault 文件')
+      tab.historyTick++
       tab.savedStatus = 'saved'
       openTabs.value.push(tab)
       activeTabId.value = tab.id
@@ -461,15 +486,20 @@ export const useDocumentStore = defineStore('document', () => {
     }
   }
 
+  /** 清理指定 tab 的 saveTimer(关闭 tab 前调用) */
+  function disposeTab(id: string) {
+    const existing = saveTimers.get(id)
+    if (existing) {
+      clearTimeout(existing)
+      saveTimers.delete(id)
+    }
+  }
+
   /** 关闭指定 tab,返回是否实际关闭 */
 function closeTab(id: string) {
   const idx = openTabs.value.findIndex((t) => t.id === id)
   if (idx === -1) return false
-  const existing = saveTimers.get(id)
-  if (existing) {
-    clearTimeout(existing)
-    saveTimers.delete(id)
-  }
+  disposeTab(id)
   openTabs.value.splice(idx, 1)
   if (openTabs.value.length === 0) {
     activeTabId.value = ''
@@ -484,6 +514,10 @@ function closeTab(id: string) {
   function closeOtherTabs(id: string) {
     const keep = openTabs.value.find((t) => t.id === id)
     if (!keep) return
+    // 清理被关闭 tab 的 saveTimer
+    for (const t of openTabs.value) {
+      if (t.id !== id) disposeTab(t.id)
+    }
     openTabs.value = [keep]
     activeTabId.value = keep.id
   }
@@ -492,6 +526,10 @@ function closeTab(id: string) {
   function closeTabsToRight(id: string) {
     const idx = openTabs.value.findIndex((t) => t.id === id)
     if (idx === -1) return
+    // 清理被关闭 tab 的 saveTimer
+    for (const t of openTabs.value.slice(idx + 1)) {
+      disposeTab(t.id)
+    }
     openTabs.value = openTabs.value.slice(0, idx + 1)
     if (!openTabs.value.find((t) => t.id === activeTabId.value)) {
       activeTabId.value = openTabs.value[openTabs.value.length - 1].id
@@ -584,7 +622,6 @@ function closeAllTabs() {
       await openVaultFile(relPath)
     } else {
       console.warn(`Wikilink 目标不存在: ${target}`)
-      // TODO: 未来可支持"点击不存在的链接自动创建文件"
     }
   }
 
@@ -639,6 +676,7 @@ function closeAllTabs() {
     setActivePath,
     setVaultRoot,
     refreshVaultTree,
-    openWikilink
+    openWikilink,
+    scheduleAutoSave
   }
 })

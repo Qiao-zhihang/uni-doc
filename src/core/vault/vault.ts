@@ -96,14 +96,10 @@ export async function createVaultDir(rootPath: string, rel: string): Promise<voi
   await tauriInvoke<void>('create_vault_dir', { rootPath, rel })
 }
 
-/** 在系统文件管理器中显示该文件(通过 open 命令) */
-export async function revealInExplorer(rootPath: string, rel: string): Promise<void> {
+/** 创建任意目录(用于新建仓库) */
+export async function createDirAtPath(path: string): Promise<void> {
   if (!isTauri()) return
-  const { join } = await import('@tauri-apps/api/path')
-  const abs = await join(rootPath, rel)
-  // 使用 Opener plugin 或 shell open。这里走简易路径:不实现,留待后续
-  // Tauri 2 推荐 @tauri-apps/plugin-opener,但本工程未集成,先 no-op
-  void abs
+  await tauriInvoke<void>('create_dir_at_path', { path })
 }
 
 /** 弹出文件选择器选择图片,复制到"文档所在目录/assets/",返回相对路径(相对文档目录) */
@@ -129,8 +125,8 @@ export function findFileByName(
     if (node.isDir && node.children) {
       stack.push(...node.children)
     } else {
-      // 移除 .md 后缀后比较
-      const baseName = node.name.replace(/\.md$/i, '').toLowerCase()
+      // 移除 .md / .markdown 后缀后比较(与 Rust 端 is_markdown_file 对齐)
+      const baseName = node.name.replace(/\.md$|\.markdown$/i, '').toLowerCase()
       if (baseName === target) {
         return node.path
       }
@@ -153,6 +149,28 @@ export async function writeImageToVault(
   return tauriInvoke<string>('write_image_to_vault', { rootPath, fileRelPath, data: arr, ext })
 }
 
+/** MIME 类型 → 文件扩展名映射 */
+const MIME_TO_EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
+  'image/bmp': 'bmp'
+}
+
+/** 从 URL 路径推断图片扩展名,推断失败返回 null */
+function inferExtFromUrl(url: string): string | null {
+  try {
+    const u = new URL(url)
+    const last = u.pathname.split('/').pop() ?? ''
+    const m = last.match(/\.(png|jpe?g|gif|webp|svg|bmp)$/i)
+    return m ? m[1].toLowerCase() : null
+  } catch {
+    return null
+  }
+}
+
 /** 将图片 URL 下载并写入"文档所在目录/assets/",返回相对路径(相对文档目录) */
 export async function downloadImageToVault(
   rootPath: string,
@@ -163,7 +181,8 @@ export async function downloadImageToVault(
   const resp = await fetch(url)
   if (!resp.ok) throw new Error(`下载图片失败: ${resp.status}`)
   const blob = await resp.blob()
-  const ext = blob.type.split('/')[1]?.split(';')[0] || 'png'
+  // MIME → ext,失败时从 URL 后缀推断,最终回退 png
+  const ext = MIME_TO_EXT[blob.type] || inferExtFromUrl(url) || 'png'
   const data = new Uint8Array(await blob.arrayBuffer())
   return writeImageToVault(rootPath, fileRelPath, data, ext)
 }

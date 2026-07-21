@@ -67,24 +67,6 @@ export const useAiConversationStore = defineStore('aiConversation', () => {
     [...conversations.value].sort((a, b) => b.updatedAt - a.updatedAt)
   )
 
-  /** 每个会话的最大消息轮数（每轮 = user + assistant） */
-  const MAX_MESSAGE_ROUNDS = 30
-
-  /** 获取会话的上下文消息（用于发送给模型） */
-  function getContextMessages(conversationId: string): ChatMessage[] {
-    const conv = conversations.value.find((c) => c.id === conversationId)
-    if (!conv) return []
-
-    const messages = conv.messages.filter((m) => m.role !== 'system')
-
-    // 如果消息太多，保留最近的 MAX_MESSAGE_ROUNDS * 2 条（每轮 user + assistant）
-    if (messages.length > MAX_MESSAGE_ROUNDS * 2) {
-      return messages.slice(-MAX_MESSAGE_ROUNDS * 2)
-    }
-
-    return messages
-  }
-
   /** 创建新会话，返回新会话 ID */
   function createConversation(profileId: string): string {
     const id = crypto.randomUUID()
@@ -336,7 +318,6 @@ export const useAiConversationStore = defineStore('aiConversation', () => {
     renameConversation,
     addMessage,
     updateLastMessage,
-    getContextMessages,
     save,
     flushSave,
     load,

@@ -114,12 +114,14 @@ function convertTo(opt: { type: BlockType; level?: number }) {
     const newId = doc.appendBlock(opt.type)
     editor.selectBlock(newId)
     if (opt.type === 'heading' && opt.level) {
-      doc.updateBlock(newId, { props: { level: opt.level, align: 'left' } }, '设置标题级别')
+      // 只设置 level,保留块原有的 align(避免覆盖用户已设置的居中/右对齐)
+      doc.updateBlock(newId, { props: { level: opt.level } }, '设置标题级别')
     }
   } else {
     doc.convertBlock(id, opt.type, '转换区块类型')
     if (opt.type === 'heading' && opt.level) {
-      doc.updateBlock(id, { props: { level: opt.level, align: 'left' } }, '设置标题级别')
+      // 只设置 level,保留 convertBlock 保留的 align
+      doc.updateBlock(id, { props: { level: opt.level } }, '设置标题级别')
     }
   }
   closeMenus()
@@ -137,8 +139,24 @@ function toggleMark(markType: 'bold' | 'italic' | 'underline' | 'strikethrough')
   if (!b || (b.type !== 'paragraph' && b.type !== 'heading')) return
   const content = b.content as { text: string; marks: { type: string; start: number; end: number }[] }
   const marks = content.marks ?? []
-  // M1 简化:对全文应用标记(无选区时)
-  if (content.text.length === 0) return
+  // 无文本时:插入空 mark 占位(start=end=0),作为"后续输入应用此格式"的信号
+  if (content.text.length === 0) {
+    const existing = marks.find((m) => m.type === markType && m.start === 0 && m.end === 0)
+    if (existing) {
+      doc.updateBlock(b.id, {
+        content: { text: content.text, marks: marks.filter((m) => m !== existing) }
+      }, `取消${markType}`)
+    } else {
+      doc.updateBlock(b.id, {
+        content: {
+          text: content.text,
+          marks: [...marks, { type: markType, start: 0, end: 0 }]
+        }
+      }, `应用${markType}`)
+    }
+    return
+  }
+  // 有文本:对全文应用标记
   const existing = marks.find((m) => m.type === markType)
   if (existing) {
     doc.updateBlock(b.id, {

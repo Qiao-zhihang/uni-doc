@@ -58,6 +58,8 @@ export interface ModelConfig {
   provider?: string
   /** 模型是否支持原生联网搜索（优先使用，不走 function calling） */
   nativeSearch?: boolean
+  /** 是否启用流式输出（默认 true） */
+  stream?: boolean
 }
 
 export interface AgentContextBlock {
@@ -68,6 +70,8 @@ export interface AgentContextBlock {
 
 export interface AgentContext {
   documentName: string
+  /** 文档在 vault 中的相对路径(如 "folder/文档.md"),无活动文档时为 null */
+  documentPath: string | null
   visibleBlocks: AgentContextBlock[]
   selectedBlock: AgentContextBlock | null
   selectedText: string
@@ -77,4 +81,5 @@ export interface StreamCallbacks {
   onDelta?: (text: string) => void
   onToolCall?: (toolName: string, args: Record<string, unknown>, result: ToolResult) => void
   onError?: (error: string) => void
+  onComplete?: () => void
 }

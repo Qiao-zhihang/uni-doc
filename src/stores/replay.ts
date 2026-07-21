@@ -13,7 +13,8 @@ import { defaultReplayConfig } from '../core/replay/types'
 import {
   loadHistory,
   saveHistory,
-  createEmptyHistoryData
+  createEmptyHistoryData,
+  FILE_VERSION
 } from '../core/replay/storage'
 
 export const useReplayStore = defineStore('replay', () => {
@@ -67,7 +68,7 @@ export const useReplayStore = defineStore('replay', () => {
   async function persist() {
     if (!doc.vaultRoot || !loadedPath.value) return
     const data: HistoryFileData = {
-      version: '1.0.0',
+      version: FILE_VERSION,
       docPath: loadedPath.value,
       title: getDocTitle(),
       config: config.value,
@@ -151,21 +152,37 @@ export const useReplayStore = defineStore('replay', () => {
 
   // ===== 加载/卸载 =====
 
+  /** 加载请求 ID,用于异步竞态保护:快速切 tab 时旧请求结果不覆盖新文档状态 */
+  let loadReqId = 0
+
   /** 加载文档的 history(打开文档时调用) */
   async function loadForDoc(mdPath: string) {
     stopAutoCapture()
-    loadedPath.value = mdPath
     loaded.value = false
 
     if (!doc.vaultRoot || !mdPath) {
+      // 空文档:同步清理状态,不参与竞态
+      loadedPath.value = mdPath || null
       snapshots.value = []
       return
     }
 
+    // 占位赋值,确保后续 persist 等逻辑能拿到当前路径
+    loadedPath.value = mdPath
+    const reqId = ++loadReqId
+
     const data = await loadHistory(doc.vaultRoot, mdPath)
+    // 异步竞态保护:如果中间又触发了新的 loadForDoc,丢弃本次结果
+    if (reqId !== loadReqId) return
+
     if (data) {
       snapshots.value = data.snapshots
       config.value = data.config
+      // 兼容旧数据:enabled=true 但 autoIntervalSec<=0 时补默认值,避免 startAutoCapture 静默失效
+      if (config.value.enabled && config.value.autoIntervalSec <= 0) {
+        config.value = { ...config.value, autoIntervalSec: 60 }
+        schedulePersist()
+      }
     } else {
       // 新文档:初始化空 history,采集初始快照
       snapshots.value = []
@@ -188,19 +205,37 @@ export const useReplayStore = defineStore('replay', () => {
   }
 
   /** 卸载(关闭文档/切换 tab 时调用) */
-  function unload() {
+  async function unload() {
     stopAutoCapture()
     if (persistTimer) {
       clearTimeout(persistTimer)
       persistTimer = null
     }
-    // 离开前立即保存
-    void persist()
-    snapshots.value = []
-    currentIndex.value = -1
-    isPlaying.value = false
-    loaded.value = false
-    loadedPath.value = null
+    // 同步收集数据快照,避免清空后异步 persist 引用到空状态
+    const pathToSave = loadedPath.value
+    if (doc.vaultRoot && pathToSave) {
+      const data: HistoryFileData = {
+        version: FILE_VERSION,
+        docPath: pathToSave,
+        title: getDocTitle(),
+        config: config.value,
+        snapshots: snapshots.value
+      }
+      // 同步清空状态,再异步写入(不阻塞 UI)
+      snapshots.value = []
+      currentIndex.value = -1
+      isPlaying.value = false
+      loaded.value = false
+      loadedPath.value = null
+      await saveHistory(doc.vaultRoot, pathToSave, data)
+    } else {
+      // 没有可持久化内容,仅清空状态
+      snapshots.value = []
+      currentIndex.value = -1
+      isPlaying.value = false
+      loaded.value = false
+      loadedPath.value = null
+    }
   }
 
   // ===== 回放控制 =====
@@ -260,6 +295,10 @@ export const useReplayStore = defineStore('replay', () => {
   // ===== 清理 =====
   function dispose() {
     stopAutoCapture()
+    if (persistTimer) {
+      clearTimeout(persistTimer)
+      persistTimer = null
+    }
   }
 
   return {
