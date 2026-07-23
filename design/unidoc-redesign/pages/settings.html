@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设置 - UniDoc</title>
+
+<!-- ===== CSS Variables (从 src/style.css 提取,保持与项目一致) ===== -->
+<style>
+:root {
+  /* brand */
+  --brand-50: #e8f2ff; --brand-100: #cfe5ff; --brand-200: #9fcbff;
+  --brand-300: #66abff; --brand-400: #2e8dff; --brand-500: #007aff;
+  --brand-600: #0064d6; --brand-700: #004fad; --brand-800: #003b82;
+  --brand-900: #00275a;
+
+  /* background */
+  --background-50: #ffffff; --background-100: #f7f7fa; --background-200: #f2f2f7;
+  --background-300: #e5e5ea; --background-400: #d1d1d6; --background-500: #aeaeb2;
+  --background-600: #8e8e93; --background-700: #3a3a3c; --background-800: #1c1c1e;
+  --background-900: #000000;
+
+  /* text */
+  --text-50: #f5f5f7; --text-100: #e3e3e8; --text-200: #c7c7cc;
+  --text-300: #aeaeb2; --text-400: #8e8e93; --text-500: #6e6e73;
+  --text-600: #48484a; --text-700: #3c3c43; --text-800: #1d1d1f;
+  --text-900: #000000;
+
+  /* icon */
+  --icon-50: #f5f5f7; --icon-100: #e5e5ea; --icon-200: #d1d1d6;
+  --icon-300: #c7c7cc; --icon-400: #aeaeb2; --icon-500: #8e8e93;
+  --icon-600: #6e6e73; --icon-700: #48484a; --icon-800: #2c2c2e;
+  --icon-900: #1d1d1f;
+
+  /* state */
+  --state-success: #34c759; --state-success-dark: #30d158;
+  --state-success-surface: #e9f9ee; --state-success-foreground: #ffffff;
+  --state-error: #ff3b30; --state-error-dark: #ff453a;
+  --state-error-surface: #ffecea; --state-error-foreground: #ffffff;
+
+  /* semantic (light) */
+  --background: var(--background-50);
+  --foreground: var(--text-800);
+  --card: var(--background-50);
+  --card-foreground: var(--text-800);
+  --popover: var(--background-50);
+  --popover-foreground: var(--text-900);
+  --primary: var(--brand-500);
+  --primary-foreground: var(--background-50);
+  --secondary: var(--background-200);
+  --secondary-foreground: var(--text-800);
+  --muted: var(--background-200);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-100);
+  --accent-foreground: var(--text-800);
+  --destructive: var(--state-error);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success);
+  --success-foreground: var(--state-success-foreground);
+  --success-surface: var(--state-success-surface);
+  --border: var(--background-300);
+  --input: var(--background-400);
+  --ring: var(--brand-500);
+  --icon: var(--icon-900);
+  --icon-muted: var(--icon-500);
+  --chart-1: var(--state-success);
+  --chart-2: var(--brand-500);
+  --chart-3: #ff9500;
+  --chart-4: #5856d6;
+  --chart-5: #af52de;
+  --sidebar: var(--background-200);
+  --sidebar-foreground: var(--text-800);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: var(--background-50);
+  --sidebar-accent: var(--background-300);
+  --sidebar-accent-foreground: var(--text-800);
+  --sidebar-border: var(--background-300);
+  --sidebar-ring: var(--brand-500);
+
+  /* typography */
+  --font-sans: "Noto Sans CJK SC", "Noto Sans", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* radius */
+  --radius: 1.2rem;
+  --radius-compact: 8px;
+  --radius-button: 6px;
+  --radius-tag: 4px;
+
+  /* shadows */
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.05);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.10), 0 8px 16px -8px rgba(0, 0, 0, 0.06);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.12);
+
+  --spacing: 0.24rem;
+
+  /* AI 专用 */
+  --conversation-active-bar: var(--brand-500);
+  --conversation-active-bg: var(--brand-50);
+  --code-bg: rgba(0, 0, 0, 0.06);
+}
+
+.dark {
+  --background: var(--background-900);
+  --foreground: var(--text-50);
+  --card: var(--background-800);
+  --card-foreground: var(--text-50);
+  --popover: var(--background-700);
+  --popover-foreground: var(--text-50);
+  --primary: var(--brand-400);
+  --primary-foreground: var(--background-900);
+  --secondary: var(--background-800);
+  --secondary-foreground: var(--text-50);
+  --muted: var(--background-800);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-700);
+  --accent-foreground: var(--text-50);
+  --destructive: var(--state-error-dark);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success-dark);
+  --success-foreground: var(--state-success-foreground);
+  --success-surface: #1a3d28;
+  --border: var(--background-700);
+  --input: var(--background-700);
+  --ring: var(--brand-400);
+  --icon: var(--icon-50);
+  --icon-muted: var(--icon-500);
+  --sidebar: var(--background-800);
+  --sidebar-foreground: var(--text-50);
+  --sidebar-primary: var(--brand-400);
+  --sidebar-primary-foreground: var(--background-900);
+  --sidebar-accent: var(--background-700);
+  --sidebar-accent-foreground: var(--text-50);
+  --sidebar-border: var(--background-700);
+  --sidebar-ring: var(--brand-400);
+  --conversation-active-bar: var(--brand-400);
+  --conversation-active-bg: rgba(46, 141, 255, 0.12);
+  --code-bg: rgba(255, 255, 255, 0.06);
+}
+</style>
+
+<!-- Lucide 图标 (UMD) -->
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+<style>
+/* ===== 基础重置 (从 src/style.css) ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; width: 100%; }
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--foreground);
+  background: var(--background);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+input, textarea { font-family: inherit; color: inherit; }
+a { color: inherit; text-decoration: none; }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ===== 设置页样式 (从 SettingsView.vue scoped 提取) ===== */
+.settings-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background: var(--muted);
+}
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 56px;
+  padding: 0 24px;
+  flex-shrink: 0;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.back-btn {
+  display: flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px;
+  border-radius: 8px; font-size: 13px;
+  color: var(--muted-foreground);
+}
+.back-btn:hover { background: var(--secondary); color: var(--foreground); }
+.settings-title { font-size: 16px; font-weight: 600; color: var(--foreground); }
+
+.settings-body {
+  flex: 1; overflow-y: auto; padding: 32px;
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+}
+
+.card {
+  width: 100%; max-width: 640px;
+  padding: 24px; background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: var(--shadow-sm);
+}
+.card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.card-icon { color: var(--primary); }
+.card-title { font-size: 15px; font-weight: 600; color: var(--foreground); }
+.card-desc { font-size: 13px; color: var(--muted-foreground); margin-bottom: 16px; line-height: 1.6; }
+
+/* 主题切换 */
+.theme-options { display: flex; gap: 12px; }
+.theme-option {
+  display: flex; align-items: center; gap: 8px;
+  height: 44px; padding: 0 20px;
+  border-radius: 10px; font-size: 13px; font-weight: 500;
+  background: var(--secondary); color: var(--foreground);
+  border: 2px solid transparent;
+}
+.theme-option.active { background: var(--primary); color: var(--primary-foreground); }
+.theme-option:not(.active):hover { background: var(--muted); }
+
+/* Profile 列表 */
+.profile-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.profile-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-compact);
+  transition: border-color 0.15s, background 0.15s;
+}
+.profile-item.active { border-color: var(--primary); background: var(--accent); }
+.profile-item.editing { border-color: var(--primary); }
+.profile-info { flex: 1; min-width: 0; cursor: pointer; }
+.profile-name-row { display: flex; align-items: center; gap: 8px; }
+.profile-name { font-size: 14px; font-weight: 500; color: var(--foreground); }
+.profile-active-badge {
+  font-size: 11px; padding: 1px 8px;
+  border-radius: var(--radius-tag);
+  background: var(--primary); color: var(--primary-foreground); font-weight: 500;
+}
+.profile-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.profile-model { font-size: 12px; color: var(--muted-foreground); font-family: var(--font-mono); }
+.profile-tags { display: inline-flex; gap: 6px; }
+.profile-actions { display: flex; gap: 4px; flex-shrink: 0; margin-left: 12px; }
+.profile-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: var(--radius-button);
+  color: var(--muted-foreground);
+  transition: background 0.15s, color 0.15s;
+}
+.profile-btn:hover { background: var(--accent); color: var(--foreground); }
+.profile-btn.edit:hover { color: var(--primary); }
+.profile-btn.delete:hover { color: var(--destructive); }
+.profile-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.profile-btn:disabled:hover { background: transparent; color: var(--muted-foreground); }
+
+.btn-add-profile {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; height: 36px;
+  border: 1px dashed var(--primary);
+  border-radius: var(--radius-button);
+  background: transparent; color: var(--primary);
+  font-size: 13px; font-weight: 500;
+  transition: background 0.15s;
+}
+.btn-add-profile:hover { background: var(--accent); }
+
+/* 编辑表单 */
+.edit-form {
+  margin-top: 16px; padding: 16px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-compact);
+}
+.edit-form-title { font-size: 13px; font-weight: 600; color: var(--foreground); margin-bottom: 12px; }
+
+.form-row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 6px 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.form-label { font-size: 13px; color: var(--muted-foreground); }
+.form-input, .form-select {
+  width: 100%; height: 36px; padding: 0 10px;
+  font-size: 13px; color: var(--foreground);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-button);
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+.form-input:focus, .form-select:focus { border-color: var(--primary); }
+
+.password-wrapper { position: relative; display: flex; align-items: center; }
+.password-wrapper .form-input { padding-right: 36px; }
+.toggle-btn {
+  position: absolute; right: 4px;
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: var(--radius-button);
+  color: var(--muted-foreground);
+}
+.toggle-btn:hover { color: var(--foreground); background: var(--accent); }
+
+.slider-wrapper { display: flex; align-items: center; gap: 10px; }
+.form-slider {
+  flex: 1; height: 4px;
+  -webkit-appearance: none; appearance: none;
+  background: var(--border);
+  border-radius: 2px; outline: none;
+}
+.form-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--primary); cursor: pointer;
+}
+.form-slider::-moz-range-thumb {
+  width: 14px; height: 14px; border: none; border-radius: 50%;
+  background: var(--primary); cursor: pointer;
+}
+.slider-value {
+  min-width: 32px; text-align: right;
+  font-size: 12px; font-family: var(--font-mono); color: var(--foreground);
+}
+
+.toggle-wrapper { display: flex; align-items: center; gap: 10px; }
+.toggle-switch {
+  position: relative;
+  width: 40px; height: 22px;
+  border: none; border-radius: 11px;
+  background: var(--muted);
+  cursor: pointer; transition: background 0.2s;
+  padding: 0;
+}
+.toggle-switch.on { background: var(--primary); }
+.toggle-knob {
+  position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px;
+  border-radius: 50%; background: white;
+  transition: transform 0.2s;
+}
+.toggle-switch.on .toggle-knob { transform: translateX(18px); }
+.toggle-label { font-size: 12px; color: var(--muted-foreground); }
+
+.capability-tags { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.cap-auto { font-size: 11px; color: var(--muted-foreground); }
+
+.form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 16px;
+  border-radius: var(--radius-button);
+  font-size: 13px; font-weight: 500;
+  background: var(--primary); color: var(--primary-foreground);
+  transition: opacity 0.15s;
+}
+.btn-primary:hover { opacity: 0.9; }
+
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 16px;
+  border-radius: var(--radius-button);
+  font-size: 13px; font-weight: 500;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  transition: background 0.15s;
+}
+.btn-ghost:hover { background: var(--accent); }
+.btn-ghost:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn-danger {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 16px;
+  border-radius: var(--radius-button);
+  font-size: 13px; font-weight: 500;
+  background: var(--destructive); color: var(--destructive-foreground);
+  transition: opacity 0.15s;
+}
+.btn-danger:hover { opacity: 0.9; }
+
+.spin { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 能力标签 */
+.cap-tag {
+  padding: 4px 10px;
+  border-radius: var(--radius-tag);
+  font-size: 12px; font-weight: 500;
+}
+.cap-tag.on { background: var(--success-surface); color: var(--success); }
+.cap-tag.off { background: var(--secondary); color: var(--muted-foreground); opacity: 0.6; }
+
+/* Markdown 语法列表 */
+.markdown-list { display: flex; flex-direction: column; gap: 10px; }
+.markdown-item { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.markdown-item code {
+  font-family: var(--font-mono); font-size: 12px;
+  padding: 2px 6px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--foreground);
+}
+.markdown-arrow { color: var(--muted-foreground); }
+.markdown-desc { color: var(--foreground); }
+
+/* 快捷键列表 */
+.shortcut-list { display: flex; flex-direction: column; gap: 10px; }
+.shortcut-item {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 13px;
+}
+.shortcut-desc { color: var(--foreground); }
+kbd {
+  display: inline-block; padding: 2px 8px;
+  font-size: 12px; font-family: var(--font-mono);
+  color: var(--foreground);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+/* 关于信息 */
+.about-grid { display: flex; flex-direction: column; gap: 12px; }
+.about-row { display: flex; justify-content: space-between; font-size: 13px; }
+.about-label { color: var(--muted-foreground); }
+.about-value { color: var(--foreground); }
+.about-value.pending { color: var(--chart-3); }
+
+/* Toast */
+.toast {
+  position: fixed; top: 24px; right: 24px; z-index: 100;
+  padding: 10px 16px;
+  border-radius: var(--radius-compact);
+  font-size: 13px;
+  box-shadow: var(--shadow-sm);
+  max-width: 320px; word-break: break-word;
+}
+.toast.success { background: var(--success); color: var(--success-foreground); }
+.toast.error { background: var(--destructive); color: var(--destructive-foreground); }
+
+/* 删除确认浮层 */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-dialog {
+  width: 360px; max-width: calc(100vw - 32px);
+  padding: 24px; background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-compact);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+.modal-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; margin: 0 auto 12px;
+  border-radius: 50%;
+  background: var(--destructive); color: var(--destructive-foreground);
+}
+.modal-title { font-size: 15px; font-weight: 600; color: var(--foreground); margin-bottom: 8px; }
+.modal-desc { font-size: 13px; color: var(--muted-foreground); line-height: 1.6; margin-bottom: 20px; }
+.modal-actions { display: flex; justify-content: center; gap: 8px; }
+
+/* 隐藏类 (用于原型交互) */
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- ========== 设置页主体 (从 SettingsView.vue <template> 提取) ========== -->
+<main class="settings-layout">
+  <header class="settings-header">
+    <button class="back-btn" onclick="history.back()">
+      <i data-lucide="arrow-left" style="width:16px;height:16px"></i>
+      <span>返回编辑器</span>
+    </button>
+    <h1 class="settings-title">设置</h1>
+  </header>
+
+  <div class="settings-body no-scrollbar">
+
+    <!-- ===== 卡片 1: 外观主题 ===== -->
+    <section class="card">
+      <div class="card-header">
+        <i data-lucide="sun" class="card-icon" style="width:18px;height:18px" id="theme-icon-sun"></i>
+        <i data-lucide="moon" class="card-icon hidden" style="width:18px;height:18px" id="theme-icon-moon"></i>
+        <h2 class="card-title">外观主题</h2>
+      </div>
+      <p class="card-desc">切换深色或浅色主题，偏好将保存到本地。</p>
+      <div class="theme-options">
+        <button class="theme-option" id="theme-light" onclick="setTheme('light')">
+          <i data-lucide="sun" style="width:16px;height:16px"></i>
+          <span>浅色</span>
+        </button>
+        <button class="theme-option" id="theme-dark" onclick="setTheme('dark')">
+          <i data-lucide="moon" style="width:16px;height:16px"></i>
+          <span>深色</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ===== 卡片 2: AI 配置 ===== -->
+    <section class="card">
+      <div class="card-header">
+        <i data-lucide="sparkles" class="card-icon" style="width:18px;height:18px"></i>
+        <h2 class="card-title">AI 配置</h2>
+      </div>
+      <p class="card-desc">管理多个 AI 服务配置，点击列表项切换激活配置，修改后自动保存到本地。</p>
+
+      <!-- Profile 列表 -->
+      <div class="profile-list">
+
+        <!-- Profile 1: 已激活 -->
+        <div class="profile-item active" onclick="setActiveProfile(this)">
+          <div class="profile-info">
+            <div class="profile-name-row">
+              <span class="profile-name">DeepSeek</span>
+              <span class="profile-active-badge">已激活</span>
+            </div>
+            <div class="profile-meta">
+              <span class="profile-model">deepseek-chat</span>
+              <span class="profile-tags">
+                <span class="cap-tag on">联网 ✓</span>
+                <span class="cap-tag off">图片 ✗</span>
+              </span>
+            </div>
+          </div>
+          <div class="profile-actions" onclick="event.stopPropagation()">
+            <button class="profile-btn edit" title="编辑" onclick="openEditForm()">
+              <i data-lucide="pencil" style="width:14px;height:14px"></i>
+            </button>
+            <button class="profile-btn delete" title="删除" disabled onclick="openDeleteModal()">
+              <i data-lucide="trash-2" style="width:14px;height:14px"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Profile 2 -->
+        <div class="profile-item" onclick="setActiveProfile(this)">
+          <div class="profile-info">
+            <div class="profile-name-row">
+              <span class="profile-name">OpenAI</span>
+            </div>
+            <div class="profile-meta">
+              <span class="profile-model">gpt-4o-mini</span>
+              <span class="profile-tags">
+                <span class="cap-tag on">联网 ✓</span>
+                <span class="cap-tag on">图片 ✓</span>
+              </span>
+            </div>
+          </div>
+          <div class="profile-actions" onclick="event.stopPropagation()">
+            <button class="profile-btn edit" title="编辑" onclick="openEditForm()">
+              <i data-lucide="pencil" style="width:14px;height:14px"></i>
+            </button>
+            <button class="profile-btn delete" title="删除" onclick="openDeleteModal()">
+              <i data-lucide="trash-2" style="width:14px;height:14px"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Profile 3 -->
+        <div class="profile-item" onclick="setActiveProfile(this)">
+          <div class="profile-info">
+            <div class="profile-name-row">
+              <span class="profile-name">Ollama 本地</span>
+            </div>
+            <div class="profile-meta">
+              <span class="profile-model">llama3</span>
+              <span class="profile-tags">
+                <span class="cap-tag off">联网 ✗</span>
+                <span class="cap-tag off">图片 ✗</span>
+              </span>
+            </div>
+          </div>
+          <div class="profile-actions" onclick="event.stopPropagation()">
+            <button class="profile-btn edit" title="编辑" onclick="openEditForm()">
+              <i data-lucide="pencil" style="width:14px;height:14px"></i>
+            </button>
+            <button class="profile-btn delete" title="删除" onclick="openDeleteModal()">
+              <i data-lucide="trash-2" style="width:14px;height:14px"></i>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 添加配置按钮 -->
+      <button class="btn-add-profile" id="btn-add-profile" onclick="openEditForm(true)">
+        <i data-lucide="plus" style="width:14px;height:14px"></i>
+        <span>添加配置</span>
+      </button>
+
+      <!-- 编辑表单 (默认隐藏) -->
+      <div class="edit-form hidden" id="edit-form">
+        <div class="edit-form-title" id="edit-form-title">编辑配置</div>
+
+        <div class="form-row">
+          <label class="form-label">名称</label>
+          <input type="text" class="form-input" value="DeepSeek" />
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">服务商</label>
+          <select class="form-select" onchange="onProviderChange(this)">
+            <option value="openai">OpenAI</option>
+            <option value="deepseek" selected>DeepSeek</option>
+            <option value="qwen">通义千问</option>
+            <option value="zhipu">智谱清言</option>
+            <option value="ollama">Ollama (本地)</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">API Key</label>
+          <div class="password-wrapper">
+            <input type="password" class="form-input" id="api-key-input" value="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
+            <button type="button" class="toggle-btn" title="显示" onclick="toggleApiKey()">
+              <i data-lucide="eye" style="width:16px;height:16px" id="eye-icon"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">API URL</label>
+          <input type="text" class="form-input" id="api-url-input" value="https://api.deepseek.com/v1" />
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">模型</label>
+          <input type="text" class="form-input" id="model-input" value="deepseek-chat" />
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">温度</label>
+          <div class="slider-wrapper">
+            <input type="range" min="0" max="2" step="0.1" value="0.7" class="form-slider" oninput="this.nextElementSibling.textContent = parseFloat(this.value).toFixed(1)" />
+            <span class="slider-value">0.7</span>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Max Tokens</label>
+          <input type="number" min="100" max="32768" value="4096" class="form-input" />
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">流式输出</label>
+          <div class="toggle-wrapper">
+            <button type="button" class="toggle-switch on" onclick="this.classList.toggle('on')">
+              <span class="toggle-knob"></span>
+            </button>
+            <span class="toggle-label">启用</span>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">模型能力</label>
+          <div class="capability-tags">
+            <span class="cap-tag on">联网 ✓</span>
+            <span class="cap-tag off">图片 ✗</span>
+            <span class="cap-auto">自动检测</span>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-ghost" onclick="testConnection()">
+            <i data-lucide="loader-2" class="spin hidden" style="width:14px;height:14px" id="test-spinner"></i>
+            <span id="test-btn-text">测试连接</span>
+          </button>
+          <button class="btn-ghost" onclick="closeEditForm()">取消</button>
+          <button class="btn-primary" onclick="closeEditForm(); showToast('保存成功', 'success')">保存</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 卡片 3: Markdown 语法 ===== -->
+    <section class="card">
+      <div class="card-header">
+        <i data-lucide="code" class="card-icon" style="width:18px;height:18px"></i>
+        <h2 class="card-title">Markdown 语法</h2>
+      </div>
+      <p class="card-desc">在编辑器中直接输入以下语法，自动转换为格式化文本。</p>
+      <div class="markdown-list">
+        <div class="markdown-item"><code>**粗体**</code><span class="markdown-arrow">→</span><span class="markdown-desc">粗体文本</span></div>
+        <div class="markdown-item"><code>*斜体*</code><span class="markdown-arrow">→</span><span class="markdown-desc">斜体文本</span></div>
+        <div class="markdown-item"><code>~~删除线~~</code><span class="markdown-arrow">→</span><span class="markdown-desc">删除线文本</span></div>
+        <div class="markdown-item"><code>`代码`</code><span class="markdown-arrow">→</span><span class="markdown-desc">行内代码</span></div>
+        <div class="markdown-item"><code>&lt;u&gt;下划线&lt;/u&gt;</code><span class="markdown-arrow">→</span><span class="markdown-desc">下划线文本</span></div>
+      </div>
+    </section>
+
+    <!-- ===== 卡片 4: 快捷键 ===== -->
+    <section class="card">
+      <div class="card-header">
+        <i data-lucide="keyboard" class="card-icon" style="width:18px;height:18px"></i>
+        <h2 class="card-title">快捷键</h2>
+      </div>
+      <div class="shortcut-list">
+        <div class="shortcut-item"><span class="shortcut-desc">撤销</span><kbd>Ctrl+Z</kbd></div>
+        <div class="shortcut-item"><span class="shortcut-desc">重做</span><kbd>Ctrl+Shift+Z</kbd></div>
+        <div class="shortcut-item"><span class="shortcut-desc">保存为 .md</span><kbd>Ctrl+S</kbd></div>
+        <div class="shortcut-item"><span class="shortcut-desc">唤起 AI 指令栏</span><kbd>Ctrl+K</kbd></div>
+        <div class="shortcut-item"><span class="shortcut-desc">新建同类型区块</span><kbd>Enter</kbd></div>
+        <div class="shortcut-item"><span class="shortcut-desc">删除空区块</span><kbd>Backspace</kbd></div>
+      </div>
+    </section>
+
+    <!-- ===== 卡片 5: 关于 ===== -->
+    <section class="card">
+      <div class="card-header">
+        <i data-lucide="info" class="card-icon" style="width:18px;height:18px"></i>
+        <h2 class="card-title">关于 UniDoc</h2>
+      </div>
+      <div class="about-grid">
+        <div class="about-row"><span class="about-label">版本</span><span class="about-value">Milestone 1 (0.1.0)</span></div>
+        <div class="about-row"><span class="about-label">技术栈</span><span class="about-value">Vite + Vue 3 + TypeScript + Pinia</span></div>
+        <div class="about-row"><span class="about-label">文件格式</span><span class="about-value">.md (Markdown)</span></div>
+        <div class="about-row"><span class="about-label">Tauri 后端</span><span class="about-value pending">待集成(需安装 Rust)</span></div>
+        <div class="about-row"><span class="about-label">AI 配置</span><span class="about-value pending">M3 里程碑实现</span></div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- 删除确认浮层 -->
+  <div class="modal-overlay hidden" id="delete-modal" onclick="if(event.target===this)closeDeleteModal()">
+    <div class="modal-dialog">
+      <div class="modal-icon">
+        <i data-lucide="alert-triangle" style="width:24px;height:24px"></i>
+      </div>
+      <div class="modal-title">删除配置</div>
+      <div class="modal-desc">确定要删除「DeepSeek」吗？此操作无法撤销。</div>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeDeleteModal()">取消</button>
+        <button class="btn-danger" onclick="closeDeleteModal(); showToast('已删除', 'success')">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast hidden" id="toast"></div>
+
+</main>
+
+<!-- ===== 原型交互 JS (仅用于演示,不用于生产) ===== -->
+<script>
+  // 初始化 Lucide 图标
+  lucide.createIcons();
+
+  // 主题切换
+  const savedTheme = localStorage.getItem('unidoc-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  setTheme(savedTheme);
+
+  function setTheme(mode) {
+    const root = document.documentElement;
+    if (mode === 'dark') root.classList.add('dark'); else root.classList.remove('dark');
+    root.setAttribute('data-theme', mode);
+    localStorage.setItem('unidoc-theme', mode);
+
+    // 更新按钮状态
+    document.getElementById('theme-light').classList.toggle('active', mode === 'light');
+    document.getElementById('theme-dark').classList.toggle('active', mode === 'dark');
+    document.getElementById('theme-icon-sun').classList.toggle('hidden', mode === 'dark');
+    document.getElementById('theme-icon-moon').classList.toggle('hidden', mode === 'light');
+
+    // 刷新图标 (lucide 在 dark mode 下可能需要重新渲染)
+    lucide.createIcons();
+  }
+
+  // Profile 激活切换
+  function setActiveProfile(el) {
+    document.querySelectorAll('.profile-item').forEach(p => {
+      p.classList.remove('active');
+      const badge = p.querySelector('.profile-active-badge');
+      if (badge) badge.remove();
+    });
+    el.classList.add('active');
+    const nameRow = el.querySelector('.profile-name-row');
+    if (!el.querySelector('.profile-active-badge')) {
+      const badge = document.createElement('span');
+      badge.className = 'profile-active-badge';
+      badge.textContent = '已激活';
+      nameRow.appendChild(badge);
+    }
+  }
+
+  // 编辑表单
+  function openEditForm(isNew = false) {
+    document.getElementById('edit-form').classList.remove('hidden');
+    document.getElementById('btn-add-profile').classList.add('hidden');
+    document.getElementById('edit-form-title').textContent = isNew ? '新增配置' : '编辑配置';
+  }
+  function closeEditForm() {
+    document.getElementById('edit-form').classList.add('hidden');
+    document.getElementById('btn-add-profile').classList.remove('hidden');
+  }
+
+  // API Key 显示切换
+  let apiKeyVisible = false;
+  function toggleApiKey() {
+    apiKeyVisible = !apiKeyVisible;
+    const input = document.getElementById('api-key-input');
+    const icon = document.getElementById('eye-icon');
+    input.type = apiKeyVisible ? 'text' : 'password';
+    icon.setAttribute('data-lucide', apiKeyVisible ? 'eye-off' : 'eye');
+    lucide.createIcons();
+  }
+
+  // 服务商预设
+  const presets = {
+    openai: { apiUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+    deepseek: { apiUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+    qwen: { apiUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus' },
+    zhipu: { apiUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash' },
+    ollama: { apiUrl: 'http://localhost:11434/v1', model: 'llama3' }
+  };
+  function onProviderChange(sel) {
+    const v = sel.value;
+    if (presets[v]) {
+      document.getElementById('api-url-input').value = presets[v].apiUrl;
+      document.getElementById('model-input').value = presets[v].model;
+    }
+  }
+
+  // 测试连接 (模拟)
+  function testConnection() {
+    const spinner = document.getElementById('test-spinner');
+    const btnText = document.getElementById('test-btn-text');
+    spinner.classList.remove('hidden');
+    btnText.textContent = '测试中...';
+    setTimeout(() => {
+      spinner.classList.add('hidden');
+      btnText.textContent = '测试连接';
+      showToast('连接成功（支持: 联网）', 'success');
+    }, 1200);
+  }
+
+  // 删除确认
+  function openDeleteModal() { document.getElementById('delete-modal').classList.remove('hidden'); }
+  function closeDeleteModal() { document.getElementById('delete-modal').classList.add('hidden'); }
+
+  // Toast
+  let toastTimer = null;
+  function showToast(msg, type = 'success') {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.className = 'toast ' + type;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.add('hidden'), 3000);
+  }
+</script>
+</body>
+</html>

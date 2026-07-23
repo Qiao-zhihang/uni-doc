@@ -7,7 +7,7 @@
  *   - executeTool(tools, name, args): 按 name 查找并执行,统一错误处理
  */
 
-import type { ToolDefinition, ToolResult } from './types'
+import type { ToolDefinition, ToolResult, MemoryCategory } from './types'
 import type { BlockType, ListType } from '@/core/blocks/types'
 import type { Block } from '@/core/blocks/types'
 import { createBlock } from '@/core/blocks/factory'
@@ -22,9 +22,12 @@ import {
 import { isTauri } from '@/core/serializer/markdownFile'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
+import { useAiMemoryStore } from '@/stores/aiMemory'
+import { searchAndFormatMemories, listAllMemories, parseAndSaveFact } from './memory'
 
 type DocumentStore = ReturnType<typeof useDocumentStore>
 type EditorStore = ReturnType<typeof useEditorStore>
+type MemoryStore = ReturnType<typeof useAiMemoryStore>
 
 /**
  * 工具名 → 中文标签(单一事实源)
@@ -48,6 +51,9 @@ export const TOOL_LABELS: Record<string, string> = {
   list_dir: '列出目录',
   switch_tab: '切换标签',
   web_search: '联网搜索',
+  save_memory: '保存记忆',
+  list_memory: '查看记忆',
+  search_memory: '搜索记忆',
 }
 
 const BLOCK_TYPES: BlockType[] = ['paragraph', 'heading', 'list', 'divider', 'page_break', 'quote', 'code_block', 'table', 'image']
@@ -160,8 +166,8 @@ const BLOCK_CONTENT_PARAMS = {
   align: { type: 'string', description: '对齐方式 left/center/right,仅文本类区块可选' }
 }
 
-/** 工具工厂:绑定 doc/editor 实例,返回 13 个 ToolDefinition */
-export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSearch = false): ToolDefinition[] {
+/** 工具工厂:绑定 doc/editor 实例,返回 16 个 ToolDefinition */
+export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSearch = false, memory?: MemoryStore): ToolDefinition[] {
   const tools: ToolDefinition[] = [
     {
       name: 'get_document',
@@ -594,6 +600,61 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
       }
     }
   ]
+
+  if (memory) {
+    tools.push(
+      {
+        name: 'save_memory',
+        description: '将重要信息保存到全局记忆中,供下次对话自动引用。适用于:用户提到个人信息、项目背景、偏好习惯、重要决策等。',
+        parameters: {
+          type: 'object',
+          properties: {
+            content: { type: 'string', description: '要保存的记忆内容(简洁描述事实)' },
+            category: { type: 'string', enum: ['personal', 'project', 'knowledge', 'preference', 'other'], description: '记忆分类: personal=个人信息, project=项目背景, knowledge=知识, preference=偏好, other=其他' },
+            tags: { type: 'array', description: '标签数组,用于后续检索匹配', items: { type: 'string' } },
+            importance: { type: 'number', description: '重要度 0-1,越重要越不容易被衰减清理,默认 0.5' }
+          },
+          required: ['content']
+        },
+        execute: (args) => {
+          const content = String(args.content ?? '')
+          if (!content) return { ok: false, error: 'content 不能为空' }
+          const category = (args.category as MemoryCategory) ?? 'knowledge'
+          const tags = Array.isArray(args.tags) ? (args.tags as string[]) : []
+          const importance = typeof args.importance === 'number' ? args.importance : 0.5
+          const fact = memory.addFact(content, category, tags, 'agent', importance)
+          return { ok: true, data: { id: fact.id, category, content } }
+        }
+      },
+      {
+        name: 'list_memory',
+        description: '查看用户的全局记忆列表(画像 + 所有事实),按分类展示。',
+        parameters: { type: 'object', properties: {}, required: [] },
+        execute: () => {
+          const result = listAllMemories()
+          return { ok: true, data: result }
+        }
+      },
+      {
+        name: 'search_memory',
+        description: '按关键词搜索用户的全局记忆,返回最相关的事实条目。',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: '搜索关键词(多个词用空格分隔)' },
+            maxResults: { type: 'number', description: '最多返回条数,默认 10' }
+          },
+          required: ['query']
+        },
+        execute: (args) => {
+          const query = String(args.query ?? '')
+          const maxResults = (args.maxResults as number) ?? 10
+          const result = searchAndFormatMemories(query, maxResults)
+          return { ok: true, data: result }
+        }
+      }
+    )
+  }
 
   // 联网搜索工具（仅在设置中启用时添加）
   if (enableWebSearch) {

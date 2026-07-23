@@ -11,6 +11,7 @@ import type { Block } from '@/core/blocks/types'
 import { ref, watch, onUnmounted, type Ref } from 'vue'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
+import { buildMemoryInject } from './memory'
 
 /** 将文本截断到 max 字符,超出时追加省略号 */
 function truncate(text: string, max: number): string {
@@ -143,7 +144,7 @@ export function buildContext(
  * 控制可见块最多 10 条,避免 token 超限
  * 重要：必须把 blockId 暴露给 AI，否则 AI 无法调用 update_block/delete_block 等需要 id 的工具
  */
-export function buildSystemPrompt(context: AgentContext, enableToolSearch = false, enableNativeSearch = false): string {
+export function buildSystemPrompt(context: AgentContext, enableToolSearch = false, enableNativeSearch = false, userInput: string = ''): string {
   const lines: string[] = []
 
   lines.push('# 角色')
@@ -347,6 +348,18 @@ export function buildSystemPrompt(context: AgentContext, enableToolSearch = fals
   lines.push('  4. 新建空白文档或用户明确要求从头生成内容时,可以直接用 replace_document 一次性写入。')
   lines.push('- 单次响应中也可以返回多个 tool_calls 并行执行多个独立工具。')
   lines.push('- 优先选择批量工具,避免逐个操作导致轮次耗尽。')
+
+  const memoryInject = buildMemoryInject(userInput)
+  if (memoryInject) {
+    lines.push('')
+    lines.push('# 关于用户记忆的使用规则（重要）')
+    lines.push('你拥有关于用户的记忆,请在回答时自然地利用这些信息:')
+    lines.push('- 用户画像中的信息是全局稳定的,可直接引用。')
+    lines.push('- 相关记忆是从你的知识库中检索出的相关事实,请结合当前问题灵活运用。')
+    lines.push('- 如果记忆与用户当前说法矛盾,以用户当前说法为准。')
+    lines.push('')
+    lines.push(memoryInject)
+  }
 
   if (enableNativeSearch) {
     lines.push('')

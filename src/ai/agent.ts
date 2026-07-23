@@ -11,6 +11,8 @@ import type { ChatMessage, MessageContent, ModelConfig, StreamCallbacks, ToolCal
 import { streamChat, type StreamResult } from './model'
 import { createTools, getToolDefinitions, executeTool, TOOL_LABELS } from './tools'
 import { buildContext, buildSystemPrompt } from './context'
+import { useAiMemoryStore } from '@/stores/aiMemory'
+import { extractProfileFromConversation, parseAndSaveFact } from './memory'
 import type { useDocumentStore } from '@/stores/document'
 import type { useEditorStore } from '@/stores/editor'
 
@@ -93,6 +95,18 @@ function formatToolResultForAI(toolName: string, result: { ok: boolean; data?: u
       const text = String(result.data ?? '').slice(0, 3000)
       return `【搜索结果】\n${text}`
     }
+    case 'save_memory': {
+      const d = result.data as { id: string; category: string; content: string }
+      return `【记忆已保存】分类=${d?.category} 内容="${d?.content?.slice(0, 100) ?? ''}"`
+    }
+    case 'list_memory': {
+      const text = String(result.data ?? '').slice(0, 3000)
+      return `【记忆列表】\n${text}`
+    }
+    case 'search_memory': {
+      const text = String(result.data ?? '').slice(0, 3000)
+      return `【记忆检索】\n${text}`
+    }
     default:
       return `【执行完成】${label}`
   }
@@ -146,6 +160,8 @@ export interface AgentDeps {
   canvasEl: () => HTMLElement | null
   /** 是否启用联网搜索 */
   enableWebSearch: () => boolean
+  /** AI 记忆 Store（可选，不传则不启用记忆工具） */
+  memory?: ReturnType<typeof useAiMemoryStore>
 }
 
 export interface Agent {
@@ -179,7 +195,7 @@ const DOC_MODIFYING_TOOLS = new Set([
  * 不再维护内部 messages 闭包，chat 方法接收外部 messages 数组
  */
 export function createAgent(deps: AgentDeps): Agent {
-  const { doc, editor, getConfig, canvasEl, enableWebSearch } = deps
+  const { doc, editor, getConfig, canvasEl, enableWebSearch, memory } = deps
 
   const MAX_CONTEXT_ROUNDS = 30
 
@@ -201,7 +217,10 @@ export function createAgent(deps: AgentDeps): Agent {
         const runtimeConfig: ModelConfig = { ...config, nativeSearch: useNativeSearch }
 
         const context = buildContext(doc, editor, canvasEl())
-        const systemPrompt = buildSystemPrompt(context, useToolSearch, useNativeSearch)
+        const userInputText = typeof userInput === 'string'
+          ? userInput
+          : userInput.filter((p) => p.type === 'text').map((p) => (p as { text: string }).text).join(' ')
+        const systemPrompt = buildSystemPrompt(context, useToolSearch, useNativeSearch, userInputText)
 
         // 保留 tool 角色消息，确保 tool_calls 序列完整
         const historyMessages = messages.filter((m) => m.role !== 'system')
@@ -229,7 +248,7 @@ export function createAgent(deps: AgentDeps): Agent {
         messages.push({ role: 'user', content: userInput })
 
         // 准备工具：内部 ToolDefinition[] 与 OpenAI Function Calling 格式
-        const tools = createTools(doc, editor, useToolSearch)
+        const tools = createTools(doc, editor, useToolSearch, memory)
         const toolDefs = getToolDefinitions(tools)
 
         // 多轮工具调用循环
@@ -363,6 +382,14 @@ export function createAgent(deps: AgentDeps): Agent {
         callbacks?.onError?.(e instanceof Error ? e.message : String(e))
       } finally {
         callbacks?.onComplete?.()
+        // 会话结束后自动提取记忆
+        if (memory && !signal.aborted) {
+          try {
+            autoExtractMemory(messages, memory)
+          } catch {
+            // 记忆提取失败不影响主流程
+          }
+        }
       }
     })()
 
@@ -370,4 +397,47 @@ export function createAgent(deps: AgentDeps): Agent {
   }
 
   return { chat }
+}
+
+/**
+ * 会话结束后自动提取记忆
+ * - 从用户消息中提取个人画像信息（姓名、别称等）
+ * - 从对话中提取关键事实（通过启发式规则）
+ */
+function autoExtractMemory(
+  messages: ChatMessage[],
+  memory: ReturnType<typeof useAiMemoryStore>
+): void {
+  const userMessages = messages
+    .filter((m) => m.role === 'user')
+    .map((m) => (typeof m.content === 'string' ? m.content : ''))
+    .filter((t) => t.length > 0)
+
+  if (userMessages.length === 0) return
+
+  const profileUpdate = extractProfileFromConversation(userMessages)
+  if (profileUpdate) {
+    memory.updateProfile(profileUpdate)
+  }
+
+  const recentUserText = userMessages.slice(-3).join(' ')
+  const extractionPatterns: Array<{ pattern: RegExp; category: 'personal' | 'preference' | 'project' | 'knowledge'; tag: string }> = [
+    { pattern: /我(?:叫|是|名字是)\s*([^\s，。,.\n]{2,10})/, category: 'personal', tag: '姓名' },
+    { pattern: /(?:喜欢|偏好|习惯|常用|爱用)\s*([^\s，。,.\n]{2,10})/, category: 'preference', tag: '偏好' },
+    { pattern: /(?:项目|工程|仓库)\s*[:：]?\s*([^\s，。,.\n]{2,20})/, category: 'project', tag: '项目' },
+    { pattern: /(?:使用|用|技术栈)\s*([^\s，。,.\n]{2,15})/, category: 'knowledge', tag: '技术' },
+  ]
+
+  for (const { pattern, category, tag } of extractionPatterns) {
+    const match = recentUserText.match(pattern)
+    if (match) {
+      const content = match[0]
+      const existing = memory.facts.find(
+        (f) => f.category === category && f.content.includes(content.slice(0, 5))
+      )
+      if (!existing) {
+        parseAndSaveFact(content, category, [tag], 'auto-extract')
+      }
+    }
+  }
 }

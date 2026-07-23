@@ -628,6 +628,28 @@ fn load_ai_conversations() -> Result<String, String> {
     fs::read_to_string(&file_path).map_err(|e| format!("读取会话数据失败: {}", e))
 }
 
+/// 保存 AI 全局记忆 JSON 到 ~/.unidoc/ai_memory.json
+#[tauri::command]
+fn save_ai_memory(json: String) -> Result<(), String> {
+    let home = dirs::home_dir().ok_or("无法获取用户主目录")?;
+    let dir = home.join(".unidoc");
+    fs::create_dir_all(&dir).map_err(|e| format!("创建配置目录失败: {}", e))?;
+    let file_path = dir.join("ai_memory.json");
+    fs::write(&file_path, json).map_err(|e| format!("写入记忆数据失败: {}", e))?;
+    Ok(())
+}
+
+/// 读取 ~/.unidoc/ai_memory.json,不存在返回空字符串
+#[tauri::command]
+fn load_ai_memory() -> Result<String, String> {
+    let home = dirs::home_dir().ok_or("无法获取用户主目录")?;
+    let file_path = home.join(".unidoc").join("ai_memory.json");
+    if !file_path.exists() {
+        return Ok(String::new());
+    }
+    fs::read_to_string(&file_path).map_err(|e| format!("读取记忆数据失败: {}", e))
+}
+
 /// 联网搜索：使用 Bing 搜索，国内连通性好，绕过 CORS
 /// 返回搜索结果的纯文本摘要
 #[tauri::command]
@@ -814,6 +836,8 @@ pub fn run() {
             clear_ai_history,
             save_ai_conversations,
             load_ai_conversations,
+            save_ai_memory,
+            load_ai_memory,
             web_search,
         ])
         .run(tauri::generate_context!())

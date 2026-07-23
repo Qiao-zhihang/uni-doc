@@ -11,6 +11,7 @@ import { useEditorStore } from '@/stores/editor'
 import { useDocumentStore } from '@/stores/document'
 import { useSettingsStore } from '@/stores/settings'
 import { useAiConversationStore } from '@/stores/aiConversation'
+import { useAiMemoryStore } from '@/stores/aiMemory'
 import { createAgent, type Agent } from '@/ai/agent'
 import { renderMarkdown } from '@/ai/markdown'
 import { TOOL_LABELS } from '@/ai/tools'
@@ -23,6 +24,7 @@ const editor = useEditorStore()
 const doc = useDocumentStore()
 const settings = useSettingsStore()
 const convStore = useAiConversationStore()
+const memoryStore = useAiMemoryStore()
 const agent = ref<Agent | null>(null)
 const sending = ref(false)
 const abortController = ref<AbortController | null>(null)
@@ -238,6 +240,7 @@ onMounted(async () => {
   // 加载设置和会话数据
   await settings.load()
   await convStore.load()
+  await memoryStore.load()
 
   // 如果没有会话，创建一个新会话
   if (convStore.conversations.length === 0) {
@@ -255,6 +258,7 @@ onMounted(async () => {
     getConfig: () => settings.getModelConfig(),
     canvasEl: () => document.querySelector('.editor-canvas') as HTMLElement | null,
     enableWebSearch: () => localWebSearch.value,
+    memory: memoryStore,
   })
 })
 
@@ -593,6 +597,18 @@ function formatToolResult(toolName: string, result: ToolResult): string {
       const matches = text.match(/^\d+\.\s/gm)
       const count = matches ? matches.length : 0
       return `已搜索到 ${Math.max(1, count)} 条结果`
+    }
+    case 'save_memory': {
+      const d = data as { category?: string }
+      return `已保存记忆(${d?.category ?? ''})`
+    }
+    case 'list_memory':
+      return `已列出记忆`
+    case 'search_memory': {
+      const text = String(data ?? '')
+      const matches = text.match(/^\d+\.\s/gm)
+      const count = matches ? matches.length : 0
+      return `已找到 ${count} 条相关记忆`
     }
     default:
       return `已完成 ${formatToolName(toolName)}`

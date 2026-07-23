@@ -83,3 +83,52 @@ export interface StreamCallbacks {
   onError?: (error: string) => void
   onComplete?: () => void
 }
+
+// ============ AI 记忆系统类型 ============
+
+export interface UserProfile {
+  name?: string
+  aliases?: string[]
+  writingStyle?: string
+  formatPreferences?: string[]
+  themes?: string[]
+  techStack?: string[]
+  notes?: string
+}
+
+export type MemoryCategory = 'personal' | 'project' | 'knowledge' | 'preference' | 'other'
+
+export interface MemoryFact {
+  id: string
+  category: MemoryCategory
+  content: string
+  tags: string[]
+  source: string
+  createdAt: number
+  lastAccessedAt: number
+  accessCount: number
+  confidence: number
+  importance: number
+}
+
+export interface GlobalMemory {
+  version: number
+  profile: UserProfile
+  facts: MemoryFact[]
+  updatedAt: number
+}
+
+export const DEFAULT_MEMORY: GlobalMemory = {
+  version: 1,
+  profile: {},
+  facts: [],
+  updatedAt: 0,
+}
+
+export const MEMORY_CATEGORY_LABELS: Record<MemoryCategory, string> = {
+  personal: '个人信息',
+  project: '项目背景',
+  knowledge: '知识储备',
+  preference: '偏好设置',
+  other: '其他',
+}
