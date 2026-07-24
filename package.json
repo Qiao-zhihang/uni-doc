@@ -1,9 +1,9 @@
 {
   "name": "uni-doc",
   "private": true,
-  "version": "2.0.0",
+  "version": "3.0.0",
   "type": "module",
-  "description": "UniDoc - 以 Markdown 为核心的轻量化全能办公编辑器 (Milestone 1 前端骨架)",
+  "description": "UniDoc - 以 Markdown 为核心的轻量化全能办公编辑器 ",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",

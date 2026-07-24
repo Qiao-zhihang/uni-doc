@@ -25,6 +25,71 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
   return invoke<T>(cmd, args)
 }
 
+/**
+ * 将用户输入的 href 规范化为可打开的完整 URL
+ * - www.xxx.com  → https://www.xxx.com
+ * - mailto:xxx   → 原样保留
+ * - http(s)://   → 原样保留
+ * - 其他非协议开头且非锚点的 → 补全 https://
+ */
+function normalizeUrl(href: string): string | null {
+  if (!href || href === '#') return null
+  // 页内锚点:跳过
+  if (href.startsWith('#')) return null
+  // 已有协议:直接返回
+  if (/^(https?:\/\/|mailto:)/i.test(href)) return href
+  // www. 开头:补 https://
+  if (/^www\./i.test(href)) return `https://${href}`
+  // 其他看起来像域名(含点号且不是相对路径)的:补 https://
+  if (href.includes('.') && !href.startsWith('/') && !href.startsWith('./') && !href.startsWith('../')) {
+    return `https://${href}`
+  }
+  return null
+}
+
+/**
+ * 同步检测是否为外部链接点击，是则阻止默认行为并返回规范化后的 URL
+ * （preventDefault/stopPropagation 必须同步执行，不能放到 async 里）
+ */
+export function interceptExternalLink(e: MouseEvent): string | null {
+  const target = e.target as HTMLElement
+  const anchor = target.closest('a')
+  if (!anchor) return null
+  const href = anchor.getAttribute('href') || ''
+  const url = normalizeUrl(href)
+  if (!url) return null
+  e.preventDefault()
+  e.stopPropagation()
+  return url
+}
+
+/**
+ * 用系统默认浏览器打开外部链接
+ * Tauri 环境调用 Rust open_external_url 命令,Web 环境用 window.open
+ */
+export async function openExternalUrl(url: string): Promise<void> {
+  if (isTauri()) {
+    try {
+      await tauriInvoke('open_external_url', { url })
+    } catch (err) {
+      console.error('打开外部链接失败:', err)
+    }
+  } else {
+    window.open(url, '_blank', 'noopener')
+  }
+}
+
+/**
+ * 拦截外部链接点击,用系统默认浏览器打开
+ * 同步阶段先拦截，再异步打开
+ */
+export function handleExternalLinkClick(e: MouseEvent): boolean {
+  const href = interceptExternalLink(e)
+  if (!href) return false
+  openExternalUrl(href)
+  return true
+}
+
 /** Tauri:弹出保存对话框并写入 .md 文件 */
 async function saveMdTauri(blocks: Block[], fileName: string): Promise<boolean> {
   const filePath = await tauriInvoke<string | null>('save_md_dialog', {

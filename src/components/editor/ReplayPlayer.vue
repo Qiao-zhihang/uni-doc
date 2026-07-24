@@ -26,6 +26,7 @@ import { useDocumentStore } from '@/stores/document'
 import { confirmDialog } from '@/composables/useDialog'
 import BlockRenderer from './BlockRenderer.vue'
 import type { Block } from '@/core/blocks/types'
+import { handleExternalLinkClick } from '@/core/serializer/markdownFile'
 
 const replay = useReplayStore()
 const doc = useDocumentStore()
@@ -486,7 +487,7 @@ const typeColor = (type: string) => {
     </transition>
 
     <!-- 内容展示区 -->
-    <div ref="contentRef" class="content-area" :class="{ 'with-outline': showOutline }">
+    <div ref="contentRef" class="content-area" :class="{ 'with-outline': showOutline }" @click="handleExternalLinkClick">
       <div class="paper-wrap" :style="zoomStyle">
         <div class="a4-paper">
           <div

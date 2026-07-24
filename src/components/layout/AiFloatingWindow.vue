@@ -17,6 +17,8 @@ import { renderMarkdown } from '@/ai/markdown'
 import { TOOL_LABELS } from '@/ai/tools'
 import type { MessageContent, ToolResult } from '@/ai/types'
 import AiIconUrl from '@/assets/UUshark/icon.svg'
+import { writeImageToVault } from '@/core/vault/vault'
+import { isTauri, handleExternalLinkClick } from '@/core/serializer/markdownFile'
 
 const router = useRouter()
 
@@ -58,6 +60,22 @@ const SIDEBAR_DELTA = SIDEBAR_W - SIDEBAR_COLLAPSED_W
 const isOpen = computed(() => editor.aiFloatingState === 'expanded')
 const isMinimized = computed(() => editor.aiFloatingState === 'minimized')
 
+/** 从消息内容中提取纯文本（过滤掉 AI 内部提示标记） */
+function extractText(content: string | MessageContent[]): string {
+  if (!content) return ''
+  let raw = ''
+  if (typeof content === 'string') {
+    raw = content
+  } else if (Array.isArray(content)) {
+    raw = content
+      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map((p) => p.text)
+      .join(' ')
+  }
+  // 过滤掉 __AI_INTERNAL__ 到 __AI_INTERNAL_END__ 之间的内容
+  return raw.replace(/__AI_INTERNAL__:[\s\S]*?__AI_INTERNAL_END__/g, '').trim()
+}
+
 /** 当前活跃会话的消息（过滤掉 system/tool 消息和空内容的 assistant 消息，用于显示） */
 const displayMessages = computed(() => {
   const conv = convStore.activeConversation
@@ -66,16 +84,17 @@ const displayMessages = computed(() => {
     .filter((m) => m.role === 'user' || m.role === 'assistant')
     .filter((m) => {
       if (!m.content) return false
-      const text = typeof m.content === 'string'
-        ? m.content
-        : Array.isArray(m.content) ? m.content.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text).join(' ') : ''
-      return text.trim().length > 0
+      if (typeof m.content === 'string') return m.content.trim().length > 0
+      if (Array.isArray(m.content)) {
+        const hasText = m.content.some((p) => p.type === 'text' && (p as { text: string }).text.trim().length > 0)
+        const hasImage = m.content.some((p) => p.type === 'image_url')
+        return hasText || hasImage
+      }
+      return false
     })
     .map((m) => ({
       role: m.role as 'user' | 'assistant',
-      content: typeof m.content === 'string'
-        ? m.content
-        : Array.isArray(m.content) ? m.content.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text).join(' ') : '',
+      content: m.content,
     }))
 })
 
@@ -368,7 +387,7 @@ function stopGeneration() {
 }
 
 /** 执行对话 */
-function execute() {
+async function execute() {
   if (!input.value.trim() || sending.value || !agent.value || !convStore.activeConversation) return
   const userText = input.value
   input.value = ''
@@ -380,7 +399,35 @@ function execute() {
   const hasImages = attachedImages.value.length > 0 && caps.value.vision
   let userContent: string | MessageContent[]
   if (hasImages) {
-    const parts: MessageContent[] = [{ type: 'text', text: userText }]
+    // 先把图片保存到 vault 的 assets 目录，获取相对路径
+    const savedImagePaths: string[] = []
+    if (isTauri() && doc.vaultRoot) {
+      for (const img of attachedImages.value) {
+        try {
+          const binaryStr = atob(img.base64)
+          const bytes = new Uint8Array(binaryStr.length)
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i)
+          }
+          const ext = img.mimeType.split('/')[1]?.split(';')[0] || 'png'
+          const relPath = await writeImageToVault(doc.vaultRoot, doc.activeTabPath ?? '', bytes, ext)
+          if (relPath) savedImagePaths.push(relPath)
+        } catch (e) {
+          console.error('保存图片到 vault 失败:', e)
+        }
+      }
+    }
+    // 构建消息文本：用户原文 + 图片路径提示（给AI看，方便它插入文档）
+    // 用特殊标记包裹给 AI 的提示，UI 渲染时过滤掉这部分
+    let textWithImageInfo = userText
+    if (savedImagePaths.length > 0) {
+      const imageInfo = savedImagePaths.map((p, i) => `图片${i + 1}: ${p}`).join('，')
+      const aiHint = '__AI_INTERNAL__: 以下图片已保存到 vault，路径如上。如需将图片插入文档，可直接使用上述路径调用 insert_block 工具，type=image，src 填相对路径（相对文档所在目录）。__AI_INTERNAL_END__'
+      textWithImageInfo = userText
+        ? `${userText}\n${imageInfo}\n${aiHint}`
+        : `${imageInfo}\n${aiHint}`
+    }
+    const parts: MessageContent[] = [{ type: 'text', text: textWithImageInfo }]
     for (const img of attachedImages.value) {
       parts.push({ type: 'image_url', image_url: { url: `data:${img.mimeType};base64,${img.base64}` } })
     }
@@ -615,10 +662,19 @@ function formatToolResult(toolName: string, result: ToolResult): string {
   }
 }
 
-/** 渲染消息内容 */
-function renderContent(role: string, content: string): string {
-  if (role === 'assistant') return renderMarkdown(content)
+/** 从消息内容中提取图片列表 */
+function extractImages(content: string | MessageContent[]): Array<{ url: string }> {
+  if (!content || !Array.isArray(content)) return []
   return content
+    .filter((p): p is { type: 'image_url'; image_url: { url: string } } => p.type === 'image_url')
+    .map((p) => ({ url: p.image_url.url }))
+}
+
+/** 渲染消息内容 */
+function renderContent(role: string, content: string | MessageContent[]): string {
+  const text = extractText(content)
+  if (role === 'assistant') return renderMarkdown(text)
+  return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -812,7 +868,7 @@ onUnmounted(() => {
             <div class="empty-title">UU鲨已就绪</div>
             <div class="empty-desc">输入指令开始对话</div>
           </div>
-          <div v-else class="messages">
+          <div v-else class="messages" @click="handleExternalLinkClick">
             <div
               v-for="(msg, i) in displayMessages"
               :key="i"
@@ -822,8 +878,21 @@ onUnmounted(() => {
               <div
                 class="bubble"
                 :class="{ 'md-bubble': msg.role === 'assistant' }"
-                v-html="renderContent(msg.role, msg.content)"
-              ></div>
+              >
+                <div v-if="extractImages(msg.content).length" class="bubble-images">
+                  <img
+                    v-for="(img, j) in extractImages(msg.content)"
+                    :key="j"
+                    :src="img.url"
+                    class="bubble-image"
+                    alt="发送的图片"
+                  />
+                </div>
+                <div
+                  v-if="extractText(msg.content).trim().length > 0"
+                  v-html="renderContent(msg.role, msg.content)"
+                ></div>
+              </div>
             </div>
           </div>
         </div>
@@ -1453,6 +1522,19 @@ onUnmounted(() => {
 .message-row-ai .bubble {
   background: var(--muted);
   color: var(--popover-foreground);
+}
+.bubble-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.bubble-image {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 6px;
+  object-fit: contain;
+  cursor: zoom-in;
 }
 
 /* 图片预览行 */

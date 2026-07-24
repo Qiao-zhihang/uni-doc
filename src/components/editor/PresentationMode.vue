@@ -7,27 +7,11 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { Block } from '@/core/blocks/types'
 import BlockRenderer from './BlockRenderer.vue'
-import { isTauri } from '@/core/serializer/markdownFile'
+import { handleExternalLinkClick } from '@/core/serializer/markdownFile'
 
 /** 拦截幻灯片内 a 标签点击,用系统默认浏览器打开外部链接 */
-async function onSlideClick(e: MouseEvent) {
-  const target = e.target as HTMLElement
-  const anchor = target.closest('a')
-  if (!anchor) return
-  const href = anchor.getAttribute('href') || ''
-  // 只处理 http(s) 外部链接
-  if (!/^https?:\/\//i.test(href)) return
-  e.preventDefault()
-  if (isTauri()) {
-    const { invoke } = await import('@tauri-apps/api/core')
-    try {
-      await invoke('open_external_url', { url: href })
-    } catch (err) {
-      console.error('打开链接失败:', err)
-    }
-  } else {
-    window.open(href, '_blank', 'noopener')
-  }
+function onSlideClick(e: MouseEvent) {
+  handleExternalLinkClick(e)
 }
 
 const props = defineProps<{ blocks: Block[] }>()

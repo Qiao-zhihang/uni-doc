@@ -15,6 +15,7 @@ import { detectBlockSyntax } from '@/core/parser/blockSyntax'
 import { uuid } from '@/core/blocks/factory'
 import type { Block, Mark } from '@/core/blocks/types'
 import BlockRenderer from './BlockRenderer.vue'
+import { interceptExternalLink, openExternalUrl } from '@/core/serializer/markdownFile'
 
 const doc = useDocumentStore()
 const editor = useEditorStore()
@@ -220,7 +221,23 @@ function duplicate(id: string) {
 }
 function remove(id: string) { doc.removeBlock(id, '删除区块') }
 
+/** 同步检测并拦截外链点击，返回是否处理了 */
+function isExternalLinkClick(e: MouseEvent): boolean {
+  const href = interceptExternalLink(e)
+  if (href) {
+    openExternalUrl(href)
+    return true
+  }
+  return false
+}
+
+function onBlockRowClick(e: MouseEvent, id: string) {
+  if (isExternalLinkClick(e)) return
+  selectBlock(id)
+}
+
 function onCanvasClick(e: MouseEvent) {
+  if (isExternalLinkClick(e)) return
   if (e.target === e.currentTarget) {
     // 点击画布空白处:仅取消选中,不新建块、不跳转光标
     editor.selectBlock(null)
@@ -330,7 +347,7 @@ watch(
           class="block-row"
           :class="{ selected: selectedId === block.id }"
           :data-block-id="block.id"
-          @click.stop="selectBlock(block.id)"
+          @click.stop="(e: MouseEvent) => onBlockRowClick(e, block.id)"
         >
           <!-- Block 操作按钮 -->
           <div class="block-actions" v-if="selectedId === block.id">
