@@ -555,6 +555,16 @@ export const useDocumentStore = defineStore('document', () => {
     }
   }
 
+  /** 移动 tab 到指定位置 */
+  function moveTab(fromId: string, toIndex: number) {
+    const fromIdx = openTabs.value.findIndex((t) => t.id === fromId)
+    if (fromIdx === -1) return
+    const clampedTo = Math.max(0, Math.min(toIndex, openTabs.value.length - 1))
+    if (fromIdx === clampedTo) return
+    const [moved] = openTabs.value.splice(fromIdx, 1)
+    openTabs.value.splice(clampedTo, 0, moved)
+  }
+
   /** 新建 tab(必须指定 vault 相对路径) */
   function createNewTab(path: string, title?: string) {
     const name = title ?? path.split('/').pop()?.replace(/\.md$/i, '') ?? '未命名文档'
@@ -674,6 +684,7 @@ export const useDocumentStore = defineStore('document', () => {
     closeTabsToRight,
     closeAllTabs,
     switchTab,
+    moveTab,
     createNewTab,
     setActivePath,
     setVaultRoot,
