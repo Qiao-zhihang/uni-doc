@@ -271,7 +271,7 @@ const aboutRows = [
   { label: '技术栈', value: 'Vite + Vue 3 + TypeScript + Pinia' },
   { label: '文件格式', value: '.md (Markdown)' },
   { label: 'Tauri 后端', value: '已集成' },
-  { label: 'GitHub', value: 'github.com/unidoc/unidoc', isLink: true },
+  { label: 'GitHub', value: 'github.com/Qiao-zhihang/uni-doc', isLink: true },
 ]
 
 type UpdateStatus = 'idle' | 'checking' | 'latest' | 'available' | 'error'
