@@ -67,6 +67,8 @@ export interface ModelConfig {
   provider?: string
   /** 模型是否支持原生联网搜索（优先使用，不走 function calling） */
   nativeSearch?: boolean
+  /** 模型是否支持图片理解（vision） */
+  vision?: boolean
   /** 是否启用流式输出（默认 true） */
   stream?: boolean
 }

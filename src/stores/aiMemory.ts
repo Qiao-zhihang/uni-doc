@@ -203,6 +203,7 @@ export const useAiMemoryStore = defineStore('aiMemory', () => {
   }
 
   async function load() {
+    if (loaded.value) return
     try {
       let json: string | null = null
       if (isTauri()) {

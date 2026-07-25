@@ -37,14 +37,24 @@ const STORAGE_KEY = 'unidoc-ai-conversations'
 /** 旧版历史 key (用于数据迁移) */
 const OLD_HISTORY_KEY = 'unidoc-ai-history'
 
-/** 将多模态内容转为纯文本（持久化时去除 base64 图片） */
-function normalizeContentForSave(content: string | MessageContent[]): string {
+/** 持久化时对内容做规范化处理：保留多模态结构（text + image_url），只去除 AI 内部标记 */
+function normalizeContentForSave(content: string | MessageContent[]): string | MessageContent[] {
   if (!content) return ''
+  if (typeof content === 'string') {
+    return content.replace(/__AI_INTERNAL__:[\s\S]*?__AI_INTERNAL_END__/g, '').trim()
+  }
   if (Array.isArray(content)) {
     return content
-      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-      .map((p) => p.text)
-      .join(' ')
+      .map((p) => {
+        if (p.type === 'text') {
+          return {
+            ...p,
+            text: p.text.replace(/__AI_INTERNAL__:[\s\S]*?__AI_INTERNAL_END__/g, '').trim(),
+          }
+        }
+        return p
+      })
+      .filter((p) => (p.type === 'text' ? p.text.length > 0 : true))
   }
   return String(content)
 }
@@ -64,7 +74,11 @@ export const useAiConversationStore = defineStore('aiConversation', () => {
 
   /** 按最后更新时间降序排列的会话列表 */
   const sortedConversations = computed(() =>
-    [...conversations.value].sort((a, b) => b.updatedAt - a.updatedAt),
+    [...conversations.value].sort((a, b) => {
+      const ta = typeof a.updatedAt === 'number' && a.updatedAt > 0 ? a.updatedAt : a.createdAt ?? 0
+      const tb = typeof b.updatedAt === 'number' && b.updatedAt > 0 ? b.updatedAt : b.createdAt ?? 0
+      return tb - ta
+    }),
   )
 
   /** 创建新会话，返回新会话 ID */
@@ -211,6 +225,7 @@ export const useAiConversationStore = defineStore('aiConversation', () => {
 
   /** 从磁盘加载 */
   async function load() {
+    if (loaded.value) return
     try {
       let json: string | null = null
       if (isTauri()) {
@@ -222,15 +237,11 @@ export const useAiConversationStore = defineStore('aiConversation', () => {
 
       if (json) {
         const parsed = JSON.parse(json) as ConversationsPayload
-        // 清洗数据：确保每条消息的 content 有效，过滤掉异常消息
         conversations.value = (parsed.conversations ?? []).map((c) => ({
           ...c,
-          messages: c.messages
-            .filter((m) => m && m.role && m.content != null)
-            .map((m) => ({
-              ...m,
-              content: typeof m.content === 'string' ? m.content : String(m.content ?? ''),
-            })),
+          messages: c.messages.filter(
+            (m) => m && m.role && m.content != null && m.role !== 'system',
+          ),
         }))
         activeConversationId.value = parsed.activeConversationId ?? null
         // 如果活跃会话 ID 无效，切到第一个

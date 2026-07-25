@@ -198,6 +198,9 @@ const progress = computed(() => {
   font-family: var(--font-sans);
   color: #fff;
 }
+:global(.dark) .presentation-mode {
+  background: #0f0f12;
+}
 
 .slide-container {
   flex: 1;
@@ -218,6 +221,11 @@ const progress = computed(() => {
   padding: 48px 64px;
   min-height: 60vh;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
+}
+:global(.dark) .slide-content {
+  background: #2a2a32;
+  color: #e8e8ed;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
 }
 
 /* 幻灯片内容样式覆盖 */

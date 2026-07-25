@@ -226,6 +226,7 @@ export const useSettingsStore = defineStore('settings', () => {
       maxTokens: p.maxTokens,
       provider: p.provider,
       nativeSearch: !!p.nativeSearch,
+      vision: !!p.vision,
       stream: p.stream !== false,
     }
   }
@@ -260,6 +261,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   /** 从磁盘加载配置（兼容旧扁平格式，自动迁移为单 Profile） */
   async function load() {
+    if (loaded.value) return
     try {
       let json: string | null = null
       if (isTauri()) {

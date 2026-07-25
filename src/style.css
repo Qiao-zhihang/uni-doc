@@ -153,61 +153,61 @@
 
 /* ===== SEMANTIC ROLES - dark ===== */
 .dark {
-  --background: var(--background-900);
-  --foreground: var(--text-50);
-  --card: var(--background-800);
-  --card-foreground: var(--text-50);
-  --popover: var(--background-700);
-  --popover-foreground: var(--text-50);
+  --background: #1e1e22;
+  --foreground: #e8e8ed;
+  --card: #25252b;
+  --card-foreground: #e8e8ed;
+  --popover: #2a2a32;
+  --popover-foreground: #f0f0f5;
 
-  --primary: var(--brand-400);
-  --primary-foreground: var(--background-900);
-  --secondary: var(--background-800);
-  --secondary-foreground: var(--text-50);
-  --muted: var(--background-800);
-  --muted-foreground: var(--text-400);
-  --accent: var(--background-700);
-  --accent-foreground: var(--text-50);
-  --destructive: var(--state-error-dark);
-  --destructive-foreground: var(--state-error-foreground);
-  --success: var(--state-success-dark);
-  --success-foreground: var(--state-success-foreground);
-  --success-surface: #1a3d28;
-  --border: var(--background-700);
-  --input: var(--background-700);
-  --ring: var(--brand-400);
+  --primary: #4f9dff;
+  --primary-foreground: #1e1e22;
+  --secondary: #2a2a32;
+  --secondary-foreground: #e8e8ed;
+  --muted: #2a2a32;
+  --muted-foreground: #9a9aa3;
+  --accent: #32323c;
+  --accent-foreground: #f0f0f5;
+  --destructive: #ff5b4f;
+  --destructive-foreground: #ffffff;
+  --success: #32d74b;
+  --success-foreground: #ffffff;
+  --success-surface: #1a3a24;
+  --border: #35353f;
+  --input: #35353f;
+  --ring: #4f9dff;
 
-  --icon: var(--icon-50);
-  --icon-muted: var(--icon-500);
+  --icon: #e8e8ed;
+  --icon-muted: #7e7e88;
 
   --chart-1: var(--state-success-dark);
-  --chart-2: var(--brand-400);
+  --chart-2: #4f9dff;
   --chart-3: #ff9f0a;
-  --chart-4: #5e5ce6;
+  --chart-4: #7876ff;
   --chart-5: #bf5af2;
 
-  --sidebar: var(--background-800);
-  --sidebar-foreground: var(--text-50);
-  --sidebar-primary: var(--brand-400);
-  --sidebar-primary-foreground: var(--background-900);
-  --sidebar-accent: var(--background-700);
-  --sidebar-accent-foreground: var(--text-50);
-  --sidebar-border: var(--background-700);
-  --sidebar-ring: var(--brand-400);
+  --sidebar: #18181c;
+  --sidebar-foreground: #e8e8ed;
+  --sidebar-primary: #4f9dff;
+  --sidebar-primary-foreground: #1e1e22;
+  --sidebar-accent: #25252b;
+  --sidebar-accent-foreground: #f0f0f5;
+  --sidebar-border: #2d2d35;
+  --sidebar-ring: #4f9dff;
 
-  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.30);
-  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.36), 0 1px 3px -1px rgba(0, 0, 0, 0.36);
-  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.40), 0 1px 2px -1px rgba(0, 0, 0, 0.36);
-  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.44), 0 2px 4px -2px rgba(0, 0, 0, 0.36);
-  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.50), 0 4px 8px -4px rgba(0, 0, 0, 0.40);
-  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.55), 0 8px 16px -8px rgba(0, 0, 0, 0.44);
-  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.60);
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.5);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.55), 0 1px 3px -1px rgba(0, 0, 0, 0.55);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.55), 0 1px 2px -1px rgba(0, 0, 0, 0.55);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.6), 0 2px 4px -2px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.7), 0 4px 8px -4px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.75), 0 8px 16px -8px rgba(0, 0, 0, 0.6);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.8);
 
   /* AI 浮窗专用 */
-  --conversation-active-bar: var(--brand-400);
-  --conversation-active-bg: rgba(46, 141, 255, 0.12);
-  --code-bg: rgba(255, 255, 255, 0.06);
+  --conversation-active-bar: #4f9dff;
+  --conversation-active-bg: rgba(79, 157, 255, 0.14);
+  --code-bg: rgba(255, 255, 255, 0.07);
 }
 
 /* ===== 全局基础样式 ===== */

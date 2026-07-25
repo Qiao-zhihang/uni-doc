@@ -157,6 +157,31 @@ async function streamChatWithContinue(
   return { content: fullContent, toolCalls: finalToolCalls, finishReason: finalFinishReason }
 }
 
+/**
+ * 将多模态消息内容转换为纯文本（仅保留 text 部分）
+ * 用于不支持 vision 的模型，避免发送 image_url 导致报错
+ */
+function stripImages(content: string | MessageContent[]): string {
+  if (typeof content === 'string') return content
+  return content
+    .filter((p) => p.type === 'text')
+    .map((p) => (p as { text: string }).text)
+    .join(' ')
+}
+
+/**
+ * 为不支持 vision 的模型准备消息：把所有多模态 user 消息的图片剥离，只保留文本
+ */
+function prepareMessagesForModel(messages: ChatMessage[], hasVision: boolean): ChatMessage[] {
+  if (hasVision) return messages
+  return messages.map((m) => {
+    if (m.role === 'user' && Array.isArray(m.content)) {
+      return { ...m, content: stripImages(m.content) }
+    }
+    return m
+  })
+}
+
 export interface AgentDeps {
   doc: ReturnType<typeof useDocumentStore>
   editor: ReturnType<typeof useEditorStore>
@@ -262,13 +287,17 @@ export function createAgent(deps: AgentDeps): Agent {
           truncatedHistory = sliced.slice(startIdx)
         }
 
-        const contextMessages: ChatMessage[] = [
+        // 存入对话历史的消息：始终保留完整多模态内容（让 UI 能渲染图片）
+        messages.push({ role: 'user', content: userInput })
+
+        // 发给模型的消息：非 vision 模型要剥离图片，避免报错
+        const hasVision = !!config.vision
+        const rawContextMessages: ChatMessage[] = [
           { role: 'system', content: systemPrompt },
           ...truncatedHistory,
           { role: 'user', content: userInput },
         ]
-
-        messages.push({ role: 'user', content: userInput })
+        const contextMessages = prepareMessagesForModel(rawContextMessages, hasVision)
 
         // 准备工具：内部 ToolDefinition[] 与 OpenAI Function Calling 格式
         const tools = createTools(doc, editor, useToolSearch, memory)

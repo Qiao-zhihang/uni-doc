@@ -32,6 +32,8 @@ const sending = ref(false)
 const abortController = ref<AbortController | null>(null)
 
 const input = ref('')
+const inputRef = ref<HTMLTextAreaElement | null>(null)
+const isInputFocused = ref(false)
 const toolStatus = ref<'idle' | 'calling' | 'completed'>('idle')
 const currentToolName = ref('')
 const currentToolResult = ref<ToolResult | null>(null)
@@ -421,43 +423,63 @@ async function execute() {
   const convId = conv.id
 
   // 构建消息内容
-  const hasImages = attachedImages.value.length > 0 && caps.value.vision
+  const hasImages = attachedImages.value.length > 0
   let userContent: string | MessageContent[]
-  if (hasImages) {
-    // 先把图片保存到 vault 的 assets 目录，获取相对路径
-    const savedImagePaths: string[] = []
-    if (isTauri() && doc.vaultRoot) {
-      for (const img of attachedImages.value) {
-        try {
-          const binaryStr = atob(img.base64)
-          const bytes = new Uint8Array(binaryStr.length)
-          for (let i = 0; i < binaryStr.length; i++) {
-            bytes[i] = binaryStr.charCodeAt(i)
-          }
-          const ext = img.mimeType.split('/')[1]?.split(';')[0] || 'png'
-          const relPath = await writeImageToVault(
-            doc.vaultRoot,
-            doc.activeTabPath ?? '',
-            bytes,
-            ext,
-          )
-          if (relPath) savedImagePaths.push(relPath)
-        } catch (e) {
-          console.error('保存图片到 vault 失败:', e)
+
+  // 保存图片到 vault（所有 AI 都执行）
+  const savedImagePaths: string[] = []
+  if (hasImages && isTauri() && doc.vaultRoot) {
+    for (const img of attachedImages.value) {
+      try {
+        const binaryStr = atob(img.base64)
+        const bytes = new Uint8Array(binaryStr.length)
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i)
         }
+        const ext = img.mimeType.split('/')[1]?.split(';')[0] || 'png'
+        const relPath = await writeImageToVault(
+          doc.vaultRoot,
+          doc.activeTabPath ?? '',
+          bytes,
+          ext,
+        )
+        if (relPath) savedImagePaths.push(relPath)
+      } catch (e) {
+        console.error('保存图片到 vault 失败:', e)
       }
     }
-    // 构建消息文本：用户原文 + 图片路径提示（给AI看，方便它插入文档）
-    // 用特殊标记包裹给 AI 的提示，UI 渲染时过滤掉这部分
-    let textWithImageInfo = userText
-    if (savedImagePaths.length > 0) {
-      const imageInfo = savedImagePaths.map((p, i) => `图片${i + 1}: ${p}`).join('，')
-      const aiHint =
-        '__AI_INTERNAL__: 以下图片已保存到 vault，路径如上。如需将图片插入文档，可直接使用上述路径调用 insert_block 工具，type=image，src 填相对路径（相对文档所在目录）。__AI_INTERNAL_END__'
-      textWithImageInfo = userText
-        ? `${userText}\n${imageInfo}\n${aiHint}`
-        : `${imageInfo}\n${aiHint}`
+  }
+
+  // 不支持 vision 的 AI：图片自动插入文档
+  if (hasImages && !caps.value.vision && savedImagePaths.length > 0 && doc.activeTabPath) {
+    for (const relPath of savedImagePaths) {
+      try {
+        const blockId = doc.appendBlock('image')
+        if (blockId) {
+          doc.updateBlock(blockId, { content: { src: relPath, alt: '' } })
+        }
+      } catch (e) {
+        console.error('插入图片到文档失败:', e)
+      }
     }
+  }
+
+  // 所有情况都用多模态结构存储（text + image_url）
+  // agent.chat 会负责：发给模型时根据 vision 能力决定是否剥离图片
+  if (hasImages) {
+    const imageInfo = savedImagePaths.length > 0
+      ? savedImagePaths.map((p, i) => `图片${i + 1}: ${p}`).join('，')
+      : ''
+    const aiHintBase = caps.value.vision
+      ? '以下图片已保存到 vault，路径如上。如需将图片插入文档，可直接使用上述路径调用 insert_block 工具，type=image，src 填相对路径（相对文档所在目录）。'
+      : '以下图片已保存并自动插入当前文档，路径如上。无需再调用 insert_block 插入。'
+    const aiInternal = imageInfo
+      ? `__AI_INTERNAL__: ${imageInfo}。${aiHintBase}__AI_INTERNAL_END__`
+      : `__AI_INTERNAL__: ${aiHintBase}__AI_INTERNAL_END__`
+    const textWithImageInfo = userText
+      ? `${userText}\n${aiInternal}`
+      : aiInternal
+
     const parts: MessageContent[] = [{ type: 'text', text: textWithImageInfo }]
     for (const img of attachedImages.value) {
       parts.push({
@@ -469,7 +491,6 @@ async function execute() {
     attachedImages.value = []
   } else {
     userContent = userText
-    if (attachedImages.value.length > 0) attachedImages.value = []
   }
 
   // 不在此处推入消息 — agent.chat() 负责推入 user 和 assistant 消息
@@ -537,6 +558,19 @@ async function execute() {
   })
 }
 
+/** 自适应输入框高度 */
+function autoResizeInput() {
+  const el = inputRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  const maxH = 140
+  el.style.height = Math.min(el.scrollHeight, maxH) + 'px'
+}
+
+watch(input, () => {
+  nextTick(autoResizeInput)
+})
+
 /** 选择图片 */
 function onImageSelect(e: Event) {
   const files = (e.target as HTMLInputElement).files
@@ -560,7 +594,6 @@ function removeImage(index: number) {
 
 /** 处理粘贴图片 */
 function onPaste(e: ClipboardEvent) {
-  if (!caps.value.vision) return
   const items = e.clipboardData?.items
   if (!items) return
 
@@ -1036,78 +1069,86 @@ onUnmounted(() => {
 
         <!-- 输入区 -->
         <div class="chat-input-area">
-          <div class="input-toolbar">
-            <!-- 联网开关：支持原生联网或 function calling 时都显示 -->
-            <button
-              v-if="caps.webSearch || caps.nativeSearch"
-              class="toolbar-btn"
-              :class="{ active: localWebSearch }"
-              :title="caps.nativeSearch ? '原生联网搜索' : '联网搜索'"
-              @click="localWebSearch = !localWebSearch"
-            >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2">
-                <circle cx="8" cy="8" r="6" />
-                <ellipse cx="8" cy="8" rx="3" ry="6" />
-                <line x1="2" y1="8" x2="14" y2="8" />
-              </svg>
-              <span>联网</span>
-            </button>
-            <button
-              v-if="caps.vision"
-              class="toolbar-btn"
-              title="添加图片"
-              @click="fileInputRef?.click()"
-            >
-              <svg
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="2" y="3" width="12" height="10" rx="2" />
-                <circle cx="6" cy="7" r="1.5" />
-                <path d="M2 11L5.5 8L9 10.5L12 7.5L14 9.5" />
-              </svg>
-              <span>图片</span>
-            </button>
-            <input
-              ref="fileInputRef"
-              type="file"
-              accept="image/*"
-              multiple
-              style="display: none"
-              @change="onImageSelect"
-            />
-          </div>
-          <div class="input-row">
-            <textarea
-              v-model="input"
-              class="chat-input"
-              :placeholder="sending ? 'UU鲨正在响应...' : '输入指令... (Enter 发送)'"
-              :disabled="sending"
-              rows="2"
-              @keydown.enter.exact.prevent="execute"
-              @paste="onPaste"
-            ></textarea>
-            <button v-if="sending" class="stop-btn" title="停止生成" @click="stopGeneration">
-              <svg viewBox="0 0 14 14" fill="currentColor">
-                <rect x="3" y="3" width="8" height="8" rx="1.5" />
-              </svg>
-            </button>
-            <button v-else class="send-btn" :disabled="!input.trim()" @click="execute">
-              <svg
-                viewBox="0 0 14 14"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M2 7L12 2L7 12L6 8L2 7Z" />
-              </svg>
-            </button>
+          <div class="input-composer" :class="{ 'composer-focused': isInputFocused}">
+            <div class="composer-main">
+              <textarea
+                ref="inputRef"
+                v-model="input"
+                class="chat-input"
+                :placeholder="sending ? '正在生成响应…' : '输入你的问题或指令…（Enter 发送，Shift+Enter 换行）'"
+                :disabled="sending"
+                rows="1"
+                @keydown.enter.exact.prevent="execute"
+                @paste="onPaste"
+                @focus="isInputFocused = true"
+                @blur="isInputFocused = false"
+              ></textarea>
+            </div>
+            <div class="composer-footer">
+              <div class="input-toolbar">
+                <!-- 联网开关：支持原生联网或 function calling 时都显示 -->
+                <button
+                  v-if="caps.webSearch || caps.nativeSearch"
+                  class="toolbar-btn"
+                  :class="{ active: localWebSearch }"
+                  :title="caps.nativeSearch ? '原生联网搜索' : '联网搜索'"
+                  @click="localWebSearch = !localWebSearch"
+                >
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2">
+                    <circle cx="8" cy="8" r="6" />
+                    <ellipse cx="8" cy="8" rx="3" ry="6" />
+                    <line x1="2" y1="8" x2="14" y2="8" />
+                  </svg>
+                  <span>联网</span>
+                </button>
+                <button
+                  class="toolbar-btn"
+                  title="添加图片"
+                  @click="fileInputRef?.click()"
+                >
+                  <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <rect x="2" y="3" width="12" height="10" rx="2" />
+                    <circle cx="6" cy="7" r="1.5" />
+                    <path d="M2 11L5.5 8L9 10.5L12 7.5L14 9.5" />
+                  </svg>
+                  <span>图片</span>
+                </button>
+                <input
+                  ref="fileInputRef"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  style="display: none"
+                  @change="onImageSelect"
+                />
+              </div>
+              <div class="composer-actions">
+                <button v-if="sending" class="stop-btn" title="停止生成" @click="stopGeneration">
+                  <svg viewBox="0 0 14 14" fill="currentColor">
+                    <rect x="3" y="3" width="8" height="8" rx="1.5" />
+                  </svg>
+                </button>
+                <button v-else class="send-btn" :disabled="!input.trim() && attachedImages.length === 0" @click="execute">
+                  <svg
+                    viewBox="0 0 14 14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M2 7L12 2L7 12L6 8L2 7Z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1152,12 +1193,16 @@ onUnmounted(() => {
   background: var(--popover);
   color: var(--popover-foreground);
   border: 1px solid var(--border);
-  border-radius: var(--radius-compact);
-  box-shadow: var(--shadow-xl);
+  border-radius: 14px;
+  box-shadow:
+    0 1px 2px 0 rgba(0, 0, 0, 0.04),
+    0 8px 24px -4px rgba(0, 0, 0, 0.08),
+    0 24px 48px -12px rgba(0, 0, 0, 0.12);
   z-index: 1000;
   overflow: hidden;
   font-family: var(--font-sans);
   user-select: none;
+  backdrop-filter: blur(20px);
 }
 .floating-animating {
   transition:
@@ -1415,14 +1460,18 @@ onUnmounted(() => {
 .conversation-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0 4px 8px;
+  padding: 4px 6px 8px;
+  gap: 2px;
+  display: flex;
+  flex-direction: column;
 }
 .conv-item {
   position: relative;
-  padding: 7px 26px 7px 10px;
-  border-radius: var(--radius-button);
+  padding: 8px 28px 8px 10px;
+  border-radius: 8px;
   cursor: pointer;
   overflow: hidden;
+  transition: background 0.15s ease;
 }
 .conv-item:hover {
   background: var(--muted);
@@ -1434,10 +1483,10 @@ onUnmounted(() => {
   content: '';
   position: absolute;
   left: 0;
-  top: 4px;
-  bottom: 4px;
+  top: 6px;
+  bottom: 6px;
   width: 3px;
-  border-radius: 0 2px 2px 0;
+  border-radius: 0 3px 3px 0;
   background: var(--conversation-active-bar);
 }
 .conv-title {
@@ -1448,9 +1497,11 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   display: block;
   padding-left: 2px;
+  font-weight: 500;
 }
 .conv-item.active .conv-title {
   color: var(--primary);
+  font-weight: 600;
 }
 .rename-input {
   width: 100%;
@@ -1575,14 +1626,22 @@ onUnmounted(() => {
 .tool-status-bar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+  gap: 8px;
+  padding: 8px 14px;
   font-size: 11px;
   color: var(--muted-foreground);
   border-bottom: 1px solid var(--border);
+  background: var(--card);
+  font-weight: 500;
 }
 .tool-status-bar.calling {
   color: var(--primary);
+  background: var(--brand-50);
+  border-bottom-color: var(--brand-100);
+}
+.dark .tool-status-bar.calling {
+  background: rgba(79, 157, 255, 0.1);
+  border-bottom-color: rgba(79, 157, 255, 0.22);
 }
 .tool-status-bar.completed {
   color: var(--success);
@@ -1590,48 +1649,63 @@ onUnmounted(() => {
 .tool-status-bar .spinner {
   width: 12px;
   height: 12px;
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
 
 /* 消息区 */
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 12px 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   user-select: text;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(0, 122, 255, 0.03) 0%, transparent 50%),
+    var(--popover);
+}
+.dark .chat-messages {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(79, 157, 255, 0.06) 0%, transparent 50%),
+    var(--popover);
 }
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  flex: 1;
   height: 100%;
-  gap: 8px;
+  gap: 10px;
   color: var(--muted-foreground);
 }
 .empty-icon {
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   object-fit: contain;
-  opacity: 0.4;
+  opacity: 0.7;
+  margin-bottom: 4px;
+  filter: drop-shadow(0 2px 8px rgba(0, 122, 255, 0.15));
 }
 .empty-title {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--popover-foreground);
 }
 .empty-desc {
-  font-size: 11px;
+  font-size: 12px;
+  opacity: 0.8;
 }
 .messages {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 2px 0;
 }
 .message-row {
   display: flex;
+  position: relative;
 }
 .message-row-user {
   justify-content: flex-end;
@@ -1640,21 +1714,31 @@ onUnmounted(() => {
   justify-content: flex-start;
 }
 .bubble {
-  max-width: 80%;
+  position: relative;
+  max-width: 85%;
   padding: 8px 12px;
-  border-radius: var(--radius-compact);
   font-size: 13px;
   line-height: 1.6;
   word-break: break-word;
   user-select: text;
+  transition: box-shadow 0.2s ease;
 }
 .message-row-user .bubble {
-  background: var(--primary);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--brand-600) 100%);
   color: var(--primary-foreground);
+  border-radius: 16px 16px 4px 16px;
+  box-shadow:
+    0 1px 2px rgba(0, 122, 255, 0.15),
+    0 4px 12px rgba(0, 122, 255, 0.2);
 }
 .message-row-ai .bubble {
-  background: var(--muted);
+  background: var(--card);
   color: var(--popover-foreground);
+  border-radius: 16px 16px 16px 4px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border);
 }
 .bubble-images {
   display: flex;
@@ -1673,28 +1757,29 @@ onUnmounted(() => {
 /* 图片预览行 */
 .image-preview-row {
   display: flex;
-  gap: 8px;
-  padding: 0 12px 8px;
+  gap: 10px;
+  padding: 0 14px 10px;
 }
 .image-thumb-wrapper {
   position: relative;
-  width: 64px;
-  height: 64px;
+  width: 72px;
+  height: 72px;
   flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 .image-thumb {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: var(--radius-compact);
-  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: block;
 }
 .image-remove {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 16px;
-  height: 16px;
+  top: -5px;
+  right: -5px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: var(--destructive);
   color: var(--destructive-foreground);
@@ -1702,120 +1787,184 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  border: 2px solid var(--popover);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.15s ease;
+}
+.image-remove:hover {
+  transform: scale(1.1);
 }
 .image-remove svg {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
 }
 
-/* 输入区 */
+/* 输入区 — 现代组合框风格 */
 .chat-input-area {
-  padding: 8px 10px;
-  border-top: 1px solid var(--border);
+  padding: 0 10px 10px;
+  border-top: none;
+  background: var(--popover);
+}
+.input-composer {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 2px 8px rgba(0, 0, 0, 0.03);
+}
+.input-composer.composer-focused {
+  border-color: var(--ring);
+  box-shadow:
+    0 0 0 4px rgba(0, 122, 255, 0.1),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 16px rgba(0, 122, 255, 0.08);
+  background: var(--popover);
+}
+.composer-main {
+  padding: 10px 12px 2px;
+}
+.chat-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  color: var(--foreground);
+  resize: none;
+  outline: none;
+  line-height: 1.6;
+  user-select: text;
+  min-height: 22px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.chat-input::-webkit-scrollbar {
+  display: none;
+}
+.chat-input {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.chat-input::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.8;
+}
+.chat-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px 6px;
+  gap: 6px;
 }
 .input-toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 6px;
+  gap: 2px;
 }
 .toolbar-btn {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-button);
+  padding: 5px 9px;
+  border: none;
+  border-radius: 8px;
   background: transparent;
   color: var(--muted-foreground);
   font-size: 11px;
   font-family: var(--font-sans);
   cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .toolbar-btn:hover {
   background: var(--muted);
   color: var(--popover-foreground);
 }
 .toolbar-btn.active {
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border-color: var(--primary);
+  background: var(--brand-50);
+  color: var(--primary);
+}
+.dark .toolbar-btn.active {
+  background: rgba(46, 141, 255, 0.12);
 }
 .toolbar-btn svg {
   width: 14px;
   height: 14px;
 }
-.input-row {
+.composer-actions {
   display: flex;
-  gap: 6px;
-  align-items: flex-end;
-}
-.chat-input {
-  flex: 1;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-button);
-  background: var(--secondary);
-  padding: 6px 10px;
-  font-size: 12px;
-  font-family: var(--font-sans);
-  color: var(--foreground);
-  resize: none;
-  outline: none;
-  line-height: 1.5;
-  user-select: text;
-}
-.chat-input:focus {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 1px var(--ring);
-}
-.chat-input::placeholder {
-  color: var(--muted-foreground);
-}
-.chat-input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  align-items: center;
+  gap: 4px;
 }
 .send-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-button);
-  background: var(--primary);
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--brand-600) 100%);
   color: var(--primary-foreground);
   border: none;
   flex-shrink: 0;
   cursor: pointer;
+  box-shadow:
+    0 1px 2px rgba(0, 122, 255, 0.15),
+    0 4px 10px rgba(0, 122, 255, 0.2);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .send-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.35;
   cursor: not-allowed;
+  box-shadow: none;
+  background: var(--muted);
 }
 .send-btn:not(:disabled):hover {
-  filter: brightness(0.96);
+  transform: scale(1.05);
+  box-shadow:
+    0 2px 4px rgba(0, 122, 255, 0.18),
+    0 6px 16px rgba(0, 122, 255, 0.28);
+}
+.send-btn:not(:disabled):active {
+  transform: scale(0.97);
 }
 .send-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
+  transition: transform 0.15s ease;
 }
 
 .stop-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-button);
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   background: var(--destructive);
   color: var(--destructive-foreground);
   border: none;
   flex-shrink: 0;
   cursor: pointer;
-  transition: filter 0.15s;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow:
+    0 1px 2px rgba(255, 59, 48, 0.15),
+    0 4px 10px rgba(255, 59, 48, 0.2);
 }
 .stop-btn:hover {
-  filter: brightness(0.96);
+  transform: scale(1.05);
+}
+.stop-btn:active {
+  transform: scale(0.97);
 }
 .stop-btn svg {
   width: 14px;
