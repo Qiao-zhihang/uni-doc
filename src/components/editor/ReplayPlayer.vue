@@ -19,7 +19,7 @@ import {
   Check,
   X as XIcon,
   Flag,
-  Undo2
+  Undo2,
 } from 'lucide-vue-next'
 import { useReplayStore } from '@/stores/replay'
 import { useDocumentStore } from '@/stores/document'
@@ -50,7 +50,7 @@ const HIDE_DELAY = 2500
 // ===== 缩放 =====
 const zoomStyle = computed(() => ({
   width: `calc(var(--a4-width) * ${zoom.value / 100})`,
-  maxWidth: '100%'
+  maxWidth: '100%',
 }))
 
 function zoomIn() {
@@ -91,7 +91,7 @@ const outlineItems = computed(() => {
         id: block.id,
         text: content.text || '(无标题)',
         level: props.level,
-        blockId: block.id
+        blockId: block.id,
       })
     }
   })
@@ -128,7 +128,7 @@ const currentInfo = computed(() => {
     type: snap.type,
     index: replay.currentIndex + 1,
     total: replay.snapshots.length,
-    id: snap.id
+    id: snap.id,
   }
 })
 
@@ -218,7 +218,7 @@ watch(
     if (!playing) return
     if (replay.currentIndex < 0) replay.jumpTo(0)
     startPlayTimer()
-  }
+  },
 )
 
 // 切换播放速度后立即用新速度重新调度下一次 tick
@@ -229,7 +229,7 @@ watch(
       clearPlayTimer()
       startPlayTimer()
     }
-  }
+  },
 )
 
 watch(
@@ -242,7 +242,7 @@ watch(
     if (isEditing.value) {
       saveLabel()
     }
-  }
+  },
 )
 
 function togglePlay() {
@@ -311,7 +311,7 @@ async function revertToCurrentSnapshot() {
 
   const ok = await confirmDialog(
     `确定要将文档回退到「${snap.label}」版本吗？\n当前内容会被覆盖，但可以通过撤销恢复。`,
-    '回退版本'
+    '回退版本',
   )
   if (!ok) return
 
@@ -405,18 +405,18 @@ onUnmounted(() => {
 
 const typeColor = (type: string) => {
   switch (type) {
-    case 'milestone': return 'var(--primary, #3b82f6)'
-    case 'manual': return '#f59e0b'
-    default: return 'rgba(255,255,255,0.5)'
+    case 'milestone':
+      return 'var(--primary, #3b82f6)'
+    case 'manual':
+      return '#f59e0b'
+    default:
+      return 'rgba(255,255,255,0.5)'
   }
 }
 </script>
 
 <template>
-  <div
-    class="replay-player"
-    @mousemove="onMouseMove"
-  >
+  <div class="replay-player" @mousemove="onMouseMove">
     <!-- 顶部栏 -->
     <div class="top-bar" :class="{ hidden: !controlsVisible }" @click.stop>
       <div class="top-left">
@@ -440,11 +440,7 @@ const typeColor = (type: string) => {
             <RotateCcw :size="16" />
           </button>
         </div>
-        <button
-          class="icon-btn revert-btn"
-          title="回退到此版本"
-          @click="revertToCurrentSnapshot"
-        >
+        <button class="icon-btn revert-btn" title="回退到此版本" @click="revertToCurrentSnapshot">
           <Undo2 :size="16" />
         </button>
         <button
@@ -470,9 +466,7 @@ const typeColor = (type: string) => {
           <span class="outline-count">{{ outlineItems.length }}</span>
         </div>
         <div class="outline-body">
-          <div v-if="outlineItems.length === 0" class="outline-empty">
-            当前快照无标题
-          </div>
+          <div v-if="outlineItems.length === 0" class="outline-empty">当前快照无标题</div>
           <div
             v-for="item in outlineItems"
             :key="item.id"
@@ -487,7 +481,12 @@ const typeColor = (type: string) => {
     </transition>
 
     <!-- 内容展示区 -->
-    <div ref="contentRef" class="content-area" :class="{ 'with-outline': showOutline }" @click="handleExternalLinkClick">
+    <div
+      ref="contentRef"
+      class="content-area"
+      :class="{ 'with-outline': showOutline }"
+      @click="handleExternalLinkClick"
+    >
       <div class="paper-wrap" :style="zoomStyle">
         <div class="a4-paper">
           <div
@@ -500,9 +499,7 @@ const typeColor = (type: string) => {
               <BlockRenderer :block="block" />
             </div>
           </div>
-          <div v-if="displayBlocks.length === 0" class="empty-hint">
-            没有快照可显示
-          </div>
+          <div v-if="displayBlocks.length === 0" class="empty-hint">没有快照可显示</div>
           <div class="end-area"></div>
         </div>
       </div>
@@ -576,9 +573,11 @@ const typeColor = (type: string) => {
           :class="{
             active: idx === replay.currentIndex,
             milestone: snap.type === 'milestone',
-            manual: snap.type === 'manual'
+            manual: snap.type === 'manual',
           }"
-          :style="{ left: `${replay.snapshots.length > 1 ? (idx / (replay.snapshots.length - 1)) * 100 : 0}%` }"
+          :style="{
+            left: `${replay.snapshots.length > 1 ? (idx / (replay.snapshots.length - 1)) * 100 : 0}%`,
+          }"
           :title="`${formatTime(snap.timestamp)} - ${snap.label}`"
           @click.stop="replay.jumpTo(idx)"
           @mousedown.stop
@@ -591,7 +590,10 @@ const typeColor = (type: string) => {
           class="ctrl-btn prev"
           title="上一个 (←)"
           :disabled="replay.currentIndex <= 0"
-          @click="replay.pause(); replay.prev()"
+          @click="
+            replay.pause();
+            replay.prev();
+          "
         >
           <SkipBack :size="18" />
         </button>
@@ -607,7 +609,10 @@ const typeColor = (type: string) => {
           class="ctrl-btn next"
           title="下一个 (→)"
           :disabled="replay.currentIndex >= replay.snapshots.length - 1"
-          @click="replay.pause(); replay.next()"
+          @click="
+            replay.pause();
+            replay.next();
+          "
         >
           <SkipForward :size="18" />
         </button>
@@ -645,7 +650,9 @@ const typeColor = (type: string) => {
   justify-content: space-between;
   padding: 12px 20px;
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent);
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
 }
 .top-bar.hidden {
   opacity: 0;
@@ -901,7 +908,9 @@ const typeColor = (type: string) => {
   z-index: 10;
   padding: 16px 24px 20px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
 }
 .bottom-controls.hidden {
   opacity: 0;
@@ -964,7 +973,7 @@ const typeColor = (type: string) => {
   cursor: pointer;
   user-select: none;
 }
-.milestone-check input[type="checkbox"] {
+.milestone-check input[type='checkbox'] {
   width: 12px;
   height: 12px;
   cursor: pointer;
@@ -1064,7 +1073,9 @@ const typeColor = (type: string) => {
   background: #fff;
   border-radius: 2px;
   transform: translateY(-50%);
-  transition: width 0.1s ease, height 0.15s ease;
+  transition:
+    width 0.1s ease,
+    height 0.15s ease;
 }
 .timeline-thumb {
   position: absolute;

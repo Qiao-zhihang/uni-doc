@@ -41,7 +41,7 @@ export function useWikilinkAutocomplete({ el }: WikilinkAutocompleteOptions) {
         } else if (/\.md$/i.test(node.name)) {
           cache.set(node.path, {
             name: node.name.replace(/\.md$/i, ''),
-            path: node.path
+            path: node.path,
           })
         }
       }
@@ -54,9 +54,7 @@ export function useWikilinkAutocomplete({ el }: WikilinkAutocompleteOptions) {
   const filteredItems = computed<AutocompleteItem[]>(() => {
     const q = query.value.toLowerCase().trim()
     if (!q) return allFiles.value.slice(0, 50)
-    return allFiles.value
-      .filter((f) => f.name.toLowerCase().includes(q))
-      .slice(0, 50)
+    return allFiles.value.filter((f) => f.name.toLowerCase().includes(q)).slice(0, 50)
   })
 
   /** 获取光标在视口中的坐标 */
@@ -134,7 +132,10 @@ export function useWikilinkAutocomplete({ el }: WikilinkAutocompleteOptions) {
    * 用 TreeWalker 找到 innerText 偏移对应的文本节点和字符偏移
    * 用于将 innerText 偏移转换为 DOM Range 位置
    */
-  function findTextNodeAtOffset(element: HTMLElement, targetOffset: number): { node: Text; offset: number } | null {
+  function findTextNodeAtOffset(
+    element: HTMLElement,
+    targetOffset: number,
+  ): { node: Text; offset: number } | null {
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
     let currentOffset = 0
     while (walker.nextNode()) {
@@ -245,6 +246,6 @@ export function useWikilinkAutocomplete({ el }: WikilinkAutocompleteOptions) {
     checkTrigger,
     onKeyDown,
     close,
-    confirm
+    confirm,
   }
 }

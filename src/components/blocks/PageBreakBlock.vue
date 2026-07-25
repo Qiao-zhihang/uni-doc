@@ -16,7 +16,7 @@ const doc = useDocumentStore()
 const contextMenu = ref<{ visible: boolean; x: number; y: number }>({
   visible: false,
   x: 0,
-  y: 0
+  y: 0,
 })
 
 function onContextmenu(e: MouseEvent) {
@@ -41,7 +41,11 @@ function handleEsc(e: KeyboardEvent) {
 
 function replaceCurrent() {
   const d = createDividerBlock()
-  doc.updateBlock(props.block.id, { type: 'divider', content: d.content, props: d.props }, '替换为分隔符')
+  doc.updateBlock(
+    props.block.id,
+    { type: 'divider', content: d.content, props: d.props },
+    '替换为分隔符',
+  )
   closeContextMenu()
 }
 
@@ -51,7 +55,13 @@ function replaceAll() {
   const d = createDividerBlock()
   const updatedBlocks = tab.blocks.map((b) => {
     if (b.type === 'page_break') {
-      return { ...b, type: 'divider' as const, content: d.content, props: d.props, updated_at: new Date().toISOString() }
+      return {
+        ...b,
+        type: 'divider' as const,
+        content: d.content,
+        props: d.props,
+        updated_at: new Date().toISOString(),
+      }
     }
     return b
   })

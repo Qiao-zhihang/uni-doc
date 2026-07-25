@@ -64,7 +64,7 @@ async function onCreateNew() {
 async function onRemove(vault: VaultEntry) {
   const ok = await confirmDialog(
     `从仓库列表中移除 "${vault.name}"?\n(不会删除磁盘上的文件)`,
-    '移除仓库'
+    '移除仓库',
   )
   if (!ok) return
   vaultStore.removeVault(vault.path)
@@ -142,8 +142,12 @@ const emit = defineEmits<{
   animation: mask-fade 0.12s ease;
 }
 @keyframes mask-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .dialog {
   width: 440px;
@@ -160,8 +164,14 @@ const emit = defineEmits<{
   animation: dialog-pop 0.15s ease;
 }
 @keyframes dialog-pop {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 .dialog-header {
   display: flex;
@@ -303,7 +313,9 @@ const emit = defineEmits<{
   border-radius: var(--radius-button);
   color: var(--muted-foreground);
   opacity: 0;
-  transition: opacity 0.1s ease, background 0.1s ease;
+  transition:
+    opacity 0.1s ease,
+    background 0.1s ease;
 }
 .vault-item:hover .remove-btn {
   opacity: 1;

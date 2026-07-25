@@ -17,13 +17,13 @@ import {
   writeVaultFile,
   createVaultFile,
   readVaultTree,
-  type VaultNode
+  type VaultNode,
 } from '@/core/vault/vault'
 import { isTauri } from '@/core/serializer/markdownFile'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { useAiMemoryStore } from '@/stores/aiMemory'
-import { searchAndFormatMemories, listAllMemories, parseAndSaveFact } from './memory'
+import { searchAndFormatMemories, listAllMemories } from './memory'
 
 type DocumentStore = ReturnType<typeof useDocumentStore>
 type EditorStore = ReturnType<typeof useEditorStore>
@@ -56,7 +56,17 @@ export const TOOL_LABELS: Record<string, string> = {
   search_memory: '搜索记忆',
 }
 
-const BLOCK_TYPES: BlockType[] = ['paragraph', 'heading', 'list', 'divider', 'page_break', 'quote', 'code_block', 'table', 'image']
+const BLOCK_TYPES: BlockType[] = [
+  'paragraph',
+  'heading',
+  'list',
+  'divider',
+  'page_break',
+  'quote',
+  'code_block',
+  'table',
+  'image',
+]
 const LIST_TYPES: ListType[] = ['bullet', 'ordered', 'task']
 
 /** 深度优先扁平化 VaultNode 树为线性列表 */
@@ -77,10 +87,16 @@ function flattenVault(nodes: VaultNode[]): VaultNode[] {
  * 支持所有区块类型,确保 AI 传入的 headers/rows/items/code 等结构化数据被正确写入
  * 这样 AI 生成表格/列表/代码块时能直接填入内容,而不是创建空白区块
  */
-function buildContentPatch(type: BlockType, args: Record<string, unknown>): { content?: Record<string, unknown>; props?: Record<string, unknown> } {
+function buildContentPatch(
+  type: BlockType,
+  args: Record<string, unknown>,
+): { content?: Record<string, unknown>; props?: Record<string, unknown> } {
   const patch: { content?: Record<string, unknown>; props?: Record<string, unknown> } = {}
   // 文本类区块: paragraph / heading / quote
-  if (typeof args.text === 'string' && (type === 'paragraph' || type === 'heading' || type === 'quote')) {
+  if (
+    typeof args.text === 'string' &&
+    (type === 'paragraph' || type === 'heading' || type === 'quote')
+  ) {
     const parsed = parseInlineMarkdown(args.text)
     patch.content = { text: parsed.text, marks: parsed.marks }
   }
@@ -98,9 +114,9 @@ function buildContentPatch(type: BlockType, args: Record<string, unknown>): { co
           id: crypto.randomUUID(),
           text: parsed.text,
           marks: parsed.marks,
-          checked: typeof it.checked === 'boolean' ? it.checked : undefined
+          checked: typeof it.checked === 'boolean' ? it.checked : undefined,
         }
-      })
+      }),
     }
   }
   // code_block: code 字段
@@ -124,10 +140,10 @@ function buildContentPatch(type: BlockType, args: Record<string, unknown>): { co
                   const parsed = parseInlineMarkdown(text)
                   return { text: parsed.text, marks: parsed.marks }
                 })
-              : [{ text: String((r as Record<string, unknown>).text ?? ''), marks: [] }]
+              : [{ text: String((r as Record<string, unknown>).text ?? ''), marks: [] }],
           )
         : [],
-      aligns: []
+      aligns: [],
     }
   }
   // image
@@ -147,49 +163,55 @@ const BLOCK_CONTENT_PARAMS = {
   items: {
     type: 'array',
     description: '列表项数组,仅 type=list 时需要。每项格式: {text:"内容",checked:false}',
-    items: { type: 'object' }
+    items: { type: 'object' },
   },
   code: { type: 'string', description: '代码内容,仅 type=code_block 时需要' },
   language: { type: 'string', description: '代码语言,仅 type=code_block 时可选' },
   headers: {
     type: 'array',
     description: '表头数组,仅 type=table 时需要。如 ["列1","列2"]',
-    items: { type: 'string' }
+    items: { type: 'string' },
   },
   rows: {
     type: 'array',
     description: '表格数据行,仅 type=table 时需要。每行是数组,如 [["a","b"],["c","d"]]',
-    items: { type: 'array' }
+    items: { type: 'array' },
   },
   src: { type: 'string', description: '图片路径,仅 type=image 时需要' },
   alt: { type: 'string', description: '图片描述,仅 type=image 时可选' },
-  align: { type: 'string', description: '对齐方式 left/center/right,仅文本类区块可选' }
+  align: { type: 'string', description: '对齐方式 left/center/right,仅文本类区块可选' },
 }
 
 /** 工具工厂:绑定 doc/editor 实例,返回 16 个 ToolDefinition */
-export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSearch = false, memory?: MemoryStore): ToolDefinition[] {
+export function createTools(
+  doc: DocumentStore,
+  editor: EditorStore,
+  enableWebSearch = false,
+  memory?: MemoryStore,
+): ToolDefinition[] {
   const tools: ToolDefinition[] = [
     {
       name: 'get_document',
       description: '导出当前活动文档为 Markdown 全文',
       parameters: { type: 'object', properties: {}, required: [] },
-      execute: () => ({ ok: true, data: doc.exportMarkdown() })
+      execute: () => ({ ok: true, data: doc.exportMarkdown() }),
     },
     {
       name: 'get_outline',
       description: '获取当前文档大纲(标题层级列表)',
       parameters: { type: 'object', properties: {}, required: [] },
-      execute: () => ({ ok: true, data: doc.outline })
+      execute: () => ({ ok: true, data: doc.outline }),
     },
     {
       name: 'list_blocks',
-      description: '获取当前文档所有区块的列表（含 id、类型、文本预览），用于定位要修改/删除的目标区块。修改文档前务必先调用此工具获取准确的 blockId。',
+      description:
+        '获取当前文档所有区块的列表（含 id、类型、文本预览），用于定位要修改/删除的目标区块。修改文档前务必先调用此工具获取准确的 blockId。',
       parameters: {
         type: 'object',
         properties: {
           limit: { type: 'number', description: '最多返回多少条,默认 50' },
-          offset: { type: 'number', description: '从第几条开始,默认 0' }
-        }
+          offset: { type: 'number', description: '从第几条开始,默认 0' },
+        },
       },
       execute: (args) => {
         const limit = (args.limit as number) ?? 50
@@ -202,20 +224,28 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
           return { id: b.id, type: b.type, preview }
         })
         return { ok: true, data, total: doc.blocks.length }
-      }
+      },
     },
     {
       name: 'insert_block',
-      description: '在指定区块后插入新区块,支持所有区块类型。创建表格时必须传 headers 和 rows;创建列表时必须传 items;创建代码块时必须传 code。afterBlockId 省略或为 null 时默认插入到当前选中区块之后。',
+      description:
+        '在指定区块后插入新区块,支持所有区块类型。创建表格时必须传 headers 和 rows;创建列表时必须传 items;创建代码块时必须传 code。afterBlockId 省略或为 null 时默认插入到当前选中区块之后。',
       parameters: {
         type: 'object',
         properties: {
-          afterBlockId: { type: 'string', description: '插入锚点区块 id;传 null 或省略则使用当前选中区块,若无选中则追加到末尾' },
+          afterBlockId: {
+            type: 'string',
+            description: '插入锚点区块 id;传 null 或省略则使用当前选中区块,若无选中则追加到末尾',
+          },
           type: { type: 'string', enum: BLOCK_TYPES, description: '新区块类型' },
-          listType: { type: 'string', enum: LIST_TYPES, description: '列表类型,仅 type=list 时有效' },
-          ...BLOCK_CONTENT_PARAMS
+          listType: {
+            type: 'string',
+            enum: LIST_TYPES,
+            description: '列表类型,仅 type=list 时有效',
+          },
+          ...BLOCK_CONTENT_PARAMS,
         },
-        required: ['type']
+        required: ['type'],
       },
       execute: (args) => {
         const rawAfter = args.afterBlockId as string | null | undefined
@@ -232,11 +262,19 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         const newBlock = doc.blocks.find((b) => b.id === newId)
         let preview = ''
         if (newBlock) {
-          if (newBlock.type === 'paragraph' || newBlock.type === 'heading' || newBlock.type === 'quote') {
+          if (
+            newBlock.type === 'paragraph' ||
+            newBlock.type === 'heading' ||
+            newBlock.type === 'quote'
+          ) {
             preview = (newBlock.content as { text?: string }).text?.slice(0, 200) ?? ''
           } else if (newBlock.type === 'list') {
             const items = (newBlock.content as { items?: { text?: string }[] }).items ?? []
-            preview = items.map((it) => it.text).join(', ')?.slice(0, 200) ?? ''
+            preview =
+              items
+                .map((it) => it.text)
+                .join(', ')
+                ?.slice(0, 200) ?? ''
           } else if (newBlock.type === 'code_block') {
             preview = (newBlock.content as { code?: string }).code?.slice(0, 200) ?? ''
           } else if (newBlock.type === 'table') {
@@ -247,18 +285,19 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         }
         const index = doc.blocks.findIndex((b) => b.id === newId)
         return { ok: true, data: { blockId: newId, type: blockType, index, preview } }
-      }
+      },
     },
     {
       name: 'update_block',
-      description: '更新指定区块的文本或属性。支持所有区块类型:文本类传 text;列表传 items;代码块传 code;表格传 headers/rows。修改文本时自动清空旧 marks。',
+      description:
+        '更新指定区块的文本或属性。支持所有区块类型:文本类传 text;列表传 items;代码块传 code;表格传 headers/rows。修改文本时自动清空旧 marks。',
       parameters: {
         type: 'object',
         properties: {
           blockId: { type: 'string', description: '目标区块 id' },
-          ...BLOCK_CONTENT_PARAMS
+          ...BLOCK_CONTENT_PARAMS,
         },
-        required: ['blockId']
+        required: ['blockId'],
       },
       execute: (args) => {
         const id = args.blockId as string
@@ -275,11 +314,19 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         const updated = doc.blocks.find((b) => b.id === id)
         let preview = ''
         if (updated) {
-          if (updated.type === 'paragraph' || updated.type === 'heading' || updated.type === 'quote') {
+          if (
+            updated.type === 'paragraph' ||
+            updated.type === 'heading' ||
+            updated.type === 'quote'
+          ) {
             preview = (updated.content as { text?: string }).text?.slice(0, 200) ?? ''
           } else if (updated.type === 'list') {
             const items = (updated.content as { items?: { text?: string }[] }).items ?? []
-            preview = items.map((it) => it.text).join(', ')?.slice(0, 200) ?? ''
+            preview =
+              items
+                .map((it) => it.text)
+                .join(', ')
+                ?.slice(0, 200) ?? ''
           } else if (updated.type === 'code_block') {
             preview = (updated.content as { code?: string }).code?.slice(0, 200) ?? ''
           } else if (updated.type === 'table') {
@@ -289,7 +336,7 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
           }
         }
         return { ok: true, data: { blockId: id, type: updated?.type, preview } }
-      }
+      },
     },
     {
       name: 'delete_block',
@@ -297,14 +344,14 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
       parameters: {
         type: 'object',
         properties: { blockId: { type: 'string', description: '要删除的区块 id' } },
-        required: ['blockId']
+        required: ['blockId'],
       },
       execute: (args) => {
         const id = args.blockId as string
         const ok = doc.removeBlock(id, 'AI 删除区块')
         if (!ok) return { ok: false, error: `区块 ${id} 不存在` }
         return { ok: true, data: { blockId: id } }
-      }
+      },
     },
     {
       name: 'move_block',
@@ -313,9 +360,9 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         type: 'object',
         properties: {
           blockId: { type: 'string', description: '目标区块 id' },
-          direction: { type: 'string', enum: ['up', 'down'], description: '移动方向' }
+          direction: { type: 'string', enum: ['up', 'down'], description: '移动方向' },
         },
-        required: ['blockId', 'direction']
+        required: ['blockId', 'direction'],
       },
       execute: (args) => {
         const id = args.blockId as string
@@ -325,7 +372,7 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         else ok = doc.moveBlockDown(id, 'AI 下移区块')
         if (!ok) return { ok: false, error: `区块 ${id} 不存在或已在边界` }
         return { ok: true, data: { blockId: id, direction: dir } }
-      }
+      },
     },
     {
       name: 'convert_block',
@@ -334,9 +381,9 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         type: 'object',
         properties: {
           blockId: { type: 'string', description: '目标区块 id' },
-          type: { type: 'string', enum: BLOCK_TYPES, description: '目标类型' }
+          type: { type: 'string', enum: BLOCK_TYPES, description: '目标类型' },
         },
-        required: ['blockId', 'type']
+        required: ['blockId', 'type'],
       },
       execute: (args) => {
         const id = args.blockId as string
@@ -344,7 +391,7 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         const ok = doc.convertBlock(id, type, 'AI 转换类型')
         if (!ok) return { ok: false, error: `区块 ${id} 不存在` }
         return { ok: true, data: { blockId: id, type } }
-      }
+      },
     },
     {
       name: 'search_files',
@@ -352,7 +399,7 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
       parameters: {
         type: 'object',
         properties: { query: { type: 'string', description: '搜索关键词(匹配文件名)' } },
-        required: ['query']
+        required: ['query'],
       },
       execute: (args) => {
         const q = String(args.query).toLowerCase()
@@ -362,7 +409,7 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
           .map((n) => n.path)
           .slice(0, 20)
         return { ok: true, data: matches }
-      }
+      },
     },
     {
       name: 'read_file',
@@ -370,14 +417,14 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
       parameters: {
         type: 'object',
         properties: { path: { type: 'string', description: '文件相对 vault 根的路径(用 / 分隔)' } },
-        required: ['path']
+        required: ['path'],
       },
       execute: async (args) => {
         const root = doc.vaultRoot
         if (!root) return { ok: false, error: '未打开 vault' }
         const content = await readVaultFile(root, args.path as string)
         return { ok: true, data: content }
-      }
+      },
     },
     {
       name: 'write_file',
@@ -386,16 +433,16 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         type: 'object',
         properties: {
           path: { type: 'string', description: '文件相对 vault 根的路径' },
-          content: { type: 'string', description: '文件内容' }
+          content: { type: 'string', description: '文件内容' },
         },
-        required: ['path', 'content']
+        required: ['path', 'content'],
       },
       execute: async (args) => {
         const root = doc.vaultRoot
         if (!root) return { ok: false, error: '未打开 vault' }
         await writeVaultFile(root, args.path as string, args.content as string)
         return { ok: true, data: { path: args.path } }
-      }
+      },
     },
     {
       name: 'create_file',
@@ -404,9 +451,9 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         type: 'object',
         properties: {
           path: { type: 'string', description: '新文件相对 vault 根的路径' },
-          content: { type: 'string', description: '初始内容,默认空字符串' }
+          content: { type: 'string', description: '初始内容,默认空字符串' },
         },
-        required: ['path']
+        required: ['path'],
       },
       execute: async (args) => {
         const root = doc.vaultRoot
@@ -416,7 +463,7 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         // 刷新文件树,让文件列表自动更新
         await doc.refreshVaultTree()
         return { ok: true, data: { path: args.path } }
-      }
+      },
     },
     {
       name: 'list_dir',
@@ -424,7 +471,7 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
       parameters: {
         type: 'object',
         properties: { path: { type: 'string', description: '目录路径前缀,空则返回根' } },
-        required: []
+        required: [],
       },
       execute: async (args) => {
         const root = doc.vaultRoot
@@ -435,9 +482,11 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         const filtered = prefix
           ? all.filter((n) => n.path === prefix || n.path.startsWith(prefix + '/'))
           : all
-        const result = filtered.slice(0, 50).map((n) => ({ name: n.name, path: n.path, isDir: n.isDir }))
+        const result = filtered
+          .slice(0, 50)
+          .map((n) => ({ name: n.name, path: n.path, isDir: n.isDir }))
         return { ok: true, data: result }
-      }
+      },
     },
     {
       name: 'switch_tab',
@@ -445,26 +494,28 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
       parameters: {
         type: 'object',
         properties: { tabId: { type: 'string', description: '目标 tab id' } },
-        required: ['tabId']
+        required: ['tabId'],
       },
       execute: (args) => {
         doc.switchTab(args.tabId as string)
         return { ok: true, data: { activeTabId: doc.activeTabId } }
-      }
+      },
     },
     {
       name: 'batch_edit',
-      description: '批量执行多个区块操作（插入/修改/删除/移动/转换），适用于复杂任务。operations 是操作数组,每个操作含 op 字段和其他参数。所有操作共享一次撤销历史。',
+      description:
+        '批量执行多个区块操作（插入/修改/删除/移动/转换），适用于复杂任务。operations 是操作数组,每个操作含 op 字段和其他参数。所有操作共享一次撤销历史。',
       parameters: {
         type: 'object',
         properties: {
           operations: {
             type: 'array',
-            description: '操作数组,每项格式: {op:"insert",type:"paragraph",text:"...",afterBlockId:"xxx"} / {op:"update",blockId:"xxx",text:"..."} / {op:"delete",blockId:"xxx"} / {op:"move",blockId:"xxx",direction:"up|down"} / {op:"convert",blockId:"xxx",type:"heading"}',
-            items: { type: 'object' }
-          }
+            description:
+              '操作数组,每项格式: {op:"insert",type:"paragraph",text:"...",afterBlockId:"xxx"} / {op:"update",blockId:"xxx",text:"..."} / {op:"delete",blockId:"xxx"} / {op:"move",blockId:"xxx",direction:"up|down"} / {op:"convert",blockId:"xxx",type:"heading"}',
+            items: { type: 'object' },
+          },
         },
-        required: ['operations']
+        required: ['operations'],
       },
       execute: (args) => {
         const ops = args.operations as Array<Record<string, unknown>>
@@ -480,7 +531,8 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
             switch (opType) {
               case 'insert': {
                 const type = op.type as BlockType
-                const afterId = (op.afterBlockId as string | null | undefined) ?? editor.selectedBlockId ?? null
+                const afterId =
+                  (op.afterBlockId as string | null | undefined) ?? editor.selectedBlockId ?? null
                 const listType = op.listType as ListType | undefined
                 const newId = doc.insertBlockAfter(afterId, type, `AI 批量插入 #${i + 1}`, listType)
                 // 用 buildContentPatch 填充内容
@@ -523,7 +575,10 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
               case 'move': {
                 const id = op.blockId as string
                 const dir = op.direction as 'up' | 'down'
-                const ok = dir === 'up' ? doc.moveBlockUp(id, `AI 批量上移 #${i + 1}`) : doc.moveBlockDown(id, `AI 批量下移 #${i + 1}`)
+                const ok =
+                  dir === 'up'
+                    ? doc.moveBlockUp(id, `AI 批量上移 #${i + 1}`)
+                    : doc.moveBlockDown(id, `AI 批量下移 #${i + 1}`)
                 if (!ok) {
                   errors.push(`#${i + 1} move: 区块 ${id} 不存在或已在边界`)
                   results.push({ op: 'move', ok: false, error: '区块不存在或已在边界' })
@@ -556,23 +611,31 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         const successCount = results.filter((r) => r.ok).length
         return {
           ok: errors.length === 0,
-          data: { total: ops.length, success: successCount, failed: errors.length, results, errors: errors.length ? errors : undefined }
+          data: {
+            total: ops.length,
+            success: successCount,
+            failed: errors.length,
+            results,
+            errors: errors.length ? errors : undefined,
+          },
         }
-      }
+      },
     },
     {
       name: 'replace_document',
-      description: '用全新的 blocks 数组原子性替换整个文档内容。适用于"重写整篇文章"、"大段重构"等复杂任务。会清空当前文档所有区块,替换为新内容。每个 block 格式: {type:"paragraph",text:"..."} 或 {type:"heading",text:"...",level:1} 或 {type:"divider"} 等。',
+      description:
+        '用全新的 blocks 数组原子性替换整个文档内容。适用于"重写整篇文章"、"大段重构"等复杂任务。会清空当前文档所有区块,替换为新内容。每个 block 格式: {type:"paragraph",text:"..."} 或 {type:"heading",text:"...",level:1} 或 {type:"divider"} 等。',
       parameters: {
         type: 'object',
         properties: {
           blocks: {
             type: 'array',
-            description: '新的区块数组,每项至少含 type 字段;文本类区块含 text;heading 含 level(1-6);list 含 items(数组,每项 {text,checked?});code_block 含 code;table 含 headers/rows;image 含 src/alt。',
-            items: { type: 'object' }
-          }
+            description:
+              '新的区块数组,每项至少含 type 字段;文本类区块含 text;heading 含 level(1-6);list 含 items(数组,每项 {text,checked?});code_block 含 code;table 含 headers/rows;image 含 src/alt。',
+            items: { type: 'object' },
+          },
         },
-        required: ['blocks']
+        required: ['blocks'],
       },
       execute: (args) => {
         const rawBlocks = args.blocks as Array<Record<string, unknown>>
@@ -597,24 +660,37 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         } catch (e) {
           return { ok: false, error: e instanceof Error ? e.message : String(e) }
         }
-      }
-    }
+      },
+    },
   ]
 
   if (memory) {
     tools.push(
       {
         name: 'save_memory',
-        description: '将重要信息保存到全局记忆中,供下次对话自动引用。适用于:用户提到个人信息、项目背景、偏好习惯、重要决策等。',
+        description:
+          '将重要信息保存到全局记忆中,供下次对话自动引用。适用于:用户提到个人信息、项目背景、偏好习惯、重要决策等。',
         parameters: {
           type: 'object',
           properties: {
             content: { type: 'string', description: '要保存的记忆内容(简洁描述事实)' },
-            category: { type: 'string', enum: ['personal', 'project', 'knowledge', 'preference', 'other'], description: '记忆分类: personal=个人信息, project=项目背景, knowledge=知识, preference=偏好, other=其他' },
-            tags: { type: 'array', description: '标签数组,用于后续检索匹配', items: { type: 'string' } },
-            importance: { type: 'number', description: '重要度 0-1,越重要越不容易被衰减清理,默认 0.5' }
+            category: {
+              type: 'string',
+              enum: ['personal', 'project', 'knowledge', 'preference', 'other'],
+              description:
+                '记忆分类: personal=个人信息, project=项目背景, knowledge=知识, preference=偏好, other=其他',
+            },
+            tags: {
+              type: 'array',
+              description: '标签数组,用于后续检索匹配',
+              items: { type: 'string' },
+            },
+            importance: {
+              type: 'number',
+              description: '重要度 0-1,越重要越不容易被衰减清理,默认 0.5',
+            },
           },
-          required: ['content']
+          required: ['content'],
         },
         execute: (args) => {
           const content = String(args.content ?? '')
@@ -624,7 +700,7 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
           const importance = typeof args.importance === 'number' ? args.importance : 0.5
           const fact = memory.addFact(content, category, tags, 'agent', importance)
           return { ok: true, data: { id: fact.id, category, content } }
-        }
+        },
       },
       {
         name: 'list_memory',
@@ -633,7 +709,7 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         execute: () => {
           const result = listAllMemories()
           return { ok: true, data: result }
-        }
+        },
       },
       {
         name: 'search_memory',
@@ -642,17 +718,17 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
           type: 'object',
           properties: {
             query: { type: 'string', description: '搜索关键词(多个词用空格分隔)' },
-            maxResults: { type: 'number', description: '最多返回条数,默认 10' }
+            maxResults: { type: 'number', description: '最多返回条数,默认 10' },
           },
-          required: ['query']
+          required: ['query'],
         },
         execute: (args) => {
           const query = String(args.query ?? '')
           const maxResults = (args.maxResults as number) ?? 10
           const result = searchAndFormatMemories(query, maxResults)
           return { ok: true, data: result }
-        }
-      }
+        },
+      },
     )
   }
 
@@ -660,13 +736,14 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
   if (enableWebSearch) {
     tools.push({
       name: 'web_search',
-      description: '联网搜索：使用 Bing 搜索引擎查找网络资料。返回网页搜索结果（每条含标题、摘要、网页链接）。注意：返回的是网页链接，不是图片直接 URL。如需找图片，可搜索相关网页后从中提取图片 URL。',
+      description:
+        '联网搜索：使用 Bing 搜索引擎查找网络资料。返回网页搜索结果（每条含标题、摘要、网页链接）。注意：返回的是网页链接，不是图片直接 URL。如需找图片，可搜索相关网页后从中提取图片 URL。',
       parameters: {
         type: 'object',
         properties: {
-          query: { type: 'string', description: '搜索关键词' }
+          query: { type: 'string', description: '搜索关键词' },
         },
-        required: ['query']
+        required: ['query'],
       },
       execute: async (args) => {
         const q = String(args.query)
@@ -682,7 +759,7 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
         } catch (e) {
           return { ok: false, error: `搜索失败: ${e instanceof Error ? e.message : String(e)}` }
         }
-      }
+      },
     })
   }
 
@@ -690,12 +767,13 @@ export function createTools(doc: DocumentStore, editor: EditorStore, enableWebSe
 }
 
 /** 将内部 ToolDefinition 转换为 OpenAI Function Calling 请求格式 */
-export function getToolDefinitions(
-  tools: ToolDefinition[]
-): Array<{ type: 'function'; function: { name: string; description: string; parameters: unknown } }> {
+export function getToolDefinitions(tools: ToolDefinition[]): Array<{
+  type: 'function'
+  function: { name: string; description: string; parameters: unknown }
+}> {
   return tools.map((t) => ({
     type: 'function',
-    function: { name: t.name, description: t.description, parameters: t.parameters }
+    function: { name: t.name, description: t.description, parameters: t.parameters },
   }))
 }
 
@@ -703,7 +781,7 @@ export function getToolDefinitions(
 export async function executeTool(
   tools: ToolDefinition[],
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
 ): Promise<ToolResult> {
   const tool = tools.find((t) => t.name === name)
   if (!tool) return { ok: false, error: `未知工具: ${name}` }

@@ -10,6 +10,7 @@ import QuoteBlock from '@/components/blocks/QuoteBlock.vue'
 import CodeBlock from '@/components/blocks/CodeBlock.vue'
 import TableBlock from '@/components/blocks/TableBlock.vue'
 import ImageBlock from '@/components/blocks/ImageBlock.vue'
+import ErrorBoundary from '@/components/common/ErrorBoundary.vue'
 
 defineProps<{ block: Block }>()
 
@@ -29,17 +30,19 @@ const componentMap: Record<string, Component> = {
   quote: QuoteBlock,
   code_block: CodeBlock,
   table: TableBlock,
-  image: ImageBlock
+  image: ImageBlock,
 }
 </script>
 
 <template>
-  <component
-    :is="componentMap[block.type] ?? ParagraphBlock"
-    :block="block"
-    @update="(p: Partial<Block>) => emit('update', p)"
-    @enter="(afterText: string) => emit('enter', afterText)"
-    @backspace-merge="emit('backspace-merge')"
-    @select="emit('select')"
-  />
+  <ErrorBoundary :fallback="`[${block.type}] 块渲染失败`">
+    <component
+      :is="componentMap[block.type] ?? ParagraphBlock"
+      :block="block"
+      @update="(p: Partial<Block>) => emit('update', p)"
+      @enter="(afterText: string) => emit('enter', afterText)"
+      @backspace-merge="emit('backspace-merge')"
+      @select="emit('select')"
+    />
+  </ErrorBoundary>
 </template>

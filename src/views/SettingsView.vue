@@ -1,10 +1,29 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
-  ArrowLeft, Sun, Moon, Info, Keyboard, Eye, EyeOff,
-  Loader2, Plus, Pencil, Trash2, AlertTriangle, Search, Download,
-  Brain, Check, Coffee, RefreshCw, Github, ExternalLink,
-  Download as DownloadIcon, CheckCircle2, XCircle
+  ArrowLeft,
+  Sun,
+  Moon,
+  Info,
+  Keyboard,
+  Eye,
+  EyeOff,
+  Loader2,
+  Plus,
+  Pencil,
+  Trash2,
+  AlertTriangle,
+  Search,
+  Download,
+  Brain,
+  Check,
+  Coffee,
+  RefreshCw,
+  Github,
+  ExternalLink,
+  Download as DownloadIcon,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-vue-next'
 import { useThemeStore } from '@/stores/theme'
 import { useSettingsStore, type ApiProfile, type ProviderPreset } from '@/stores/settings'
@@ -37,7 +56,10 @@ const navItems: { key: SectionKey; label: string; icon: typeof Sun | string; isI
   { key: 'about', label: '关于', icon: Info },
 ]
 
-const PROVIDER_BRAND: Record<ProviderPreset | 'custom', { color: string; icon: string; label: string }> = {
+const PROVIDER_BRAND: Record<
+  ProviderPreset | 'custom',
+  { color: string; icon: string; label: string }
+> = {
   deepseek: { color: '#5786FE', icon: deepseekIcon, label: 'DeepSeek' },
   openai: { color: '#000000', icon: openaiIcon, label: 'OpenAI' },
   qwen: { color: '#614FF0', icon: qwenIcon, label: '通义千问' },
@@ -69,7 +91,7 @@ const draft = reactive<ApiProfile>({
 
 const deleteTargetId = ref<string | null>(null)
 const deleteTargetName = computed(
-  () => settings.profiles.find((p) => p.id === deleteTargetId.value)?.name ?? ''
+  () => settings.profiles.find((p) => p.id === deleteTargetId.value)?.name ?? '',
 )
 
 function capsFor(p: ApiProfile) {
@@ -145,7 +167,7 @@ function onProviderChange(e: Event) {
       deepseek: { apiUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
       qwen: { apiUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus' },
       zhipu: { apiUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash' },
-      ollama: { apiUrl: 'http://localhost:11434/v1', model: 'llama3' }
+      ollama: { apiUrl: 'http://localhost:11434/v1', model: 'llama3' },
     }
     draft.apiUrl = presets[value].apiUrl
     draft.model = presets[value].model
@@ -179,7 +201,9 @@ function cancelDelete() {
 
 function showToast(type: 'success' | 'error', msg: string) {
   toast.value = { type, msg }
-  setTimeout(() => { toast.value = null }, 3000)
+  setTimeout(() => {
+    toast.value = null
+  }, 3000)
 }
 
 async function testConnection() {
@@ -210,8 +234,10 @@ async function testConnection() {
     else if (caps.webSearch) tags.push('工具联网')
     const errs: string[] = []
     if (!caps.vision && caps.visionError) errs.push(`图片: ${caps.visionError.slice(0, 60)}`)
-    if (!caps.webSearch && !caps.nativeSearch && caps.webSearchError) errs.push(`联网: ${caps.webSearchError.slice(0, 60)}`)
-    if (!caps.nativeSearch && caps.nativeSearchError) errs.push(`原生联网: ${caps.nativeSearchError.slice(0, 60)}`)
+    if (!caps.webSearch && !caps.nativeSearch && caps.webSearchError)
+      errs.push(`联网: ${caps.webSearchError.slice(0, 60)}`)
+    if (!caps.nativeSearch && caps.nativeSearchError)
+      errs.push(`原生联网: ${caps.nativeSearchError.slice(0, 60)}`)
     const note = errs.length ? ` [检测失败: ${errs.join(' | ')}]` : ''
     showToast('success', `连接成功${tags.length ? '（支持: ' + tags.join('、') + '）' : ''}${note}`)
   } catch (e) {
@@ -288,11 +314,16 @@ async function checkForUpdates() {
 
 const updateStatusText = computed(() => {
   switch (updateStatus.value) {
-    case 'idle': return '点击右侧按钮检查更新'
-    case 'checking': return '正在检查更新…'
-    case 'latest': return `已是最新版本 (v${CURRENT_VERSION})`
-    case 'available': return `发现新版本 v${latestVersion.value}`
-    case 'error': return `检查失败: ${updateError.value}`
+    case 'idle':
+      return '点击右侧按钮检查更新'
+    case 'checking':
+      return '正在检查更新…'
+    case 'latest':
+      return `已是最新版本 (v${CURRENT_VERSION})`
+    case 'available':
+      return `发现新版本 v${latestVersion.value}`
+    case 'error':
+      return `检查失败: ${updateError.value}`
   }
 })
 </script>
@@ -322,15 +353,14 @@ const updateStatusText = computed(() => {
           :class="{ active: activeSection === item.key }"
           @click="activeSection = item.key"
         >
-          <img v-if="item.isImg" :src="item.icon" class="nav-img" />
-          <component v-else :is="item.icon" :size="16" />
+          <img v-if="item.isImg" :src="item.icon as string" class="nav-img" />
+          <component :is="item.icon" v-else :size="16" />
           <span>{{ item.label }}</span>
         </a>
       </nav>
 
       <!-- ===== 内容区 ===== -->
       <div class="content">
-
         <!-- 外观 -->
         <section v-show="activeSection === 'appearance'" class="section">
           <h2 class="section-title-plain">外观</h2>
@@ -367,7 +397,9 @@ const updateStatusText = computed(() => {
               <Download :size="14" />
             </button>
           </header>
-          <p class="section-desc">管理多个 AI 服务配置，点击列表项切换激活配置，修改后自动保存到本地。</p>
+          <p class="section-desc">
+            管理多个 AI 服务配置，点击列表项切换激活配置，修改后自动保存到本地。
+          </p>
 
           <!-- Profile 列表 -->
           <div v-if="!editing" class="profile-list">
@@ -382,7 +414,10 @@ const updateStatusText = computed(() => {
                   class="provider-icon"
                   :style="{ background: PROVIDER_BRAND[p.provider]?.color || '#8e8e93' }"
                 >
-                  <img v-if="PROVIDER_BRAND[p.provider]?.icon" :src="PROVIDER_BRAND[p.provider].icon" />
+                  <img
+                    v-if="PROVIDER_BRAND[p.provider]?.icon"
+                    :src="PROVIDER_BRAND[p.provider].icon"
+                  />
                 </div>
                 <div class="profile-info">
                   <div class="profile-name-row">
@@ -393,12 +428,20 @@ const updateStatusText = computed(() => {
                     <span
                       class="cap-tag"
                       :class="capsFor(p).webSearch || capsFor(p).nativeSearch ? 'on' : 'off'"
-                    >联网</span>
+                    >
+                      联网
+                    </span>
                     <span class="cap-tag" :class="capsFor(p).vision ? 'on' : 'off'">图片</span>
                     <span
                       class="cap-tag"
-                      :class="p.provider === 'qwen' || p.provider === 'zhipu' || p.provider === 'deepseek' ? 'on' : 'off'"
-                    >代码</span>
+                      :class="
+                        p.provider === 'qwen' || p.provider === 'zhipu' || p.provider === 'deepseek'
+                          ? 'on'
+                          : 'off'
+                      "
+                    >
+                      代码
+                    </span>
                   </div>
                 </div>
               </div>
@@ -433,7 +476,12 @@ const updateStatusText = computed(() => {
             <div class="form-grid">
               <div class="form-field">
                 <label class="form-label">名称</label>
-                <input type="text" v-model="draft.name" class="form-input" placeholder="例如：我的 OpenAI" />
+                <input
+                  v-model="draft.name"
+                  type="text"
+                  class="form-input"
+                  placeholder="例如：我的 OpenAI"
+                />
               </div>
 
               <div class="form-field">
@@ -452,8 +500,8 @@ const updateStatusText = computed(() => {
                 <label class="form-label">API Key</label>
                 <div class="password-wrap">
                   <input
-                    :type="showApiKey ? 'text' : 'password'"
                     v-model="draft.apiKey"
+                    :type="showApiKey ? 'text' : 'password'"
                     class="form-input"
                     placeholder="sk-..."
                   />
@@ -466,22 +514,48 @@ const updateStatusText = computed(() => {
 
               <div class="form-field">
                 <label class="form-label">API URL</label>
-                <input type="text" v-model="draft.apiUrl" class="form-input" placeholder="https://api.example.com/v1" />
+                <input
+                  v-model="draft.apiUrl"
+                  type="text"
+                  class="form-input"
+                  placeholder="https://api.example.com/v1"
+                />
               </div>
 
               <div class="form-field">
                 <label class="form-label">模型</label>
-                <input type="text" v-model="draft.model" class="form-input" placeholder="gpt-4o-mini" />
+                <input
+                  v-model="draft.model"
+                  type="text"
+                  class="form-input"
+                  placeholder="gpt-4o-mini"
+                />
               </div>
 
               <div class="form-field">
-                <label class="form-label">温度 <span class="temp-val">{{ draft.temperature.toFixed(1) }}</span></label>
-                <input type="range" min="0" max="2" step="0.1" v-model.number="draft.temperature" class="form-slider" />
+                <label class="form-label">
+                  温度
+                  <span class="temp-val">{{ draft.temperature.toFixed(1) }}</span>
+                </label>
+                <input
+                  v-model.number="draft.temperature"
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  class="form-slider"
+                />
               </div>
 
               <div class="form-field">
                 <label class="form-label">Max Tokens</label>
-                <input type="number" min="100" max="32768" v-model.number="draft.maxTokens" class="form-input" />
+                <input
+                  v-model.number="draft.maxTokens"
+                  type="number"
+                  min="100"
+                  max="32768"
+                  class="form-input"
+                />
               </div>
 
               <div class="form-field">
@@ -495,7 +569,9 @@ const updateStatusText = computed(() => {
                   >
                     <span class="switch-knob"></span>
                   </button>
-                  <span class="switch-label">{{ draft.stream ? '启用流式响应' : '禁用流式响应' }}</span>
+                  <span class="switch-label">
+                    {{ draft.stream ? '启用流式响应' : '禁用流式响应' }}
+                  </span>
                 </div>
               </div>
 
@@ -506,7 +582,10 @@ const updateStatusText = computed(() => {
                     type="button"
                     class="cap-toggle"
                     :class="{ on: draft.webSearch || draft.nativeSearch }"
-                    @click="draft.webSearch = !draft.webSearch; draft.nativeSearch = false"
+                    @click="
+                      draft.webSearch = !draft.webSearch;
+                      draft.nativeSearch = false;
+                    "
                   >
                     <Check v-if="draft.webSearch || draft.nativeSearch" :size="12" />
                     联网
@@ -523,9 +602,21 @@ const updateStatusText = computed(() => {
                   <button
                     type="button"
                     class="cap-toggle"
-                    :class="{ on: draft.provider === 'qwen' || draft.provider === 'zhipu' || draft.provider === 'deepseek' }"
+                    :class="{
+                      on:
+                        draft.provider === 'qwen' ||
+                        draft.provider === 'zhipu' ||
+                        draft.provider === 'deepseek',
+                    }"
                   >
-                    <Check v-if="draft.provider === 'qwen' || draft.provider === 'zhipu' || draft.provider === 'deepseek'" :size="12" />
+                    <Check
+                      v-if="
+                        draft.provider === 'qwen' ||
+                        draft.provider === 'zhipu' ||
+                        draft.provider === 'deepseek'
+                      "
+                      :size="12"
+                    />
                     代码
                   </button>
                   <span class="cap-hint">自动检测，可手动调整</span>
@@ -603,7 +694,13 @@ const updateStatusText = computed(() => {
                 <td>{{ row.label }}</td>
                 <td>
                   <span v-if="!row.isLink">{{ row.value }}</span>
-                  <a v-else class="external-link" :href="'https://' + row.value" target="_blank" rel="noopener">
+                  <a
+                    v-else
+                    class="external-link"
+                    :href="'https://' + row.value"
+                    target="_blank"
+                    rel="noopener"
+                  >
                     <Github :size="14" />
                     {{ row.value }}
                     <ExternalLink :size="12" />
@@ -669,7 +766,6 @@ const updateStatusText = computed(() => {
             </div>
           </div>
         </section>
-
       </div>
     </div>
 
@@ -797,7 +893,9 @@ const updateStatusText = computed(() => {
   font-size: 13px;
   color: var(--foreground);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   user-select: none;
 }
 .nav-img {
@@ -891,7 +989,9 @@ const updateStatusText = computed(() => {
   color: var(--muted-foreground);
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 .seg-btn.active {
   background: var(--card);
@@ -1008,7 +1108,9 @@ const updateStatusText = computed(() => {
   cursor: pointer;
   font-size: 13px;
   font-family: inherit;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 .btn-add:hover {
   background: var(--card);
@@ -1025,8 +1127,14 @@ const updateStatusText = computed(() => {
   animation: fadeInUp 0.28s cubic-bezier(0.32, 0.72, 0, 1);
 }
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .edit-header {
   margin-bottom: 16px;
@@ -1230,7 +1338,9 @@ const updateStatusText = computed(() => {
   cursor: pointer;
   border: none;
   font-family: inherit;
-  transition: opacity 0.15s, background 0.15s;
+  transition:
+    opacity 0.15s,
+    background 0.15s;
 }
 .btn-primary {
   background: var(--primary);
@@ -1262,7 +1372,9 @@ const updateStatusText = computed(() => {
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ===== 子板块 ===== */
@@ -1465,8 +1577,12 @@ kbd {
   animation: fadeIn 0.15s;
 }
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .modal-dialog {
   width: 340px;
@@ -1480,8 +1596,14 @@ kbd {
   animation: popIn 0.2s cubic-bezier(0.32, 0.72, 0, 1);
 }
 @keyframes popIn {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 .modal-icon-danger {
   display: inline-flex;
@@ -1528,8 +1650,14 @@ kbd {
   animation: slideIn 0.2s cubic-bezier(0.32, 0.72, 0, 1);
 }
 @keyframes slideIn {
-  from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 .toast.success {
   background: var(--success);

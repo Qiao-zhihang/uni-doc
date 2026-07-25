@@ -15,7 +15,7 @@ const doc = useDocumentStore()
 const contextMenu = ref<{ visible: boolean; x: number; y: number }>({
   visible: false,
   x: 0,
-  y: 0
+  y: 0,
 })
 
 function onContextmenu(e: MouseEvent) {
@@ -35,7 +35,15 @@ function handleOutside(e: MouseEvent) {
 }
 
 function replaceCurrent() {
-  doc.updateBlock(props.block.id, { type: 'page_break', content: createPageBreakBlock().content, props: createPageBreakBlock().props }, '替换为分页符')
+  doc.updateBlock(
+    props.block.id,
+    {
+      type: 'page_break',
+      content: createPageBreakBlock().content,
+      props: createPageBreakBlock().props,
+    },
+    '替换为分页符',
+  )
   closeContextMenu()
 }
 
@@ -45,7 +53,13 @@ function replaceAll() {
   const pb = createPageBreakBlock()
   const updatedBlocks = tab.blocks.map((b) => {
     if (b.type === 'divider') {
-      return { ...b, type: 'page_break' as const, content: pb.content, props: pb.props, updated_at: new Date().toISOString() }
+      return {
+        ...b,
+        type: 'page_break' as const,
+        content: pb.content,
+        props: pb.props,
+        updated_at: new Date().toISOString(),
+      }
     }
     return b
   })

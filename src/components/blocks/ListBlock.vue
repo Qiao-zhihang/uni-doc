@@ -64,7 +64,7 @@ function ensureItems() {
   if (!c.items || c.items.length === 0) {
     selfUpdate.value = true
     emit('update', {
-      content: { items: [{ id: uuid(), text: '', marks: [], checked: false }] }
+      content: { items: [{ id: uuid(), text: '', marks: [], checked: false }] },
     })
   }
 }
@@ -93,29 +93,34 @@ watch(
     }
     nextTick(syncText)
   },
-  { deep: true }
+  { deep: true },
 )
-watch(() => doc.renderTick, () => {
-  nextTick(() => requestAnimationFrame(syncText))
-})
+watch(
+  () => doc.renderTick,
+  () => {
+    nextTick(() => requestAnimationFrame(syncText))
+  },
+)
 
 // props 变化(listType)时重新渲染
-watch(() => props.block.props, () => nextTick(syncText), { deep: true })
+watch(
+  () => props.block.props,
+  () => nextTick(syncText),
+  { deep: true },
+)
 
 /** 回车时解析行内 Markdown 并提交 marks */
 function commitItemWithMarks(idx: number, text: string) {
   const parsed = parseInlineMarkdown(text)
   const items = content().items.map((it, i) =>
-    i === idx ? { ...it, text: parsed.text, marks: parsed.marks } : it
+    i === idx ? { ...it, text: parsed.text, marks: parsed.marks } : it,
   )
   selfUpdate.value = true
   emit('update', { content: { items } })
 }
 
 function toggleCheck(idx: number) {
-  const items = content().items.map((it, i) =>
-    i === idx ? { ...it, checked: !it.checked } : it
-  )
+  const items = content().items.map((it, i) => (i === idx ? { ...it, checked: !it.checked } : it))
   emit('update', { content: { items } })
 }
 
@@ -345,8 +350,22 @@ function onMousedown(e: MouseEvent) {
   border-radius: 4px;
   background: var(--secondary);
 }
-:deep(.md-link) { color: var(--brand-500); text-decoration: underline; }
-:deep(.md-wikilink) { color: var(--brand-500); text-decoration: underline; cursor: pointer; }
-:deep(.md-image) { max-width: 100%; border-radius: 4px; }
-:deep(.md-highlight) { background: rgba(255, 235, 59, 0.3); padding: 0 2px; border-radius: 2px; }
+:deep(.md-link) {
+  color: var(--brand-500);
+  text-decoration: underline;
+}
+:deep(.md-wikilink) {
+  color: var(--brand-500);
+  text-decoration: underline;
+  cursor: pointer;
+}
+:deep(.md-image) {
+  max-width: 100%;
+  border-radius: 4px;
+}
+:deep(.md-highlight) {
+  background: rgba(255, 235, 59, 0.3);
+  padding: 0 2px;
+  border-radius: 2px;
+}
 </style>

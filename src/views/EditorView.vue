@@ -41,7 +41,7 @@ const sharkQuotes: string[] = [
   '没有可啃的文档,鲨鱼有点无聊。',
   '左侧选个文件,朕带你畅游墨水。',
   '空空如也,不如新建一篇开始书写。',
-  '鲨鱼静候,等一份文档游过来。'
+  '鲨鱼静候,等一份文档游过来。',
 ]
 const currentShark = ref<SharkEntry>({ url: '', quote: sharkQuotes[0] })
 let lastSharkIdx = -1
@@ -56,7 +56,7 @@ function randomShark() {
   lastSharkIdx = idx
   currentShark.value = {
     url: sharkUrls[sharkKeys[idx]],
-    quote: sharkQuotes[idx % sharkQuotes.length]
+    quote: sharkQuotes[idx % sharkQuotes.length],
   }
 }
 
@@ -102,7 +102,7 @@ watch(
       }
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 onUnmounted(() => {
@@ -114,7 +114,7 @@ watch(
   () => doc.openTabs.length,
   (len, prevLen) => {
     if (len === 0 && prevLen !== 0) randomShark()
-  }
+  },
 )
 // 初始即空状态时也加载一张
 if (doc.openTabs.length === 0) randomShark()
@@ -133,7 +133,7 @@ watch(
       editor.outlinePanelOpen = false
     }
     // >= 1000px 不主动改变,尊重用户当前状态
-  }
+  },
 )
 
 // 窄屏阻止展开
@@ -231,10 +231,7 @@ onUnmounted(() => {
     />
 
     <!-- 文档回放模式(全屏覆盖) -->
-    <ReplayPlayer
-      v-if="replayMode"
-      @exit="exitReplay"
-    />
+    <ReplayPlayer v-if="replayMode" @exit="exitReplay" />
   </main>
 </template>
 

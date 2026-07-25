@@ -146,6 +146,6 @@ export const useEditorStore = defineStore('editor', () => {
     // deprecated
     toggleAiBar,
     togglePanel,
-    toggleSidebar
+    toggleSidebar,
   }
 })

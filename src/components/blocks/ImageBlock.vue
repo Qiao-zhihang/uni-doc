@@ -9,11 +9,7 @@ import { computed, ref, watch } from 'vue'
 import type { Block, ImageContent, ImageProps } from '@/core/blocks/types'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
-import {
-  pickImageToVault,
-  writeImageToVault,
-  downloadImageToVault
-} from '@/core/vault/vault'
+import { pickImageToVault, writeImageToVault, downloadImageToVault } from '@/core/vault/vault'
 import { isTauri } from '@/core/serializer/markdownFile'
 import { ImageIcon, Upload, Link as LinkIcon } from 'lucide-vue-next'
 
@@ -97,7 +93,7 @@ function onResizeStart(e: MouseEvent) {
   e.stopPropagation()
   resizing.value = true
   const startX = e.clientX
-  const startWidth = imgProps().width ?? (imgWrapRef.value?.offsetWidth ?? 300)
+  const startWidth = imgProps().width ?? imgWrapRef.value?.offsetWidth ?? 300
 
   const onMove = (ev: MouseEvent) => {
     if (!resizing.value) return
@@ -236,26 +232,17 @@ function onImgError() {
     @keydown.enter.prevent.stop="emit('enter', '')"
   >
     <!-- 有图片:显示图片 + 右下角拖拽手柄 -->
-    <div
-      v-if="content().src && !loading"
-      class="image-wrap"
-      ref="imgWrapRef"
-      :class="{ resizing }"
-    >
+    <div v-if="content().src && !loading" ref="imgWrapRef" class="image-wrap" :class="{ resizing }">
       <img
         :src="displaySrc"
         :alt="content().alt"
         class="image-content"
         :style="widthStyle"
-        @error="onImgError"
         draggable="false"
+        @error="onImgError"
       />
       <!-- 右下角拖拽手柄(选中时显示) -->
-      <div
-        v-if="isSelected"
-        class="resize-handle"
-        @mousedown="onResizeStart"
-      ></div>
+      <div v-if="isSelected" class="resize-handle" @mousedown="onResizeStart"></div>
     </div>
 
     <!-- 加载中 -->
@@ -267,7 +254,7 @@ function onImgError() {
     <!-- 无图片:占位区 -->
     <div v-if="!content().src && !loading" class="image-placeholder">
       <ImageIcon :size="32" class="placeholder-icon" />
-      <div class="placeholder-actions" v-if="isSelected">
+      <div v-if="isSelected" class="placeholder-actions">
         <button class="placeholder-btn" @click.stop="pickLocal">
           <Upload :size="14" />
           <span>本地文件</span>
@@ -287,9 +274,9 @@ function onImgError() {
         v-model="urlInput"
         class="url-input"
         placeholder="输入图片 URL 或本地路径..."
+        autofocus
         @keydown.enter="confirmUrl"
         @keydown.escape="urlInputMode = false"
-        autofocus
       />
       <button class="url-confirm" @click="confirmUrl">确认</button>
       <button class="url-cancel" @click="urlInputMode = false">取消</button>
@@ -313,9 +300,15 @@ function onImgError() {
   outline: 2px dashed var(--brand-500);
   outline-offset: 4px;
 }
-.align-left { text-align: left; }
-.align-center { text-align: center; }
-.align-right { text-align: right; }
+.align-left {
+  text-align: left;
+}
+.align-center {
+  text-align: center;
+}
+.align-right {
+  text-align: right;
+}
 .image-wrap {
   position: relative;
   display: inline-block;
@@ -413,7 +406,8 @@ function onImgError() {
 .url-input:focus {
   border-color: var(--brand-500);
 }
-.url-confirm, .url-cancel {
+.url-confirm,
+.url-cancel {
   padding: 4px 10px;
   border-radius: 4px;
   font-size: 12px;
@@ -438,6 +432,8 @@ function onImgError() {
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

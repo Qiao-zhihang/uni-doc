@@ -71,10 +71,13 @@ onUnmounted(() => {
   window.removeEventListener('resize', onClose)
 })
 
-watch(() => [props.x, props.y], () => {
-  adjustedPos.value = { x: props.x, y: props.y }
-  requestAnimationFrame(adjustPosition)
-})
+watch(
+  () => [props.x, props.y],
+  () => {
+    adjustedPos.value = { x: props.x, y: props.y }
+    requestAnimationFrame(adjustPosition)
+  },
+)
 
 function onOutsidePointerDown(e: PointerEvent) {
   if (rootRef.value && !rootRef.value.contains(e.target as Node)) {
@@ -117,7 +120,7 @@ function onSelect(item: MenuItem) {
         :disabled="item.disabled"
         @click="onSelect(item)"
       >
-        <component v-if="item.icon" :is="item.icon" :size="14" class="icon" />
+        <component :is="item.icon" v-if="item.icon" :size="14" class="icon" />
         <span v-else class="icon-placeholder"></span>
         <span class="label">{{ item.label }}</span>
       </button>

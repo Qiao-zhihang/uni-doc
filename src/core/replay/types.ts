@@ -49,6 +49,6 @@ export function defaultReplayConfig(): ReplayConfig {
   return {
     enabled: false,
     autoIntervalSec: 0,
-    playbackSpeed: 1
+    playbackSpeed: 1,
   }
 }

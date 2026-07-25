@@ -8,23 +8,23 @@ import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-rou
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/editor'
+    redirect: '/editor',
   },
   {
     path: '/editor',
     name: 'editor',
     component: () => import('@/views/EditorView.vue'),
-    meta: { title: '编辑器' }
+    meta: { title: '编辑器' },
   },
   {
     path: '/settings',
     name: 'settings',
     component: () => import('@/views/SettingsView.vue'),
-    meta: { title: '设置' }
-  }
+    meta: { title: '设置' },
+  },
 ]
 
 export const router = createRouter({
   history: createWebHashHistory(),
-  routes
+  routes,
 })

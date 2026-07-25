@@ -14,7 +14,7 @@ import {
   loadHistory,
   saveHistory,
   createEmptyHistoryData,
-  FILE_VERSION
+  FILE_VERSION,
 } from '../core/replay/storage'
 
 export const useReplayStore = defineStore('replay', () => {
@@ -67,12 +67,14 @@ export const useReplayStore = defineStore('replay', () => {
   /** 持久化到 .history.json */
   async function persist() {
     if (!doc.vaultRoot || !loadedPath.value) return
+    // 快照功能未启用且没有任何快照时,不写文件(避免产生空的 sidecar 文件)
+    if (!config.value.enabled && snapshots.value.length === 0) return
     const data: HistoryFileData = {
       version: FILE_VERSION,
       docPath: loadedPath.value,
       title: getDocTitle(),
       config: config.value,
-      snapshots: snapshots.value
+      snapshots: snapshots.value,
     }
     await saveHistory(doc.vaultRoot, loadedPath.value, data)
   }
@@ -93,13 +95,14 @@ export const useReplayStore = defineStore('replay', () => {
   function captureSnapshot(label: string, type: ReplaySnapshot['type'] = 'auto') {
     if (!config.value.enabled) return
     if (!loadedPath.value) return
+    if (currentIndex.value >= 0) return
 
     const snapshot: ReplaySnapshot = {
       id: uuid(),
       timestamp: Date.now(),
       label,
       type,
-      blocks: cloneBlocks(doc.blocks)
+      blocks: cloneBlocks(doc.blocks),
     }
     snapshots.value.push(snapshot)
     schedulePersist()
@@ -112,7 +115,7 @@ export const useReplayStore = defineStore('replay', () => {
 
   /** 更新快照标签（用于重命名里程碑） */
   function updateSnapshotLabel(id: string, label: string) {
-    const snap = snapshots.value.find(s => s.id === id)
+    const snap = snapshots.value.find((s) => s.id === id)
     if (snap) {
       snap.label = label
       schedulePersist()
@@ -121,7 +124,7 @@ export const useReplayStore = defineStore('replay', () => {
 
   /** 更新快照类型（切换里程碑/普通） */
   function updateSnapshotType(id: string, type: ReplaySnapshot['type']) {
-    const snap = snapshots.value.find(s => s.id === id)
+    const snap = snapshots.value.find((s) => s.id === id)
     if (snap) {
       snap.type = type
       schedulePersist()
@@ -184,20 +187,11 @@ export const useReplayStore = defineStore('replay', () => {
         schedulePersist()
       }
     } else {
-      // 新文档:初始化空 history,采集初始快照
+      // 新文档:仅在内存中设置默认配置,不创建快照,不写文件
+      // 等用户第一次开启快照功能时才创建初始快照并持久化
       snapshots.value = []
       const initData = createEmptyHistoryData(mdPath, getDocTitle())
       config.value = initData.config
-      // 采集初始快照
-      const initSnapshot: ReplaySnapshot = {
-        id: uuid(),
-        timestamp: Date.now(),
-        label: '文档初始状态',
-        type: 'manual',
-        blocks: cloneBlocks(doc.blocks)
-      }
-      snapshots.value.push(initSnapshot)
-      void persist()
     }
 
     loaded.value = true
@@ -213,28 +207,25 @@ export const useReplayStore = defineStore('replay', () => {
     }
     // 同步收集数据快照,避免清空后异步 persist 引用到空状态
     const pathToSave = loadedPath.value
+    const configToSave = config.value
+    const snapshotsToSave = snapshots.value
+    // 同步清空状态,再异步写入(不阻塞 UI)
+    snapshots.value = []
+    currentIndex.value = -1
+    isPlaying.value = false
+    loaded.value = false
+    loadedPath.value = null
     if (doc.vaultRoot && pathToSave) {
+      // 快照功能未启用且没有任何快照时,不写文件(避免产生空的 sidecar 文件)
+      if (!configToSave.enabled && snapshotsToSave.length === 0) return
       const data: HistoryFileData = {
         version: FILE_VERSION,
         docPath: pathToSave,
         title: getDocTitle(),
-        config: config.value,
-        snapshots: snapshots.value
+        config: configToSave,
+        snapshots: snapshotsToSave,
       }
-      // 同步清空状态,再异步写入(不阻塞 UI)
-      snapshots.value = []
-      currentIndex.value = -1
-      isPlaying.value = false
-      loaded.value = false
-      loadedPath.value = null
       await saveHistory(doc.vaultRoot, pathToSave, data)
-    } else {
-      // 没有可持久化内容,仅清空状态
-      snapshots.value = []
-      currentIndex.value = -1
-      isPlaying.value = false
-      loaded.value = false
-      loadedPath.value = null
     }
   }
 
@@ -285,6 +276,17 @@ export const useReplayStore = defineStore('replay', () => {
     } else {
       config.value = { ...config.value, ...patch }
     }
+    // 第一次开启快照功能且还没有快照时,创建一个初始快照
+    if (newEnabled && !wasEnabled && snapshots.value.length === 0) {
+      const initSnapshot: ReplaySnapshot = {
+        id: uuid(),
+        timestamp: Date.now(),
+        label: '文档初始状态',
+        type: 'manual',
+        blocks: cloneBlocks(doc.blocks),
+      }
+      snapshots.value.push(initSnapshot)
+    }
     // 如果间隔或启用状态变化,重启定时器
     if ('autoIntervalSec' in patch || 'enabled' in patch) {
       startAutoCapture()
@@ -334,6 +336,6 @@ export const useReplayStore = defineStore('replay', () => {
     // 配置
     updateConfig,
     // 生命周期
-    dispose
+    dispose,
   }
 })

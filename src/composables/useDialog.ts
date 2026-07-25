@@ -32,7 +32,7 @@ const confirmState = reactive<ConfirmState>({
   visible: false,
   message: '',
   title: '确认',
-  resolve: null
+  resolve: null,
 })
 
 const promptState = reactive<PromptState>({
@@ -41,7 +41,7 @@ const promptState = reactive<PromptState>({
   title: '输入',
   defaultValue: '',
   inputValue: '',
-  resolve: null
+  resolve: null,
 })
 
 /** 显示确认对话框,返回用户是否点击"确认" */
@@ -55,7 +55,11 @@ export function confirmDialog(message: string, title = '确认'): Promise<boolea
 }
 
 /** 显示输入对话框,返回用户输入的值(取消则返回 null) */
-export function promptDialog(message: string, defaultValue = '', title = '输入'): Promise<string | null> {
+export function promptDialog(
+  message: string,
+  defaultValue = '',
+  title = '输入',
+): Promise<string | null> {
   return new Promise((resolve) => {
     promptState.message = message
     promptState.title = title
@@ -86,6 +90,6 @@ export function useDialog() {
     confirmState,
     promptState,
     resolveConfirm,
-    resolvePrompt
+    resolvePrompt,
   }
 }

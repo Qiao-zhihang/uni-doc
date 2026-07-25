@@ -14,8 +14,8 @@ export type ProviderPreset = 'openai' | 'deepseek' | 'qwen' | 'zhipu' | 'ollama'
 
 /** 单个 API 配置 Profile */
 export interface ApiProfile {
-  id: string          // crypto.randomUUID()
-  name: string        // 用户自定义名称
+  id: string // crypto.randomUUID()
+  name: string // 用户自定义名称
   provider: ProviderPreset
   apiKey: string
   apiUrl: string
@@ -31,12 +31,23 @@ export interface ApiProfile {
 }
 
 /** 各预设的默认 apiUrl / model / 显示名 */
-const PRESETS: Record<Exclude<ProviderPreset, 'custom'>, { apiUrl: string; model: string; label: string }> = {
+const PRESETS: Record<
+  Exclude<ProviderPreset, 'custom'>,
+  { apiUrl: string; model: string; label: string }
+> = {
   openai: { apiUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', label: 'OpenAI' },
   deepseek: { apiUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', label: 'DeepSeek' },
-  qwen: { apiUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus', label: '通义千问' },
-  zhipu: { apiUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', label: '智谱清言' },
-  ollama: { apiUrl: 'http://localhost:11434/v1', model: 'llama3', label: 'Ollama (本地)' }
+  qwen: {
+    apiUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    model: 'qwen-plus',
+    label: '通义千问',
+  },
+  zhipu: {
+    apiUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    model: 'glm-4-flash',
+    label: '智谱清言',
+  },
+  ollama: { apiUrl: 'http://localhost:11434/v1', model: 'llama3', label: 'Ollama (本地)' },
 }
 
 /** 持久化的配置结构 */
@@ -49,6 +60,38 @@ interface SettingsPayload {
 async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import('@tauri-apps/api/core')
   return invoke<T>(cmd, args)
+}
+
+/** API Key 混淆前缀，用于识别已编码的 key */
+const APIKEY_PREFIX = 'unidoc://'
+
+/**
+ * 编码 API Key（Base64 混淆 + 前缀标记）
+ * 避免 settings.json 中裸漏明文 key
+ */
+function encodeApiKey(plain: string): string {
+  if (!plain) return ''
+  if (plain.startsWith(APIKEY_PREFIX)) return plain
+  try {
+    const b64 = btoa(unescape(encodeURIComponent(plain)))
+    return APIKEY_PREFIX + b64
+  } catch {
+    return plain
+  }
+}
+
+/**
+ * 解码 API Key（自动识别已编码/明文，兼容旧数据）
+ */
+function decodeApiKey(encoded: string): string {
+  if (!encoded) return ''
+  if (!encoded.startsWith(APIKEY_PREFIX)) return encoded
+  const b64 = encoded.slice(APIKEY_PREFIX.length)
+  try {
+    return decodeURIComponent(escape(atob(b64)))
+  } catch {
+    return encoded
+  }
 }
 
 /** 创建一个默认 Profile */
@@ -91,27 +134,39 @@ export const useSettingsStore = defineStore('settings', () => {
   // ===== 兼容旧引用:代理到 activeProfile =====
   const provider = computed<ProviderPreset>({
     get: () => activeProfile.value.provider,
-    set: (v) => { activeProfile.value.provider = v }
+    set: (v) => {
+      activeProfile.value.provider = v
+    },
   })
   const apiKey = computed<string>({
     get: () => activeProfile.value.apiKey,
-    set: (v) => { activeProfile.value.apiKey = v }
+    set: (v) => {
+      activeProfile.value.apiKey = v
+    },
   })
   const apiUrl = computed<string>({
     get: () => activeProfile.value.apiUrl,
-    set: (v) => { activeProfile.value.apiUrl = v }
+    set: (v) => {
+      activeProfile.value.apiUrl = v
+    },
   })
   const model = computed<string>({
     get: () => activeProfile.value.model,
-    set: (v) => { activeProfile.value.model = v }
+    set: (v) => {
+      activeProfile.value.model = v
+    },
   })
   const temperature = computed<number>({
     get: () => activeProfile.value.temperature,
-    set: (v) => { activeProfile.value.temperature = v }
+    set: (v) => {
+      activeProfile.value.temperature = v
+    },
   })
   const maxTokens = computed<number>({
     get: () => activeProfile.value.maxTokens,
-    set: (v) => { activeProfile.value.maxTokens = v }
+    set: (v) => {
+      activeProfile.value.maxTokens = v
+    },
   })
 
   /** 新增 Profile 并设为激活 */
@@ -182,9 +237,13 @@ export const useSettingsStore = defineStore('settings', () => {
     }
     saveTimer = setTimeout(async () => {
       saveTimer = null
+      const encodedProfiles = profiles.value.map((p) => ({
+        ...p,
+        apiKey: encodeApiKey(p.apiKey),
+      }))
       const config: SettingsPayload = {
-        profiles: profiles.value,
-        activeProfileId: activeProfileId.value
+        profiles: encodedProfiles,
+        activeProfileId: activeProfileId.value,
       }
       const json = JSON.stringify(config)
       try {
@@ -227,12 +286,13 @@ export const useSettingsStore = defineStore('settings', () => {
             if (p.provider !== 'qwen') {
               p.nativeSearch = false
             }
+            p.apiKey = decodeApiKey(p.apiKey)
           }
           profiles.value = parsed.profiles
           const id = parsed.activeProfileId
           activeProfileId.value =
             id && profiles.value.some((p) => p.id === id) ? id : profiles.value[0].id
-          // 迁移后立即保存覆盖旧数据
+          // 迁移后立即保存覆盖旧数据（明文 key → 编码 key）
           save()
         } else if (parsed.provider !== undefined) {
           // 旧扁平格式 → 迁移为单 Profile
@@ -240,11 +300,11 @@ export const useSettingsStore = defineStore('settings', () => {
             id: crypto.randomUUID(),
             name: '默认配置',
             provider: parsed.provider,
-            apiKey: parsed.apiKey ?? '',
+            apiKey: decodeApiKey(parsed.apiKey ?? ''),
             apiUrl: parsed.apiUrl ?? '',
             model: parsed.model ?? '',
             temperature: parsed.temperature ?? 0.7,
-            maxTokens: parsed.maxTokens ?? 4096
+            maxTokens: parsed.maxTokens ?? 4096,
           }
           profiles.value = [profile]
           activeProfileId.value = profile.id
@@ -280,10 +340,15 @@ export const useSettingsStore = defineStore('settings', () => {
       else if (caps.webSearch) tags.push('工具联网')
       const errs: string[] = []
       if (!caps.vision && caps.visionError) errs.push(`图片: ${caps.visionError.slice(0, 60)}`)
-      if (!caps.webSearch && !caps.nativeSearch && caps.webSearchError) errs.push(`联网: ${caps.webSearchError.slice(0, 60)}`)
-      if (!caps.nativeSearch && caps.nativeSearchError) errs.push(`原生联网: ${caps.nativeSearchError.slice(0, 60)}`)
+      if (!caps.webSearch && !caps.nativeSearch && caps.webSearchError)
+        errs.push(`联网: ${caps.webSearchError.slice(0, 60)}`)
+      if (!caps.nativeSearch && caps.nativeSearchError)
+        errs.push(`原生联网: ${caps.nativeSearchError.slice(0, 60)}`)
       const note = errs.length ? ` [检测失败: ${errs.join(' | ')}]` : ''
-      return { ok: true, message: `连接成功${tags.length ? '（支持: ' + tags.join('、') + '）' : ''}${note}` }
+      return {
+        ok: true,
+        message: `连接成功${tags.length ? '（支持: ' + tags.join('、') + '）' : ''}${note}`,
+      }
     } catch (e) {
       const err = e as Error
       return { ok: false, message: err.message }
@@ -311,6 +376,6 @@ export const useSettingsStore = defineStore('settings', () => {
     getModelConfig,
     save,
     load,
-    testConnection
+    testConnection,
   }
 })

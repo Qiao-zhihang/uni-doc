@@ -14,7 +14,7 @@ import type {
   ListType,
   Mark,
   ParagraphProps,
-  TableCell
+  TableCell,
 } from './types'
 
 /** 生成 RFC4122 风格 UUID(优先使用原生,回退到随机实现) */
@@ -44,7 +44,7 @@ function createBaseBlock(type: BlockType): Block {
     props: {},
     ai_history: [],
     created_at: now(),
-    updated_at: now()
+    updated_at: now(),
   }
 }
 
@@ -60,7 +60,7 @@ export function createParagraphBlock(text = '', props: ParagraphProps = {}): Blo
 export function createHeadingBlock(
   text = '',
   level: HeadingProps['level'] = 1,
-  props: ParagraphProps = {}
+  props: ParagraphProps = {},
 ): Block {
   const block = createBaseBlock('heading')
   block.content = { text, marks: [] }
@@ -71,7 +71,7 @@ export function createHeadingBlock(
 /** 创建列表 Block */
 export function createListBlock(
   items: { text: string; marks?: Mark[]; checked?: boolean }[] = [],
-  listType: ListType = 'bullet'
+  listType: ListType = 'bullet',
 ): Block {
   const block = createBaseBlock('list')
   block.content = {
@@ -79,8 +79,8 @@ export function createListBlock(
       id: uuid(),
       text: item.text,
       marks: item.marks ?? [],
-      checked: item.checked
-    }))
+      checked: item.checked,
+    })),
   }
   block.props = { listType }
   return block
@@ -115,7 +115,7 @@ export function createCodeBlockBlock(code = '', language = 'plaintext'): Block {
 export function createTableBlock(
   headers: (string | TableCell)[] = [],
   rows: (string | TableCell)[][] = [],
-  aligns: ColumnAlign[] = []
+  aligns: ColumnAlign[] = [],
 ): Block {
   const block = createBaseBlock('table')
   const toCell = (c: string | TableCell): TableCell =>
@@ -123,7 +123,7 @@ export function createTableBlock(
   block.content = {
     headers: headers.map(toCell),
     rows: rows.map((r) => r.map(toCell)),
-    aligns
+    aligns,
   }
   return block
 }
@@ -167,7 +167,7 @@ export function createSampleDocument(): Block[] {
   return [
     createHeadingBlock('UniDoc 演示文档', 1),
     createParagraphBlock(
-      '这是一份基于 Markdown 的轻量化办公编辑器,所有内容以 Block 形式组织,支持深浅主题切换、撤销重做与 Markdown 文件读写。'
+      '这是一份基于 Markdown 的轻量化办公编辑器,所有内容以 Block 形式组织,支持深浅主题切换、撤销重做与 Markdown 文件读写。',
     ),
     createHeadingBlock('核心特性', 2),
     createListBlock(
@@ -175,9 +175,9 @@ export function createSampleDocument(): Block[] {
         { text: 'Block-based 文档引擎,所见即所得' },
         { text: '扩展 Markdown 双向实时同步' },
         { text: '深色 / 浅色主题切换' },
-        { text: '完整的撤销重做历史栈' }
+        { text: '完整的撤销重做历史栈' },
       ],
-      'bullet'
+      'bullet',
     ),
     createDividerBlock(),
     createHeadingBlock('快捷操作', 2),
@@ -185,12 +185,12 @@ export function createSampleDocument(): Block[] {
       [
         { text: 'Ctrl+Z 撤销,Ctrl+Shift+Z 重做', checked: true },
         { text: 'Enter 在当前 Block 后新建同类型', checked: true },
-        { text: 'Backspace 在空 Block 上删除并合并', checked: false }
+        { text: 'Backspace 在空 Block 上删除并合并', checked: false },
       ],
-      'task'
+      'task',
     ),
     createPageBreakBlock(),
     createHeadingBlock('分页之后的内容', 2),
-    createParagraphBlock('上方为分页标记,演示模式下将作为幻灯片边界。')
+    createParagraphBlock('上方为分页标记,演示模式下将作为幻灯片边界。'),
   ]
 }

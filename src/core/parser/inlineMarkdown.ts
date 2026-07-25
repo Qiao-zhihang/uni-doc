@@ -29,39 +29,163 @@ import type { Mark } from '../blocks/types'
  */
 const HTML_TAG_WHITELIST = new Set([
   // 行内
-  'b', 'i', 's', 'del', 'mark', 'sub', 'sup', 'kbd', 'code',
-  'span', 'font', 'center', 'cite', 'q', 'small', 'big', 'tt',
-  'u', 'abbr', 'dfn', 'time', 'a', 'em', 'strong', 'var', 'samp',
-  'data', 'bdi', 'bdo', 'ruby', 'rt', 'rp', 'label', 'output',
+  'b',
+  'i',
+  's',
+  'del',
+  'mark',
+  'sub',
+  'sup',
+  'kbd',
+  'code',
+  'span',
+  'font',
+  'center',
+  'cite',
+  'q',
+  'small',
+  'big',
+  'tt',
+  'u',
+  'abbr',
+  'dfn',
+  'time',
+  'a',
+  'em',
+  'strong',
+  'var',
+  'samp',
+  'data',
+  'bdi',
+  'bdo',
+  'ruby',
+  'rt',
+  'rp',
+  'label',
+  'output',
   // 块级
-  'p', 'div', 'details', 'summary', 'dl', 'dt', 'dd',
-  'figure', 'figcaption', 'ul', 'ol', 'li', 'pre', 'blockquote',
-  'section', 'article', 'header', 'footer', 'nav', 'aside', 'main',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'p',
+  'div',
+  'details',
+  'summary',
+  'dl',
+  'dt',
+  'dd',
+  'figure',
+  'figcaption',
+  'ul',
+  'ol',
+  'li',
+  'pre',
+  'blockquote',
+  'section',
+  'article',
+  'header',
+  'footer',
+  'nav',
+  'aside',
+  'main',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
   // 表格
-  'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'caption', 'colgroup',
+  'table',
+  'thead',
+  'tbody',
+  'tfoot',
+  'tr',
+  'td',
+  'th',
+  'caption',
+  'colgroup',
   // 交互(进度条/度量条)
-  'progress', 'meter'
+  'progress',
+  'meter',
 ])
 
 /** 自闭合 HTML 标签(小写,HTML 规范 void elements) */
-const HTML_SELF_CLOSING = new Set(['br', 'hr', 'img', 'wbr', 'area', 'base', 'col', 'embed', 'input', 'link', 'meta', 'source', 'track'])
+const HTML_SELF_CLOSING = new Set([
+  'br',
+  'hr',
+  'img',
+  'wbr',
+  'area',
+  'base',
+  'col',
+  'embed',
+  'input',
+  'link',
+  'meta',
+  'source',
+  'track',
+])
 
 /** HTML 属性白名单(防 XSS) */
 const HTML_ATTR_WHITELIST = new Set([
-  'href', 'src', 'alt', 'title', 'class', 'style', 'id', 'name',
-  'color', 'size', 'face', 'align', 'width', 'height',
-  'target', 'rel', 'datetime', 'cite', 'lang', 'dir',
-  'colspan', 'rowspan', 'start', 'type', 'value', 'open',
-  'role', 'aria-label', 'aria-hidden', 'data-type',
+  'href',
+  'src',
+  'alt',
+  'title',
+  'class',
+  'style',
+  'id',
+  'name',
+  'color',
+  'size',
+  'face',
+  'align',
+  'width',
+  'height',
+  'target',
+  'rel',
+  'datetime',
+  'cite',
+  'lang',
+  'dir',
+  'colspan',
+  'rowspan',
+  'start',
+  'type',
+  'value',
+  'open',
+  'role',
+  'aria-label',
+  'aria-hidden',
+  'data-type',
   // 进度条/度量条
-  'min', 'max', 'low', 'high', 'optimum',
+  'min',
+  'max',
+  'low',
+  'high',
+  'optimum',
   // 表单/选项卡(radio+label 纯 CSS 选项卡)
-  'checked', 'for', 'placeholder', 'readonly', 'disabled', 'required',
-  'autocomplete', 'autofocus', 'tabindex', 'accesskey',
+  'checked',
+  'for',
+  'placeholder',
+  'readonly',
+  'disabled',
+  'required',
+  'autocomplete',
+  'autofocus',
+  'tabindex',
+  'accesskey',
   // 表格
-  'border', 'cellpadding', 'cellspacing', 'scope', 'headers', 'abbr',
-  'nowrap', 'bgcolor', 'valign', 'background', 'frame', 'rules', 'span'
+  'border',
+  'cellpadding',
+  'cellspacing',
+  'scope',
+  'headers',
+  'abbr',
+  'nowrap',
+  'bgcolor',
+  'valign',
+  'background',
+  'frame',
+  'rules',
+  'span',
 ])
 
 /**
@@ -120,7 +244,13 @@ function findCloseTag(text: string, tag: string, startIdx: number): number {
     } else {
       // 先遇到开标签(可能是嵌套),需确认是完整标签(后跟空格/>或>)
       const afterTag = text[nextOpen + openTag.length]
-      if (afterTag === ' ' || afterTag === '>' || afterTag === '/' || afterTag === '\t' || afterTag === '\n') {
+      if (
+        afterTag === ' ' ||
+        afterTag === '>' ||
+        afterTag === '/' ||
+        afterTag === '\t' ||
+        afterTag === '\n'
+      ) {
         depth++
       }
       i = nextOpen + openTag.length
@@ -376,7 +506,7 @@ export function parseInlineMarkdown(text: string): { text: string; marks: Mark[]
         ['~~', '~~', 'strikethrough'],
         ['<u>', '</u>', 'underline'],
         ['*', '*', 'italic'],
-        ['_', '_', 'italic']
+        ['_', '_', 'italic'],
       ]
 
       for (const [trigger, end, type] of patterns) {
@@ -452,13 +582,7 @@ function mergeAdjacentMarks(marks: Mark[]): Mark[] {
     }
     // html 标签不合并:不同 tag(如 table/tr/td)即使位置相同也不应合并
     const isHtml = mark.type === 'html' || last?.type === 'html'
-    if (
-      last &&
-      last.type === mark.type &&
-      last.end >= mark.start &&
-      !last.href &&
-      !isHtml
-    ) {
+    if (last && last.type === mark.type && last.end >= mark.start && !last.href && !isHtml) {
       last.end = Math.max(last.end, mark.end)
     } else {
       merged.push({ ...mark })
@@ -477,7 +601,7 @@ export function detectUnclosedSyntax(text: string): PendingSyntax | null {
     ['~~', 'strikethrough'],
     ['==', 'highlight'],
     ['*', 'italic'],
-    ['<u>', 'underline']
+    ['<u>', 'underline'],
   ]
 
   let lastPending: PendingSyntax | null = null
@@ -485,7 +609,18 @@ export function detectUnclosedSyntax(text: string): PendingSyntax | null {
   for (const [trigger, type] of patterns) {
     const index = text.lastIndexOf(trigger)
     if (index !== -1) {
-      const end = type === 'code' ? '`' : type === 'bold' ? '**' : type === 'strikethrough' ? '~~' : type === 'highlight' ? '==' : type === 'italic' ? '*' : '</u>'
+      const end =
+        type === 'code'
+          ? '`'
+          : type === 'bold'
+            ? '**'
+            : type === 'strikethrough'
+              ? '~~'
+              : type === 'highlight'
+                ? '=='
+                : type === 'italic'
+                  ? '*'
+                  : '</u>'
       const endPos = text.indexOf(end, index + trigger.length)
       if (endPos === -1) {
         if (!lastPending || index > lastPending.start) {
@@ -511,7 +646,7 @@ export function autoCloseSyntax(text: string): string {
     italic: '*',
     strikethrough: '~~',
     highlight: '==',
-    underline: '</u>'
+    underline: '</u>',
   }
 
   return text + endMap[pending.type]

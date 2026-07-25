@@ -86,7 +86,9 @@ const displayMessages = computed(() => {
       if (!m.content) return false
       if (typeof m.content === 'string') return m.content.trim().length > 0
       if (Array.isArray(m.content)) {
-        const hasText = m.content.some((p) => p.type === 'text' && (p as { text: string }).text.trim().length > 0)
+        const hasText = m.content.some(
+          (p) => p.type === 'text' && (p as { text: string }).text.trim().length > 0,
+        )
         const hasImage = m.content.some((p) => p.type === 'image_url')
         return hasText || hasImage
       }
@@ -119,33 +121,47 @@ function scrollToBottom() {
 }
 
 // 消息变化时自动滚动
-watch(() => displayMessages.value.length, () => scrollToBottom())
+watch(
+  () => displayMessages.value.length,
+  () => scrollToBottom(),
+)
 // 流式输出时持续滚动(100ms 节流,避免每个 delta 都触发)
 let streamScrollTs = 0
 let streamScrollTimer: ReturnType<typeof setTimeout> | null = null
-watch(() => {
-  const msgs = displayMessages.value
-  const last = msgs[msgs.length - 1]
-  return last?.role === 'assistant' ? last.content.length : 0
-}, () => {
-  const now = Date.now()
-  if (now - streamScrollTs < 100) {
-    // 节流:100ms 内的后续触发用 trailing 调用补一次
-    if (streamScrollTimer === null) {
-      streamScrollTimer = setTimeout(() => {
-        streamScrollTimer = null
-        streamScrollTs = Date.now()
-        scrollToBottom()
-      }, 100 - (now - streamScrollTs))
+watch(
+  () => {
+    const msgs = displayMessages.value
+    const last = msgs[msgs.length - 1]
+    return last?.role === 'assistant' ? last.content.length : 0
+  },
+  () => {
+    const now = Date.now()
+    if (now - streamScrollTs < 100) {
+      // 节流:100ms 内的后续触发用 trailing 调用补一次
+      if (streamScrollTimer === null) {
+        streamScrollTimer = setTimeout(
+          () => {
+            streamScrollTimer = null
+            streamScrollTs = Date.now()
+            scrollToBottom()
+          },
+          100 - (now - streamScrollTs),
+        )
+      }
+      return
     }
-    return
-  }
-  streamScrollTs = now
-  scrollToBottom()
-})
+    streamScrollTs = now
+    scrollToBottom()
+  },
+)
 // 窗口打开 / 切换会话时滚动到底部
-watch(isOpen, (open) => { if (open) scrollToBottom() })
-watch(() => convStore.activeConversationId, () => scrollToBottom())
+watch(isOpen, (open) => {
+  if (open) scrollToBottom()
+})
+watch(
+  () => convStore.activeConversationId,
+  () => scrollToBottom(),
+)
 
 const MIN_W = 360
 const MIN_H = 450
@@ -209,7 +225,9 @@ function onResizeMove(e: PointerEvent) {
 function onResizeUp(e: PointerEvent) {
   resizing.value = false
   document.body.style.userSelect = ''
-  try { (e.target as HTMLElement).releasePointerCapture(e.pointerId) } catch (_) {}
+  try {
+    ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+  } catch (_) {}
   window.removeEventListener('pointermove', onResizeMove)
   window.removeEventListener('pointerup', onResizeUp)
 }
@@ -239,7 +257,9 @@ function onPointerMove(e: PointerEvent) {
 function onPointerUp(e: PointerEvent) {
   dragging.value = false
   document.body.style.userSelect = ''
-  try { (e.target as HTMLElement).releasePointerCapture(e.pointerId) } catch (_) {}
+  try {
+    ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+  } catch (_) {}
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
 }
@@ -352,7 +372,12 @@ function toggleSidebar() {
     windowPos.value.x += SIDEBAR_DELTA
   }
   // 折叠/展开后钳制到视口内,避免越界
-  const clamped = clampToViewport(windowPos.value.x, windowPos.value.y, windowSize.value.w, windowSize.value.h)
+  const clamped = clampToViewport(
+    windowPos.value.x,
+    windowPos.value.y,
+    windowSize.value.w,
+    windowSize.value.h,
+  )
   windowPos.value = clamped
   sidebarCollapsed.value = !sidebarCollapsed.value
   // 动画结束后移除动画类，避免影响拖动/调整大小
@@ -410,7 +435,12 @@ async function execute() {
             bytes[i] = binaryStr.charCodeAt(i)
           }
           const ext = img.mimeType.split('/')[1]?.split(';')[0] || 'png'
-          const relPath = await writeImageToVault(doc.vaultRoot, doc.activeTabPath ?? '', bytes, ext)
+          const relPath = await writeImageToVault(
+            doc.vaultRoot,
+            doc.activeTabPath ?? '',
+            bytes,
+            ext,
+          )
           if (relPath) savedImagePaths.push(relPath)
         } catch (e) {
           console.error('保存图片到 vault 失败:', e)
@@ -422,14 +452,18 @@ async function execute() {
     let textWithImageInfo = userText
     if (savedImagePaths.length > 0) {
       const imageInfo = savedImagePaths.map((p, i) => `图片${i + 1}: ${p}`).join('，')
-      const aiHint = '__AI_INTERNAL__: 以下图片已保存到 vault，路径如上。如需将图片插入文档，可直接使用上述路径调用 insert_block 工具，type=image，src 填相对路径（相对文档所在目录）。__AI_INTERNAL_END__'
+      const aiHint =
+        '__AI_INTERNAL__: 以下图片已保存到 vault，路径如上。如需将图片插入文档，可直接使用上述路径调用 insert_block 工具，type=image，src 填相对路径（相对文档所在目录）。__AI_INTERNAL_END__'
       textWithImageInfo = userText
         ? `${userText}\n${imageInfo}\n${aiHint}`
         : `${imageInfo}\n${aiHint}`
     }
     const parts: MessageContent[] = [{ type: 'text', text: textWithImageInfo }]
     for (const img of attachedImages.value) {
-      parts.push({ type: 'image_url', image_url: { url: `data:${img.mimeType};base64,${img.base64}` } })
+      parts.push({
+        type: 'image_url',
+        image_url: { url: `data:${img.mimeType};base64,${img.base64}` },
+      })
     }
     userContent = parts
     attachedImages.value = []
@@ -445,47 +479,47 @@ async function execute() {
   let accumulatedContent = ''
   let isAborted = false
 
-  const controller = agent.value.chat(
-    conv.messages,
-    userContent,
-    {
-      onDelta: (text) => {
-        accumulatedContent += text
-        convStore.updateLastMessage(convId, accumulatedContent)
-      },
-      onToolCall: (toolName, _args, result) => {
-        if (result.data === '__calling__') {
-          toolStatus.value = 'calling'
-          currentToolName.value = toolName
+  const controller = agent.value.chat(conv.messages, userContent, {
+    onDelta: (text) => {
+      accumulatedContent += text
+      convStore.updateLastMessage(convId, accumulatedContent)
+    },
+    onToolCall: (toolName, _args, result) => {
+      if (result.data === '__calling__') {
+        toolStatus.value = 'calling'
+        currentToolName.value = toolName
+        currentToolResult.value = null
+      } else {
+        toolStatus.value = 'completed'
+        currentToolResult.value = result
+        setTimeout(() => {
+          toolStatus.value = 'idle'
+          currentToolName.value = ''
           currentToolResult.value = null
-        } else {
-          toolStatus.value = 'completed'
-          currentToolResult.value = result
-          setTimeout(() => {
-            toolStatus.value = 'idle'
-            currentToolName.value = ''
-            currentToolResult.value = null
-          }, 2000)
+        }, 2000)
+      }
+    },
+    onError: (err) => {
+      convStore.addMessage(convId, { role: 'assistant', content: `⚠️ ${err}` })
+    },
+    onComplete: () => {
+      if (!isAborted) {
+        sending.value = false
+        abortController.value = null
+        // 若最后 assistant 消息仍为空，移除它
+        const lastMsg = conv.messages[conv.messages.length - 1]
+        if (
+          lastMsg &&
+          lastMsg.role === 'assistant' &&
+          (!lastMsg.content || lastMsg.content === '')
+        ) {
+          conv.messages.pop()
         }
-      },
-      onError: (err) => {
-        convStore.addMessage(convId, { role: 'assistant', content: `⚠️ ${err}` })
-      },
-      onComplete: () => {
-        if (!isAborted) {
-          sending.value = false
-          abortController.value = null
-          // 若最后 assistant 消息仍为空，移除它
-          const lastMsg = conv.messages[conv.messages.length - 1]
-          if (lastMsg && lastMsg.role === 'assistant' && (!lastMsg.content || lastMsg.content === '')) {
-            conv.messages.pop()
-          }
-          // 持久化
-          convStore.flushSave()
-        }
-      },
-    }
-  )
+        // 持久化
+        convStore.flushSave()
+      }
+    },
+  })
 
   abortController.value = controller
 
@@ -674,10 +708,7 @@ function extractImages(content: string | MessageContent[]): Array<{ url: string 
 function renderContent(role: string, content: string | MessageContent[]): string {
   const text = extractText(content)
   if (role === 'assistant') return renderMarkdown(text)
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 /** 关闭 Profile 下拉（点击外部） */
@@ -702,7 +733,12 @@ onUnmounted(() => {
     v-if="isOpen"
     class="ai-floating"
     :class="{ 'floating-animating': sidebarAnimating }"
-    :style="{ left: `${windowPos.x}px`, top: `${windowPos.y}px`, width: `${windowSize.w}px`, height: `${windowSize.h}px` }"
+    :style="{
+      left: `${windowPos.x}px`,
+      top: `${windowPos.y}px`,
+      width: `${windowSize.w}px`,
+      height: `${windowSize.h}px`,
+    }"
   >
     <!-- 标题栏 -->
     <div class="title-bar" @pointerdown="onPointerDown">
@@ -714,10 +750,29 @@ onUnmounted(() => {
       <!-- Profile 选择器 -->
       <div class="profile-selector-wrapper">
         <button class="profile-selector" @click.stop="showProfileDropdown = !showProfileDropdown">
-          <span class="cap-dot" :class="{ on: caps.nativeSearch || caps.webSearch, off: !caps.nativeSearch && !caps.webSearch }" title="联网搜索"></span>
-          <span class="cap-dot" :class="{ on: caps.vision, off: !caps.vision }" title="图片理解"></span>
+          <span
+            class="cap-dot"
+            :class="{
+              on: caps.nativeSearch || caps.webSearch,
+              off: !caps.nativeSearch && !caps.webSearch,
+            }"
+            title="联网搜索"
+          ></span>
+          <span
+            class="cap-dot"
+            :class="{ on: caps.vision, off: !caps.vision }"
+            title="图片理解"
+          ></span>
           <span class="profile-name">{{ activeProfile?.name ?? '未配置' }}</span>
-          <svg class="chevron" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            class="chevron"
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M3 4L5 6L7 4" />
           </svg>
         </button>
@@ -746,17 +801,35 @@ onUnmounted(() => {
 
       <div class="title-right">
         <button class="title-btn" title="新建会话" @click.stop="handleNewConversation">
-          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <svg
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          >
             <path d="M7 2V12M2 7H12" />
           </svg>
         </button>
         <button class="title-btn" title="最小化" @click.stop="editor.minimizeAiFloating()">
-          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <svg
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          >
             <path d="M3 7H11" />
           </svg>
         </button>
         <button class="title-btn" title="关闭" @click.stop="editor.closeAiFloating()">
-          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <svg
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          >
             <path d="M4 4L10 10M10 4L4 10" />
           </svg>
         </button>
@@ -768,8 +841,19 @@ onUnmounted(() => {
       <!-- 左侧：会话列表 -->
       <div class="conversation-panel" :class="{ collapsed: sidebarCollapsed }">
         <div class="conv-panel-header">
-          <button class="collapse-btn" @click="toggleSidebar" :title="sidebarCollapsed ? '展开会话列表' : '折叠会话列表'">
-            <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <button
+            class="collapse-btn"
+            :title="sidebarCollapsed ? '展开会话列表' : '折叠会话列表'"
+            @click="toggleSidebar"
+          >
+            <svg
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <path v-if="!sidebarCollapsed" d="M3 2L6 5L3 8" />
               <path v-else d="M7 2L4 5L7 8" />
             </svg>
@@ -777,7 +861,13 @@ onUnmounted(() => {
           <span v-if="!sidebarCollapsed" class="conv-panel-title">会话</span>
         </div>
         <button v-if="!sidebarCollapsed" class="new-conv-btn" @click="handleNewConversation">
-          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <svg
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          >
             <path d="M7 3V11M3 7H11" />
           </svg>
           <span>新建会话</span>
@@ -807,7 +897,14 @@ onUnmounted(() => {
                 title="重命名"
                 @click.stop="startRename(conv.id, conv.title)"
               >
-                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                <svg
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
                   <path d="M9 3L10 4L6 8H5V7L9 3Z" />
                   <path d="M2 10H7" />
                 </svg>
@@ -817,15 +914,22 @@ onUnmounted(() => {
                 title="删除会话"
                 @click.stop="requestDeleteConversation(conv.id)"
               >
-                <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M1.5 2.5H8.5M3.75 2.5V1.875C3.75 1.66789 3.91789 1.5 4.125 1.5H5.875C6.08211 1.5 6.25 1.66789 6.25 1.875V2.5M4.375 4.375V7.125M5.625 4.375V7.125M2.5 2.5L2.8125 7.75C2.84411 8.30711 3.30429 8.75 3.8625 8.75H6.1375C6.69571 8.75 7.15589 8.30711 7.1875 7.75L7.5 2.5" />
+                <svg
+                  viewBox="0 0 10 10"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="0.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M1.5 2.5H8.5M3.75 2.5V1.875C3.75 1.66789 3.91789 1.5 4.125 1.5H5.875C6.08211 1.5 6.25 1.66789 6.25 1.875V2.5M4.375 4.375V7.125M5.625 4.375V7.125M2.5 2.5L2.8125 7.75C2.84411 8.30711 3.30429 8.75 3.8625 8.75H6.1375C6.69571 8.75 7.15589 8.30711 7.1875 7.75L7.5 2.5"
+                  />
                 </svg>
               </button>
             </div>
           </div>
-          <div v-if="sortedConversations.length === 0" class="conv-empty">
-            点击上方新建会话
-          </div>
+          <div v-if="sortedConversations.length === 0" class="conv-empty">点击上方新建会话</div>
         </div>
         <!-- 折叠态：只显示图标 -->
         <div v-else class="collapsed-icons">
@@ -840,7 +944,13 @@ onUnmounted(() => {
             {{ conv.title.slice(0, 1) }}
           </button>
           <button class="collapsed-new-btn" title="新建会话" @click="handleNewConversation">
-            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <svg
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            >
               <path d="M6 2V10M2 6H10" />
             </svg>
           </button>
@@ -851,18 +961,30 @@ onUnmounted(() => {
       <div class="chat-panel">
         <!-- 工具状态条 -->
         <div v-if="toolStatus !== 'idle'" class="tool-status-bar" :class="toolStatus">
-          <svg v-if="toolStatus === 'calling'" class="spinner" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <svg
+            v-if="toolStatus === 'calling'"
+            class="spinner"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          >
             <path d="M10 6A4 4 0 0 1 6 10" />
           </svg>
-          <span>{{
-            toolStatus === 'calling'
-              ? `正在调用 ${formatToolName(currentToolName)}...`
-              : (currentToolResult ? formatToolResult(currentToolName, currentToolResult) : `已完成 ${formatToolName(currentToolName)}`)
-          }}</span>
+          <span>
+            {{
+              toolStatus === 'calling'
+                ? `正在调用 ${formatToolName(currentToolName)}...`
+                : currentToolResult
+                  ? formatToolResult(currentToolName, currentToolResult)
+                  : `已完成 ${formatToolName(currentToolName)}`
+            }}
+          </span>
         </div>
 
         <!-- 消息区 -->
-        <div class="chat-messages no-scrollbar" ref="chatAreaRef">
+        <div ref="chatAreaRef" class="chat-messages no-scrollbar">
           <div v-if="displayMessages.length === 0" class="empty-state">
             <img :src="AiIconUrl" class="empty-icon" alt="UU鲨" />
             <div class="empty-title">UU鲨已就绪</div>
@@ -875,10 +997,7 @@ onUnmounted(() => {
               class="message-row"
               :class="msg.role === 'user' ? 'message-row-user' : 'message-row-ai'"
             >
-              <div
-                class="bubble"
-                :class="{ 'md-bubble': msg.role === 'assistant' }"
-              >
+              <div class="bubble" :class="{ 'md-bubble': msg.role === 'assistant' }">
                 <div v-if="extractImages(msg.content).length" class="bubble-images">
                   <img
                     v-for="(img, j) in extractImages(msg.content)"
@@ -902,7 +1021,13 @@ onUnmounted(() => {
           <div v-for="(img, i) in attachedImages" :key="i" class="image-thumb-wrapper">
             <img :src="`data:${img.mimeType};base64,${img.base64}`" class="image-thumb" />
             <button class="image-remove" @click="removeImage(i)">
-              <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+              <svg
+                viewBox="0 0 10 10"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              >
                 <path d="M2 2L8 8M8 2L2 8" />
               </svg>
             </button>
@@ -933,7 +1058,14 @@ onUnmounted(() => {
               title="添加图片"
               @click="fileInputRef?.click()"
             >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <rect x="2" y="3" width="12" height="10" rx="2" />
                 <circle cx="6" cy="7" r="1.5" />
                 <path d="M2 11L5.5 8L9 10.5L12 7.5L14 9.5" />
@@ -945,7 +1077,7 @@ onUnmounted(() => {
               type="file"
               accept="image/*"
               multiple
-              style="display:none"
+              style="display: none"
               @change="onImageSelect"
             />
           </div>
@@ -959,23 +1091,20 @@ onUnmounted(() => {
               @keydown.enter.exact.prevent="execute"
               @paste="onPaste"
             ></textarea>
-            <button
-              v-if="sending"
-              class="stop-btn"
-              title="停止生成"
-              @click="stopGeneration"
-            >
+            <button v-if="sending" class="stop-btn" title="停止生成" @click="stopGeneration">
               <svg viewBox="0 0 14 14" fill="currentColor">
                 <rect x="3" y="3" width="8" height="8" rx="1.5" />
               </svg>
             </button>
-            <button
-              v-else
-              class="send-btn"
-              :disabled="!input.trim()"
-              @click="execute"
-            >
-              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <button v-else class="send-btn" :disabled="!input.trim()" @click="execute">
+              <svg
+                viewBox="0 0 14 14"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M2 7L12 2L7 12L6 8L2 7Z" />
               </svg>
             </button>
@@ -1031,7 +1160,9 @@ onUnmounted(() => {
   user-select: none;
 }
 .floating-animating {
-  transition: left 0.2s ease, width 0.2s ease;
+  transition:
+    left 0.2s ease,
+    width 0.2s ease;
 }
 
 /* ===== 标题栏 ===== */
@@ -1215,7 +1346,9 @@ onUnmounted(() => {
   flex-direction: column;
   border-right: 1px solid var(--border);
   background: var(--card);
-  transition: width 0.2s ease, min-width 0.2s ease;
+  transition:
+    width 0.2s ease,
+    min-width 0.2s ease;
   flex-shrink: 0;
 }
 .conversation-panel.collapsed {
@@ -1715,7 +1848,9 @@ onUnmounted(() => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 .spinner {
   animation: spin 1s linear infinite;
@@ -1815,12 +1950,20 @@ onUnmounted(() => {
   margin: 6px 0 4px;
   line-height: 1.3;
 }
-.md-bubble :deep(.md-h1) { font-size: 15px; }
-.md-bubble :deep(.md-h2) { font-size: 14px; }
-.md-bubble :deep(.md-h3) { font-size: 13px; }
+.md-bubble :deep(.md-h1) {
+  font-size: 15px;
+}
+.md-bubble :deep(.md-h2) {
+  font-size: 14px;
+}
+.md-bubble :deep(.md-h3) {
+  font-size: 13px;
+}
 .md-bubble :deep(.md-h4),
 .md-bubble :deep(.md-h5),
-.md-bubble :deep(.md-h6) { font-size: 12px; }
+.md-bubble :deep(.md-h6) {
+  font-size: 12px;
+}
 .md-bubble :deep(.md-p) {
   margin: 4px 0;
   line-height: 1.6;
@@ -1876,9 +2019,15 @@ onUnmounted(() => {
   color: var(--primary);
   text-decoration: underline;
 }
-.md-bubble :deep(strong) { font-weight: 600; }
-.md-bubble :deep(em) { font-style: italic; }
-.md-bubble :deep(del) { text-decoration: line-through; }
+.md-bubble :deep(strong) {
+  font-weight: 600;
+}
+.md-bubble :deep(em) {
+  font-style: italic;
+}
+.md-bubble :deep(del) {
+  text-decoration: line-through;
+}
 
 /* 表格 */
 .md-bubble :deep(.md-table) {

@@ -68,8 +68,8 @@ function ensureCells() {
     emit('update', {
       content: {
         headers: [{ text: '', marks: [] }],
-        rows: [[{ text: '', marks: [] }]]
-      }
+        rows: [[{ text: '', marks: [] }]],
+      },
     })
   }
 }
@@ -102,11 +102,14 @@ watch(
     }
     nextTick(syncCells)
   },
-  { deep: true }
+  { deep: true },
 )
-watch(() => doc.renderTick, () => {
-  nextTick(() => requestAnimationFrame(syncCells))
-})
+watch(
+  () => doc.renderTick,
+  () => {
+    nextTick(() => requestAnimationFrame(syncCells))
+  },
+)
 
 /** 失焦/回车时解析行内 Markdown 并提交 marks */
 function commitCellWithMarks(rowIdx: number, colIdx: number, text: string) {
@@ -159,7 +162,7 @@ interface ContextMenuState {
   visible: boolean
   x: number
   y: number
-  rowIdx: number  // -1 表示表头行
+  rowIdx: number // -1 表示表头行
   colIdx: number
 }
 
@@ -168,7 +171,7 @@ const contextMenu = ref<ContextMenuState>({
   x: 0,
   y: 0,
   rowIdx: 0,
-  colIdx: 0
+  colIdx: 0,
 })
 
 function onCellContextmenu(e: MouseEvent, rowIdx: number, colIdx: number) {
@@ -179,7 +182,7 @@ function onCellContextmenu(e: MouseEvent, rowIdx: number, colIdx: number) {
     x: e.clientX,
     y: e.clientY,
     rowIdx,
-    colIdx
+    colIdx,
   }
 }
 
@@ -254,13 +257,13 @@ function deleteRow() {
   const { rowIdx } = contextMenu.value
   if (rowIdx === -1) {
     closeContextMenu()
-    return  // 表头行不删除
+    return // 表头行不删除
   }
   const headers = content().headers.map((c) => ({ ...c }))
   const rows = content().rows.map((r) => r.map((c) => ({ ...c })))
   if (rows.length <= 1) {
     closeContextMenu()
-    return  // 至少保留 1 行
+    return // 至少保留 1 行
   }
   rows.splice(rowIdx, 1)
   selfUpdate.value = true
@@ -277,7 +280,7 @@ function deleteCol() {
   const aligns = [...(content().aligns ?? [])]
   if (headers.length <= 1) {
     closeContextMenu()
-    return  // 至少保留 1 列
+    return // 至少保留 1 列
   }
   headers.splice(colIdx, 1)
   rows.forEach((r) => r.splice(colIdx, 1))
@@ -325,7 +328,11 @@ function onMousedown(e: MouseEvent) {
     <table>
       <thead>
         <tr>
-          <th v-for="(_h, i) in content().headers" :key="i" :style="{ textAlign: (content().aligns?.[i] ?? 'left') }">
+          <th
+            v-for="(_h, i) in content().headers"
+            :key="i"
+            :style="{ textAlign: content().aligns?.[i] ?? 'left' }"
+          >
             <div
               :ref="(el) => setCellRef(el as HTMLElement, -1, i)"
               class="cell header-cell"
@@ -341,7 +348,11 @@ function onMousedown(e: MouseEvent) {
       </thead>
       <tbody>
         <tr v-for="(_row, rIdx) in content().rows" :key="rIdx">
-          <td v-for="(_cell, cIdx) in content().rows[rIdx]" :key="cIdx" :style="{ textAlign: (content().aligns?.[cIdx] ?? 'left') }">
+          <td
+            v-for="(_cell, cIdx) in content().rows[rIdx]"
+            :key="cIdx"
+            :style="{ textAlign: content().aligns?.[cIdx] ?? 'left' }"
+          >
             <div
               :ref="(el) => setCellRef(el as HTMLElement, rIdx, cIdx)"
               class="cell"
@@ -384,12 +395,16 @@ function onMousedown(e: MouseEvent) {
           class="menu-item danger"
           :disabled="contextMenu.rowIdx === -1 || content().rows.length <= 1"
           @click="deleteRow"
-        >删除当前行</button>
+        >
+          删除当前行
+        </button>
         <button
           class="menu-item danger"
           :disabled="content().headers.length <= 1"
           @click="deleteCol"
-        >删除当前列</button>
+        >
+          删除当前列
+        </button>
       </div>
     </Teleport>
   </div>
@@ -406,7 +421,8 @@ table {
   width: 100%;
   font-size: 13px;
 }
-th, td {
+th,
+td {
   border: 1px solid var(--border);
   padding: 0;
   vertical-align: top;
@@ -433,10 +449,24 @@ th, td {
   border-radius: 4px;
   background: var(--secondary);
 }
-:deep(.md-link) { color: var(--brand-500); text-decoration: underline; }
-:deep(.md-wikilink) { color: var(--brand-500); text-decoration: underline; cursor: pointer; }
-:deep(.md-image) { max-width: 100%; border-radius: 4px; }
-:deep(.md-highlight) { background: rgba(255, 235, 59, 0.3); padding: 0 2px; border-radius: 2px; }
+:deep(.md-link) {
+  color: var(--brand-500);
+  text-decoration: underline;
+}
+:deep(.md-wikilink) {
+  color: var(--brand-500);
+  text-decoration: underline;
+  cursor: pointer;
+}
+:deep(.md-image) {
+  max-width: 100%;
+  border-radius: 4px;
+}
+:deep(.md-highlight) {
+  background: rgba(255, 235, 59, 0.3);
+  padding: 0 2px;
+  border-radius: 2px;
+}
 </style>
 
 <style>

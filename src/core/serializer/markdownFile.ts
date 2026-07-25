@@ -41,7 +41,12 @@ function normalizeUrl(href: string): string | null {
   // www. 开头:补 https://
   if (/^www\./i.test(href)) return `https://${href}`
   // 其他看起来像域名(含点号且不是相对路径)的:补 https://
-  if (href.includes('.') && !href.startsWith('/') && !href.startsWith('./') && !href.startsWith('../')) {
+  if (
+    href.includes('.') &&
+    !href.startsWith('/') &&
+    !href.startsWith('./') &&
+    !href.startsWith('../')
+  ) {
     return `https://${href}`
   }
   return null
@@ -94,7 +99,7 @@ export function handleExternalLinkClick(e: MouseEvent): boolean {
 async function saveMdTauri(blocks: Block[], fileName: string): Promise<boolean> {
   const filePath = await tauriInvoke<string | null>('save_md_dialog', {
     title: '保存 Markdown 文件',
-    defaultName: fileName.endsWith('.md') ? fileName : `${fileName}.md`
+    defaultName: fileName.endsWith('.md') ? fileName : `${fileName}.md`,
   })
   if (!filePath) return false
 
@@ -145,7 +150,10 @@ function openMdWeb(): Promise<File | null> {
 }
 
 /** 保存 .md 文件(自动选择 Tauri/Web 路径) */
-export async function saveMarkdownFile(blocks: Block[], fileName = 'document.md'): Promise<boolean> {
+export async function saveMarkdownFile(
+  blocks: Block[],
+  fileName = 'document.md',
+): Promise<boolean> {
   if (isTauri()) {
     return saveMdTauri(blocks, fileName)
   }

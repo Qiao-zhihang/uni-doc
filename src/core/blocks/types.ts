@@ -18,7 +18,20 @@ export type BlockType =
   | 'image'
 
 /** 行内标记(粗体/斜体等) */
-export type MarkType = 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code' | 'link' | 'image' | 'highlight' | 'superscript' | 'subscript' | 'math' | 'html' | 'wikilink'
+export type MarkType =
+  | 'bold'
+  | 'italic'
+  | 'underline'
+  | 'strikethrough'
+  | 'code'
+  | 'link'
+  | 'image'
+  | 'highlight'
+  | 'superscript'
+  | 'subscript'
+  | 'math'
+  | 'html'
+  | 'wikilink'
 
 export interface Mark {
   type: MarkType
@@ -131,7 +144,8 @@ export interface ImageProps {
   width?: number
 }
 
-export type BlockProps = ParagraphProps | HeadingProps | ListProps | CodeBlockProps | ImageProps | Record<string, never>
+export type BlockProps =
+  ParagraphProps | HeadingProps | ListProps | CodeBlockProps | ImageProps | Record<string, never>
 
 /** AI 操作记录(该 Block 的可撤销 AI 操作) */
 export interface AiHistoryEntry {

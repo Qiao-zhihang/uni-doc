@@ -68,7 +68,7 @@ async function renderMermaid() {
       startOnLoad: false,
       theme: mermaidTheme(),
       securityLevel: 'loose',
-      fontFamily: 'inherit'
+      fontFamily: 'inherit',
     })
     // 唯一 id 防止重复(加实例标识避免演示模式与编辑器同时渲染时冲突)
     const id = `mmd-${props.block.id.replace(/[^a-zA-Z0-9]/g, '')}-${instanceId}`
@@ -105,13 +105,16 @@ watch(
     if (isMermaid.value && !isSelected.value) {
       renderMermaid()
     }
-  }
+  },
 )
 
-watch(() => doc.renderTick, () => {
-  nextTick(() => requestAnimationFrame(syncText))
-  if (isMermaid.value) renderMermaid()
-})
+watch(
+  () => doc.renderTick,
+  () => {
+    nextTick(() => requestAnimationFrame(syncText))
+    if (isMermaid.value) renderMermaid()
+  },
+)
 
 // 选中态变化:切到源码编辑或切回图表渲染
 watch(isSelected, () => {
@@ -129,11 +132,14 @@ watch(isSelected, () => {
 })
 
 // 主题变化时重新渲染
-watch(() => theme.mode, () => {
-  if (isMermaid.value && !isSelected.value) {
-    renderMermaid()
-  }
-})
+watch(
+  () => theme.mode,
+  () => {
+    if (isMermaid.value && !isSelected.value) {
+      renderMermaid()
+    }
+  },
+)
 
 function onInput() {
   if (!el.value) return

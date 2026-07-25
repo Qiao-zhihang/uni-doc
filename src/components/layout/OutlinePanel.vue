@@ -23,7 +23,7 @@ const menu = ref<{ visible: boolean; x: number; y: number; entryId: string | nul
   visible: false,
   x: 0,
   y: 0,
-  entryId: null
+  entryId: null,
 })
 
 function indent(level: number) {
@@ -71,9 +71,7 @@ function updateCurrentHeading() {
   if (jumpingId.value) return
   const canvas = document.querySelector('.editor-canvas')
   if (!canvas) return
-  const headings = Array.from(
-    canvas.querySelectorAll('[data-block-id]')
-  ) as HTMLElement[]
+  const headings = Array.from(canvas.querySelectorAll('[data-block-id]')) as HTMLElement[]
   if (!headings.length) {
     currentHeadingId.value = null
     return
@@ -116,14 +114,17 @@ onMounted(() => {
 })
 
 // 文档打开/关闭时重新绑定(OutlinePanel 可能先于 BlockEditor 挂载,此时 canvas 不存在)
-watch(() => doc.openTabs.length, (len, prevLen) => {
-  if (len > 0 && prevLen === 0) {
-    nextTick(() => {
-      bindScrollListener()
-      updateCurrentHeading()
-    })
-  }
-})
+watch(
+  () => doc.openTabs.length,
+  (len, prevLen) => {
+    if (len > 0 && prevLen === 0) {
+      nextTick(() => {
+        bindScrollListener()
+        updateCurrentHeading()
+      })
+    }
+  },
+)
 
 onUnmounted(() => {
   const canvas = document.querySelector('.editor-canvas')
@@ -133,15 +134,19 @@ onUnmounted(() => {
 })
 
 // 文档变化后重新计算
-watch(() => doc.blocks, () => {
-  nextTick(updateCurrentHeading)
-}, { deep: true })
+watch(
+  () => doc.blocks,
+  () => {
+    nextTick(updateCurrentHeading)
+  },
+  { deep: true },
+)
 
 // Tab 切换
 const tabs = [
   { key: 'outline' as const, label: '大纲', icon: List },
   { key: 'tags' as const, label: '标签', icon: Tag },
-  { key: 'info' as const, label: '信息', icon: Info }
+  { key: 'info' as const, label: '信息', icon: Info },
 ]
 
 // 标签 mock(M1 占位)
@@ -154,7 +159,7 @@ const info = computed(() => [
   { label: '页数', value: String(doc.pageCount) },
   { label: '创建时间', value: formatTime(doc.meta.created_at) },
   { label: '修改时间', value: formatTime(doc.meta.updated_at) },
-  { label: '版本', value: doc.meta.version }
+  { label: '版本', value: doc.meta.version },
 ])
 
 function formatTime(iso: string) {
@@ -175,7 +180,7 @@ function onContextmenu(e: MouseEvent, entryId: string) {
 
 const menuItems = computed<MenuItem[]>(() => [
   { key: 'copy-text', label: '复制标题文本', icon: Copy },
-  { key: 'copy-link', label: '复制块链接', icon: Link2 }
+  { key: 'copy-link', label: '复制块链接', icon: Link2 },
 ])
 
 async function onMenuSelect(key: string) {
@@ -299,7 +304,9 @@ function closeMenu() {
   font-weight: 500;
   color: var(--muted-foreground);
   border-bottom: 2px solid transparent;
-  transition: color 0.12s ease, border-color 0.12s ease;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease;
 }
 .tab-btn:hover {
   color: var(--sidebar-foreground);
@@ -323,7 +330,9 @@ function closeMenu() {
   font-size: 13px;
   color: var(--sidebar-foreground);
   cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
   position: relative;
 }
 .outline-item:hover {
@@ -416,7 +425,11 @@ function closeMenu() {
   animation: outline-flash 1.2s ease;
 }
 @keyframes outline-flash {
-  0% { background: var(--brand-50, rgba(0, 122, 255, 0.12)); }
-  100% { background: transparent; }
+  0% {
+    background: var(--brand-50, rgba(0, 122, 255, 0.12));
+  }
+  100% {
+    background: transparent;
+  }
 }
 </style>

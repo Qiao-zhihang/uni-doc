@@ -21,7 +21,7 @@ watch(
         promptInputRef.value?.select()
       })
     }
-  }
+  },
 )
 
 function onPromptKeydown(e: KeyboardEvent) {
@@ -93,8 +93,12 @@ function onPromptKeydown(e: KeyboardEvent) {
   animation: mask-fade 0.12s ease;
 }
 @keyframes mask-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .dialog {
   width: 360px;
@@ -108,8 +112,14 @@ function onPromptKeydown(e: KeyboardEvent) {
   animation: dialog-pop 0.15s ease;
 }
 @keyframes dialog-pop {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 .dialog-header {
   padding: 12px 16px 4px;
@@ -142,7 +152,9 @@ function onPromptKeydown(e: KeyboardEvent) {
   font-family: var(--font-sans);
   color: var(--foreground);
   outline: none;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
 }
 .prompt-input:focus {
   border-color: var(--ring);
@@ -159,7 +171,9 @@ function onPromptKeydown(e: KeyboardEvent) {
   padding: 0 12px;
   border-radius: var(--radius-button);
   font-size: 12px;
-  transition: background 0.12s ease, filter 0.12s ease;
+  transition:
+    background 0.12s ease,
+    filter 0.12s ease;
 }
 .btn-cancel {
   background: var(--secondary);

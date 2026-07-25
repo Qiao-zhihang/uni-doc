@@ -12,17 +12,13 @@
 import { defineStore } from 'pinia'
 import { computed, markRaw, nextTick, ref } from 'vue'
 import type { Block, BlockType, DocumentMeta, ListType, OutlineEntry } from '@/core/blocks/types'
-import {
-  createBlock,
-  createHeadingBlock,
-  uuid
-} from '@/core/blocks/factory'
+import { createBlock, createHeadingBlock, uuid } from '@/core/blocks/factory'
 import { UndoRedo } from '@/core/history/UndoRedo'
 import {
   serializeMarkdown,
   serializeMarkdownWithMeta,
   deserializeMarkdown,
-  parseFrontmatter
+  parseFrontmatter,
 } from '@/core/serializer/markdown'
 import { saveMarkdownFile, openMarkdownFile } from '@/core/serializer/markdownFile'
 import {
@@ -30,7 +26,7 @@ import {
   writeVaultFile,
   readVaultTree,
   findFileByName,
-  type VaultNode
+  type VaultNode,
 } from '@/core/vault/vault'
 
 /** 单个文档 tab 实例 */
@@ -61,7 +57,7 @@ function defaultMeta(title = '未命名文档'): DocumentMeta {
     created_at: now,
     updated_at: now,
     version: '1.0.0',
-    author: 'UniDoc User'
+    author: 'UniDoc User',
   }
 }
 
@@ -80,7 +76,7 @@ function createBlankTab(title = '未命名文档'): TabInstance {
     savedStatus: 'saved',
     renderTick: 0,
     historyTick: 0,
-    history
+    history,
   }
 }
 
@@ -108,7 +104,7 @@ export const useDocumentStore = defineStore('document', () => {
     set: (newBlocks) => {
       const tab = getActive()
       if (tab) tab.blocks = newBlocks
-    }
+    },
   })
 
   const meta = computed<DocumentMeta>({
@@ -116,7 +112,7 @@ export const useDocumentStore = defineStore('document', () => {
     set: (v) => {
       const tab = getActive()
       if (tab) tab.meta = v
-    }
+    },
   })
 
   const savedStatus = computed<'saved' | 'saving' | 'unsaved'>({
@@ -124,7 +120,7 @@ export const useDocumentStore = defineStore('document', () => {
     set: (v) => {
       const tab = getActive()
       if (tab) tab.savedStatus = v
-    }
+    },
   })
 
   const renderTick = computed<number>({
@@ -132,7 +128,7 @@ export const useDocumentStore = defineStore('document', () => {
     set: (v) => {
       const tab = getActive()
       if (tab) tab.renderTick = v
-    }
+    },
   })
 
   /** 当前 active tab 的 vault 相对路径(用于定位图片等资源的存储目录) */
@@ -146,7 +142,7 @@ export const useDocumentStore = defineStore('document', () => {
         const level = (b.props as { level: number }).level
         const text = (b.content as { text: string }).text
         return { id: b.id, level, text }
-      })
+      }),
   )
 
   const wordCount = computed(() => {
@@ -155,9 +151,12 @@ export const useDocumentStore = defineStore('document', () => {
         return sum + ((block.content as { text: string }).text?.length ?? 0)
       }
       if (block.type === 'list') {
-        return sum + (block.content as { items: { text: string }[] }).items.reduce(
-          (s, it) => s + it.text.length,
-          0
+        return (
+          sum +
+          (block.content as { items: { text: string }[] }).items.reduce(
+            (s, it) => s + it.text.length,
+            0,
+          )
         )
       }
       return sum
@@ -165,9 +164,7 @@ export const useDocumentStore = defineStore('document', () => {
   })
 
   const blockCount = computed(() => blocks.value.length)
-  const pageCount = computed(
-    () => blocks.value.filter((b) => b.type === 'page_break').length + 1
-  )
+  const pageCount = computed(() => blocks.value.filter((b) => b.type === 'page_break').length + 1)
   const markdown = computed(() => serializeMarkdown(blocks.value))
 
   // ===== 自动保存(防抖) =====
@@ -241,12 +238,17 @@ export const useDocumentStore = defineStore('document', () => {
       ...patch,
       content: { ...target.content, ...(patch.content ?? {}) },
       props: { ...target.props, ...(patch.props ?? {}) },
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     }
     return true
   }
 
-  function insertBlockAfter(id: string | null, type: BlockType, label = '新建区块', listType?: ListType) {
+  function insertBlockAfter(
+    id: string | null,
+    type: BlockType,
+    label = '新建区块',
+    listType?: ListType,
+  ) {
     commit(label)
     const newBlock = createBlock(type)
     if (type === 'list' && listType) {
@@ -496,19 +498,19 @@ export const useDocumentStore = defineStore('document', () => {
   }
 
   /** 关闭指定 tab,返回是否实际关闭 */
-function closeTab(id: string) {
-  const idx = openTabs.value.findIndex((t) => t.id === id)
-  if (idx === -1) return false
-  disposeTab(id)
-  openTabs.value.splice(idx, 1)
-  if (openTabs.value.length === 0) {
-    activeTabId.value = ''
-  } else if (activeTabId.value === id) {
-    const newIdx = Math.min(idx, openTabs.value.length - 1)
-    activeTabId.value = openTabs.value[newIdx].id
+  function closeTab(id: string) {
+    const idx = openTabs.value.findIndex((t) => t.id === id)
+    if (idx === -1) return false
+    disposeTab(id)
+    openTabs.value.splice(idx, 1)
+    if (openTabs.value.length === 0) {
+      activeTabId.value = ''
+    } else if (activeTabId.value === id) {
+      const newIdx = Math.min(idx, openTabs.value.length - 1)
+      activeTabId.value = openTabs.value[newIdx].id
+    }
+    return true
   }
-  return true
-}
 
   /** 关闭其他 tab */
   function closeOtherTabs(id: string) {
@@ -537,14 +539,14 @@ function closeTab(id: string) {
   }
 
   /** 关闭所有 tab(真清空,显示鲨鱼空状态) */
-function closeAllTabs() {
-  for (const timer of saveTimers.values()) {
-    clearTimeout(timer)
+  function closeAllTabs() {
+    for (const timer of saveTimers.values()) {
+      clearTimeout(timer)
+    }
+    saveTimers.clear()
+    openTabs.value = []
+    activeTabId.value = ''
   }
-  saveTimers.clear()
-  openTabs.value = []
-  activeTabId.value = ''
-}
 
   /** 切换 active tab */
   function switchTab(id: string) {
@@ -677,6 +679,6 @@ function closeAllTabs() {
     setVaultRoot,
     refreshVaultTree,
     openWikilink,
-    scheduleAutoSave
+    scheduleAutoSave,
   }
 })

@@ -29,12 +29,60 @@ export interface StreamResult {
   finishReason: string
 }
 
+/** SSE 单行 data 解析结果的可变状态 */
+interface ParseState {
+  content: string
+  toolCalls: ToolCall[]
+  finishReason: string
+}
+
+/**
+ * 解析单条 SSE `data:` 行，把解析结果写进 state
+ * 返回 true 表示收到 [DONE]，应停止解析
+ */
+function parseSseData(data: string, state: ParseState, onDelta?: (text: string) => void): boolean {
+  if (data === '[DONE]') return true
+  try {
+    const json = JSON.parse(data) as {
+      choices?: Array<{ delta?: StreamDelta; finish_reason?: string }>
+    }
+    const choice = json.choices?.[0]
+    const delta = choice?.delta
+    if (choice?.finish_reason) state.finishReason = choice.finish_reason
+    if (!delta) return false
+
+    if (delta.content) {
+      state.content += delta.content
+      onDelta?.(delta.content)
+    }
+
+    if (delta.tool_calls) {
+      for (const tc of delta.tool_calls) {
+        if (!state.toolCalls[tc.index]) {
+          state.toolCalls[tc.index] = {
+            id: '',
+            type: 'function',
+            function: { name: '', arguments: '' },
+          }
+        }
+        const slot = state.toolCalls[tc.index]!
+        if (tc.id) slot.id = tc.id
+        if (tc.function?.name) slot.function.name = tc.function.name
+        if (tc.function?.arguments) slot.function.arguments += tc.function.arguments
+      }
+    }
+  } catch {
+    // 忽略无法解析的 chunk
+  }
+  return false
+}
+
 /** 构造请求体：tools 为空数组时不传 tools 字段；支持原生联网搜索参数 */
 function buildBody(
   messages: ChatMessage[],
   tools: ToolSpec[],
   config: ModelConfig,
-  stream: boolean
+  stream: boolean,
 ): Record<string, unknown> {
   const body: Record<string, unknown> = {
     model: config.model,
@@ -68,7 +116,7 @@ export async function streamChat(
   tools: ToolSpec[],
   config: ModelConfig,
   onDelta?: (text: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<StreamResult> {
   const useStream = config.stream !== false
 
@@ -134,9 +182,7 @@ export async function streamChat(
   const reader = response.body.getReader()
   const decoder = new TextDecoder('utf-8')
   let buffer = ''
-  let content = ''
-  const toolCalls: ToolCall[] = []
-  let finishReason = ''
+  const state: ParseState = { content: '', toolCalls: [], finishReason: '' }
 
   while (true) {
     const { done, value } = await reader.read()
@@ -152,38 +198,12 @@ export async function streamChat(
       for (const line of eventBlock.split('\n')) {
         const clean = line.replace(/\r/g, '')
         if (!clean.startsWith('data: ')) continue
-        const data = clean.slice(6)
-        if (data === '[DONE]') return { content, toolCalls, finishReason }
-
-        try {
-          const json = JSON.parse(data) as { choices?: Array<{ delta?: StreamDelta; finish_reason?: string }> }
-          const choice = json.choices?.[0]
-          const delta = choice?.delta
-          if (choice?.finish_reason) finishReason = choice.finish_reason
-          if (!delta) continue
-
-          if (delta.content) {
-            content += delta.content
-            onDelta?.(delta.content)
+        if (parseSseData(clean.slice(6), state, onDelta)) {
+          return {
+            content: state.content,
+            toolCalls: state.toolCalls,
+            finishReason: state.finishReason,
           }
-
-          if (delta.tool_calls) {
-            for (const tc of delta.tool_calls) {
-              if (!toolCalls[tc.index]) {
-                toolCalls[tc.index] = {
-                  id: '',
-                  type: 'function',
-                  function: { name: '', arguments: '' },
-                }
-              }
-              const slot = toolCalls[tc.index]!
-              if (tc.id) slot.id = tc.id
-              if (tc.function?.name) slot.function.name = tc.function.name
-              if (tc.function?.arguments) slot.function.arguments += tc.function.arguments
-            }
-          }
-        } catch {
-          // 忽略无法解析的 chunk
         }
       }
     }
@@ -194,40 +214,11 @@ export async function streamChat(
     for (const line of buffer.split('\n')) {
       const clean = line.replace(/\r/g, '')
       if (!clean.startsWith('data: ')) continue
-      const data = clean.slice(6)
-      if (data === '[DONE]') break
-      try {
-        const json = JSON.parse(data) as { choices?: Array<{ delta?: StreamDelta; finish_reason?: string }> }
-        const choice = json.choices?.[0]
-        const delta = choice?.delta
-        if (choice?.finish_reason) finishReason = choice.finish_reason
-        if (!delta) continue
-        if (delta.content) {
-          content += delta.content
-          onDelta?.(delta.content)
-        }
-        if (delta.tool_calls) {
-          for (const tc of delta.tool_calls) {
-            if (!toolCalls[tc.index]) {
-              toolCalls[tc.index] = {
-                id: '',
-                type: 'function',
-                function: { name: '', arguments: '' },
-              }
-            }
-            const slot = toolCalls[tc.index]!
-            if (tc.id) slot.id = tc.id
-            if (tc.function?.name) slot.function.name = tc.function.name
-            if (tc.function?.arguments) slot.function.arguments += tc.function.arguments
-          }
-        }
-      } catch {
-        // 忽略无法解析的 chunk
-      }
+      parseSseData(clean.slice(6), state, onDelta)
     }
   }
 
-  return { content, toolCalls, finishReason }
+  return { content: state.content, toolCalls: state.toolCalls, finishReason: state.finishReason }
 }
 
 /**
@@ -238,7 +229,7 @@ export async function chat(
   messages: ChatMessage[],
   tools: ToolSpec[],
   config: ModelConfig,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<{ content: string; toolCalls: ToolCall[] }> {
   let response: Response
   try {
@@ -306,9 +297,14 @@ const PROBE_TOOL: ToolSpec = {
  * 探针检测模型能力（vision / function calling / nativeSearch）
  * 通过发送真实 API 请求判断，不依赖模型名猜测
  */
-export async function probeCapabilities(
-  config: ModelConfig
-): Promise<{ vision: boolean; webSearch: boolean; nativeSearch: boolean; visionError?: string; webSearchError?: string; nativeSearchError?: string }> {
+export async function probeCapabilities(config: ModelConfig): Promise<{
+  vision: boolean
+  webSearch: boolean
+  nativeSearch: boolean
+  visionError?: string
+  webSearchError?: string
+  nativeSearchError?: string
+}> {
   // ===== Vision 探针：发送带图片的消息 =====
   let vision = false
   let visionError: string | undefined
@@ -324,7 +320,7 @@ export async function probeCapabilities(
         },
       ],
       [],
-      config
+      config,
     )
     vision = true
   } catch (e) {

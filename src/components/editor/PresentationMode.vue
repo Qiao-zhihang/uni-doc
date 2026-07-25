@@ -109,13 +109,16 @@ const slideBlocks = computed(() => slides.value[currentSlide.value] ?? [])
 
 // 切换幻灯片时重置滚动位置到顶部
 const slideContainerRef = ref<HTMLElement | null>(null)
-watch(() => currentSlide.value, () => {
-  nextTick(() => {
-    if (slideContainerRef.value) {
-      slideContainerRef.value.scrollTop = 0
-    }
-  })
-})
+watch(
+  () => currentSlide.value,
+  () => {
+    nextTick(() => {
+      if (slideContainerRef.value) {
+        slideContainerRef.value.scrollTop = 0
+      }
+    })
+  },
+)
 
 // 进度条
 const progress = computed(() => {
@@ -129,35 +132,33 @@ const progress = computed(() => {
     <!-- 幻灯片区域 -->
     <div ref="slideContainerRef" class="slide-container">
       <div class="slide-content" @click="onSlideClick">
-        <BlockRenderer
-          v-for="block in slideBlocks"
-          :key="block.id"
-          :block="block"
-        />
+        <BlockRenderer v-for="block in slideBlocks" :key="block.id" :block="block" />
       </div>
     </div>
 
     <!-- 左侧箭头 -->
-    <button
-      v-if="canPrev"
-      class="nav-arrow nav-arrow-prev"
-      title="上一页"
-      @click="prevSlide"
-    >
+    <button v-if="canPrev" class="nav-arrow nav-arrow-prev" title="上一页" @click="prevSlide">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-        <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path
+          d="M15 18l-6-6 6-6"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
       </svg>
     </button>
 
     <!-- 右侧箭头 -->
-    <button
-      v-if="canNext"
-      class="nav-arrow nav-arrow-next"
-      title="下一页"
-      @click="nextSlide"
-    >
+    <button v-if="canNext" class="nav-arrow nav-arrow-next" title="下一页" @click="nextSlide">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-        <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path
+          d="M9 18l6-6-6-6"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
       </svg>
     </button>
 
@@ -173,7 +174,12 @@ const progress = computed(() => {
       </div>
       <button class="exit-btn" title="退出演示 (Esc)" @click="emit('exit')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <path d="M19 19H5V5h14v14z M19 5l-14 14 M5 5l14 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path
+            d="M19 19H5V5h14v14z M19 5l-14 14 M5 5l14 14"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
         </svg>
         <span>退出</span>
       </button>

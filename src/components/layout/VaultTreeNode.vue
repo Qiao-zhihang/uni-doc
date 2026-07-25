@@ -38,15 +38,13 @@ const emit = defineEmits<{
 }>()
 
 const isExpanded = computed(() => props.expanded.has(props.node.path))
-const isActive = computed(
-  () => !props.node.isDir && props.openedPaths.has(props.node.path)
-)
+const isActive = computed(() => !props.node.isDir && props.openedPaths.has(props.node.path))
 /** 空文件夹:无 children 或 children.length === 0 */
 const isEmptyDir = computed(
-  () => props.node.isDir && (!props.node.children || props.node.children.length === 0)
+  () => props.node.isDir && (!props.node.children || props.node.children.length === 0),
 )
 const indentStyle = computed(() => ({
-  paddingLeft: `${8 + props.depth * 20}px`
+  paddingLeft: `${8 + props.depth * 20}px`,
 }))
 
 function onClick() {

@@ -26,7 +26,7 @@ export function useBreakpoint() {
     width: window.innerWidth,
     isMedium: false,
     isNarrow: false,
-    isDesktop: true
+    isDesktop: true,
   })
 
   function update() {
@@ -35,7 +35,7 @@ export function useBreakpoint() {
       width: w,
       isMedium: w >= 700 && w < 1000,
       isNarrow: w < 700,
-      isDesktop: w >= 1000
+      isDesktop: w >= 1000,
     }
   }
 

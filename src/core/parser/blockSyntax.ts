@@ -22,7 +22,7 @@ export function detectBlockSyntax(text: string): BlockSyntaxMatch | null {
       type: 'list',
       strippedText: taskMatch[2],
       props: { listType: 'task' },
-      extra: { checked: taskMatch[1].toLowerCase() === 'x' }
+      extra: { checked: taskMatch[1].toLowerCase() === 'x' },
     }
   }
 
@@ -32,7 +32,7 @@ export function detectBlockSyntax(text: string): BlockSyntaxMatch | null {
     return {
       type: 'heading',
       strippedText: headingMatch[2],
-      props: { level: headingMatch[1].length }
+      props: { level: headingMatch[1].length },
     }
   }
 
@@ -47,7 +47,7 @@ export function detectBlockSyntax(text: string): BlockSyntaxMatch | null {
     return {
       type: 'list',
       strippedText: orderedMatch[2],
-      props: { listType: 'ordered' }
+      props: { listType: 'ordered' },
     }
   }
 
@@ -57,7 +57,7 @@ export function detectBlockSyntax(text: string): BlockSyntaxMatch | null {
     return {
       type: 'list',
       strippedText: bulletMatch[1],
-      props: { listType: 'bullet' }
+      props: { listType: 'bullet' },
     }
   }
 
@@ -66,7 +66,7 @@ export function detectBlockSyntax(text: string): BlockSyntaxMatch | null {
   if (quoteMatch) {
     return {
       type: 'quote',
-      strippedText: quoteMatch[1]
+      strippedText: quoteMatch[1],
     }
   }
 
@@ -76,7 +76,7 @@ export function detectBlockSyntax(text: string): BlockSyntaxMatch | null {
     return {
       type: 'code_block',
       strippedText: '',
-      props: { language: codeFenceMatch[1] || 'plaintext' }
+      props: { language: codeFenceMatch[1] || 'plaintext' },
     }
   }
 
@@ -88,7 +88,7 @@ export function detectBlockSyntax(text: string): BlockSyntaxMatch | null {
       return {
         type: 'table',
         strippedText: '',
-        extra: { headers: cells }
+        extra: { headers: cells },
       }
     }
   }

@@ -7,7 +7,6 @@ import type { UserProfile, MemoryFact, MemoryCategory } from './types'
 import { MEMORY_CATEGORY_LABELS } from './types'
 import { useAiMemoryStore } from '@/stores/aiMemory'
 
-const MAX_INJECT_PROFILE = 600
 const MAX_INJECT_FACTS = 5
 const MAX_FACT_CONTENT_LENGTH = 500
 
@@ -27,9 +26,10 @@ export function buildMemoryInject(userInput: string): string {
     lines.push('# 相关记忆')
     relevantFacts.forEach((f, i) => {
       const label = MEMORY_CATEGORY_LABELS[f.category] ?? f.category
-      const truncated = f.content.length > MAX_FACT_CONTENT_LENGTH
-        ? f.content.slice(0, MAX_FACT_CONTENT_LENGTH) + '…'
-        : f.content
+      const truncated =
+        f.content.length > MAX_FACT_CONTENT_LENGTH
+          ? f.content.slice(0, MAX_FACT_CONTENT_LENGTH) + '…'
+          : f.content
       lines.push(`${i + 1}. [${label}] ${truncated}`)
     })
     lines.push('')
@@ -61,45 +61,25 @@ function buildProfileSection(profile: UserProfile): string {
   return parts.join('\n')
 }
 
-const PROFILE_FIELD_MAP: Record<string, keyof UserProfile> = {
-  name: 'name',
-  '姓名': 'name',
-  alias: 'aliases',
-  '别称': 'aliases',
-  '叫': 'aliases',
-  style: 'writingStyle',
-  '风格': 'writingStyle',
-  '偏好': 'formatPreferences',
-  '喜欢': 'formatPreferences',
-  theme: 'themes',
-  '主题': 'themes',
-  '关注': 'themes',
-  tech: 'techStack',
-  '技术': 'techStack',
-  'tech stack': 'techStack',
-  note: 'notes',
-  '备注': 'notes',
-}
-
 const FACT_CATEGORY_MAP: Record<string, MemoryCategory> = {
   personal: 'personal',
-  '个人': 'personal',
-  '个人信息': 'personal',
+  个人: 'personal',
+  个人信息: 'personal',
   project: 'project',
-  '项目': 'project',
+  项目: 'project',
   knowledge: 'knowledge',
-  '知识': 'knowledge',
+  知识: 'knowledge',
   preference: 'preference',
-  '偏好': 'preference',
+  偏好: 'preference',
   other: 'other',
-  '其他': 'other',
+  其他: 'other',
 }
 
 export function parseAndSaveFact(
   content: string,
   categoryHint?: string,
   tagsHint?: string[],
-  source: string = 'agent'
+  source: string = 'agent',
 ): MemoryFact | null {
   const memoryStore = useAiMemoryStore()
 
@@ -110,9 +90,7 @@ export function parseAndSaveFact(
     category = detectCategory(content)
   }
 
-  const tags = tagsHint && tagsHint.length > 0
-    ? tagsHint
-    : extractTags(content, category)
+  const tags = tagsHint && tagsHint.length > 0 ? tagsHint : extractTags(content, category)
 
   return memoryStore.addFact(content, category, tags, source)
 }
@@ -128,7 +106,18 @@ function detectCategory(content: string): MemoryCategory {
 function extractTags(content: string, category: MemoryCategory): string[] {
   const tags: string[] = [MEMORY_CATEGORY_LABELS[category]]
 
-  const techKeywords = ['TypeScript', 'Vue', 'Rust', 'Tauri', 'React', 'Python', 'Node.js', 'Go', '代码', '编程']
+  const techKeywords = [
+    'TypeScript',
+    'Vue',
+    'Rust',
+    'Tauri',
+    'React',
+    'Python',
+    'Node.js',
+    'Go',
+    '代码',
+    '编程',
+  ]
   for (const kw of techKeywords) {
     if (content.includes(kw)) tags.push(kw)
   }
@@ -136,7 +125,9 @@ function extractTags(content: string, category: MemoryCategory): string[] {
   return tags
 }
 
-export function extractProfileFromConversation(userMessages: string[]): Partial<UserProfile> | null {
+export function extractProfileFromConversation(
+  userMessages: string[],
+): Partial<UserProfile> | null {
   const updates: Partial<UserProfile> = {}
   let found = false
 

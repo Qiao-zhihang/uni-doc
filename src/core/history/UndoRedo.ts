@@ -64,7 +64,7 @@ export class UndoRedo {
     const snapshot: HistorySnapshot = {
       blocks: this.cloneBlocks(blocks),
       label,
-      timestamp: now
+      timestamp: now,
     }
     this.undoStack.push(snapshot)
     // 超出上限丢弃最早历史
@@ -83,7 +83,7 @@ export class UndoRedo {
     this.redoStack.push({
       blocks: this.cloneBlocks(current),
       label: '当前',
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
     return this.undoStack.pop() ?? null
   }
@@ -97,7 +97,7 @@ export class UndoRedo {
     this.undoStack.push({
       blocks: this.cloneBlocks(current),
       label: '当前',
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
     return this.redoStack.pop() ?? null
   }
@@ -108,8 +108,8 @@ export class UndoRedo {
       {
         blocks: this.cloneBlocks(blocks),
         label,
-        timestamp: Date.now()
-      }
+        timestamp: Date.now(),
+      },
     ]
     this.redoStack = []
   }

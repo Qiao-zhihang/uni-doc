@@ -58,13 +58,13 @@ export const useAiConversationStore = defineStore('aiConversation', () => {
   let saveTimer: ReturnType<typeof setTimeout> | null = null
 
   /** 当前活跃会话 */
-  const activeConversation = computed(() =>
-    conversations.value.find((c) => c.id === activeConversationId.value) ?? null
+  const activeConversation = computed(
+    () => conversations.value.find((c) => c.id === activeConversationId.value) ?? null,
   )
 
   /** 按最后更新时间降序排列的会话列表 */
   const sortedConversations = computed(() =>
-    [...conversations.value].sort((a, b) => b.updatedAt - a.updatedAt)
+    [...conversations.value].sort((a, b) => b.updatedAt - a.updatedAt),
   )
 
   /** 创建新会话，返回新会话 ID */
@@ -92,9 +92,10 @@ export const useAiConversationStore = defineStore('aiConversation', () => {
     conversations.value.splice(idx, 1)
     // 如果删除的是活跃会话，切换到列表第一个（或 null）
     if (activeConversationId.value === id) {
-      activeConversationId.value = conversations.value.length > 0
-        ? [...conversations.value].sort((a, b) => b.updatedAt - a.updatedAt)[0].id
-        : null
+      activeConversationId.value =
+        conversations.value.length > 0
+          ? [...conversations.value].sort((a, b) => b.updatedAt - a.updatedAt)[0].id
+          : null
     }
     save()
   }
@@ -123,9 +124,13 @@ export const useAiConversationStore = defineStore('aiConversation', () => {
     conv.updatedAt = Date.now()
     // 如果是第一条用户消息，更新标题
     if (message.role === 'user' && conv.title === '新对话') {
-      const text = typeof message.content === 'string'
-        ? message.content
-        : message.content.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text).join(' ')
+      const text =
+        typeof message.content === 'string'
+          ? message.content
+          : message.content
+              .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+              .map((p) => p.text)
+              .join(' ')
       conv.title = text.slice(0, 20) || '新对话'
     }
     save()
@@ -229,10 +234,14 @@ export const useAiConversationStore = defineStore('aiConversation', () => {
         }))
         activeConversationId.value = parsed.activeConversationId ?? null
         // 如果活跃会话 ID 无效，切到第一个
-        if (activeConversationId.value && !conversations.value.find((c) => c.id === activeConversationId.value)) {
-          activeConversationId.value = conversations.value.length > 0
-            ? [...conversations.value].sort((a, b) => b.updatedAt - a.updatedAt)[0].id
-            : null
+        if (
+          activeConversationId.value &&
+          !conversations.value.find((c) => c.id === activeConversationId.value)
+        ) {
+          activeConversationId.value =
+            conversations.value.length > 0
+              ? [...conversations.value].sort((a, b) => b.updatedAt - a.updatedAt)[0].id
+              : null
         }
       } else {
         // 尝试从旧版历史迁移

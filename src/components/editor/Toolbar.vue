@@ -29,7 +29,7 @@ import {
   Flag,
   Play,
   Settings,
-  X
+  X,
 } from 'lucide-vue-next'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
@@ -67,7 +67,7 @@ const headingOptions = [
   { label: '标题 3', type: 'heading' as BlockType, level: 3 },
   { label: '标题 4', type: 'heading' as BlockType, level: 4 },
   { label: '标题 5', type: 'heading' as BlockType, level: 5 },
-  { label: '标题 6', type: 'heading' as BlockType, level: 6 }
+  { label: '标题 6', type: 'heading' as BlockType, level: 6 },
 ]
 
 const selectedBlock = computed(() => {
@@ -137,38 +137,57 @@ function insertAfter(type: BlockType, listType?: ListType) {
 function toggleMark(markType: 'bold' | 'italic' | 'underline' | 'strikethrough') {
   const b = selectedBlock.value
   if (!b || (b.type !== 'paragraph' && b.type !== 'heading')) return
-  const content = b.content as { text: string; marks: { type: string; start: number; end: number }[] }
+  const content = b.content as {
+    text: string
+    marks: { type: string; start: number; end: number }[]
+  }
   const marks = content.marks ?? []
   // 无文本时:插入空 mark 占位(start=end=0),作为"后续输入应用此格式"的信号
   if (content.text.length === 0) {
     const existing = marks.find((m) => m.type === markType && m.start === 0 && m.end === 0)
     if (existing) {
-      doc.updateBlock(b.id, {
-        content: { text: content.text, marks: marks.filter((m) => m !== existing) }
-      }, `取消${markType}`)
+      doc.updateBlock(
+        b.id,
+        {
+          content: { text: content.text, marks: marks.filter((m) => m !== existing) },
+        },
+        `取消${markType}`,
+      )
     } else {
-      doc.updateBlock(b.id, {
-        content: {
-          text: content.text,
-          marks: [...marks, { type: markType, start: 0, end: 0 }]
-        }
-      }, `应用${markType}`)
+      doc.updateBlock(
+        b.id,
+        {
+          content: {
+            text: content.text,
+            marks: [...marks, { type: markType, start: 0, end: 0 }],
+          },
+        },
+        `应用${markType}`,
+      )
     }
     return
   }
   // 有文本:对全文应用标记
   const existing = marks.find((m) => m.type === markType)
   if (existing) {
-    doc.updateBlock(b.id, {
-      content: { text: content.text, marks: marks.filter((m) => m !== existing) }
-    }, `取消${markType}`)
+    doc.updateBlock(
+      b.id,
+      {
+        content: { text: content.text, marks: marks.filter((m) => m !== existing) },
+      },
+      `取消${markType}`,
+    )
   } else {
-    doc.updateBlock(b.id, {
-      content: {
-        text: content.text,
-        marks: [...marks, { type: markType, start: 0, end: content.text.length }]
-      }
-    }, `应用${markType}`)
+    doc.updateBlock(
+      b.id,
+      {
+        content: {
+          text: content.text,
+          marks: [...marks, { type: markType, start: 0, end: content.text.length }],
+        },
+      },
+      `应用${markType}`,
+    )
   }
 }
 
@@ -183,7 +202,9 @@ function handleMarkMilestone() {
   if (!replay.config.enabled) return
   replay.markMilestone('里程碑')
   milestoneAnimating.value = true
-  setTimeout(() => { milestoneAnimating.value = false }, 800)
+  setTimeout(() => {
+    milestoneAnimating.value = false
+  }, 800)
 }
 
 function openReplaySettings() {
@@ -212,10 +233,20 @@ function handleEnterReplay() {
       <button class="tool-btn" title="斜体" :disabled="!hasActiveTab" @click="toggleMark('italic')">
         <Italic :size="16" />
       </button>
-      <button class="tool-btn" title="下划线" :disabled="!hasActiveTab" @click="toggleMark('underline')">
+      <button
+        class="tool-btn"
+        title="下划线"
+        :disabled="!hasActiveTab"
+        @click="toggleMark('underline')"
+      >
         <Underline :size="16" />
       </button>
-      <button class="tool-btn" title="删除线" :disabled="!hasActiveTab" @click="toggleMark('strikethrough')">
+      <button
+        class="tool-btn"
+        title="删除线"
+        :disabled="!hasActiveTab"
+        @click="toggleMark('strikethrough')"
+      >
         <Strikethrough :size="16" />
       </button>
     </div>
@@ -244,13 +275,28 @@ function handleEnterReplay() {
 
     <!-- 列表组 -->
     <div class="group" @click.stop>
-      <button class="tool-btn" title="无序列表" :disabled="!hasActiveTab" @click="insertAfter('list', 'bullet')">
+      <button
+        class="tool-btn"
+        title="无序列表"
+        :disabled="!hasActiveTab"
+        @click="insertAfter('list', 'bullet')"
+      >
         <List :size="16" />
       </button>
-      <button class="tool-btn" title="有序列表" :disabled="!hasActiveTab" @click="insertAfter('list', 'ordered')">
+      <button
+        class="tool-btn"
+        title="有序列表"
+        :disabled="!hasActiveTab"
+        @click="insertAfter('list', 'ordered')"
+      >
         <ListOrdered :size="16" />
       </button>
-      <button class="tool-btn" title="任务列表" :disabled="!hasActiveTab" @click="insertAfter('list', 'task')">
+      <button
+        class="tool-btn"
+        title="任务列表"
+        :disabled="!hasActiveTab"
+        @click="insertAfter('list', 'task')"
+      >
         <ListChecks :size="16" />
       </button>
     </div>
@@ -266,22 +312,28 @@ function handleEnterReplay() {
       </button>
       <div v-if="showInsertMenu && hasActiveTab" class="menu">
         <button class="menu-item" @click="insertAfter('image')">
-          <Image :size="14" /> 图片
+          <Image :size="14" />
+          图片
         </button>
         <button class="menu-item" @click="insertAfter('table')">
-          <Table :size="14" /> 表格
+          <Table :size="14" />
+          表格
         </button>
         <button class="menu-item" @click="insertAfter('code_block')">
-          <Code :size="14" /> 代码块
+          <Code :size="14" />
+          代码块
         </button>
         <button class="menu-item" @click="insertAfter('quote')">
-          <SeparatorHorizontal :size="14" /> 引用
+          <SeparatorHorizontal :size="14" />
+          引用
         </button>
         <button class="menu-item" @click="insertAfter('divider')">
-          <SeparatorHorizontal :size="14" /> 分割线
+          <SeparatorHorizontal :size="14" />
+          分割线
         </button>
         <button class="menu-item" @click="insertAfter('page_break')">
-          <SeparatorHorizontal :size="14" /> 分页符
+          <SeparatorHorizontal :size="14" />
+          分页符
         </button>
       </div>
     </div>
@@ -314,7 +366,12 @@ function handleEnterReplay() {
 
     <!-- 文件操作 -->
     <div class="group" @click.stop>
-      <button class="tool-btn" title="保存为 .md(Ctrl+S)" :disabled="!hasActiveTab" @click="doc.saveToFile()">
+      <button
+        class="tool-btn"
+        title="保存为 .md(Ctrl+S)"
+        :disabled="!hasActiveTab"
+        @click="doc.saveToFile()"
+      >
         <Save :size="16" />
       </button>
     </div>
@@ -412,7 +469,14 @@ function handleEnterReplay() {
                 min="0"
                 max="3600"
                 :value="replay.config.autoIntervalSec"
-                @change="replay.updateConfig({ autoIntervalSec: Math.max(0, parseInt(($event.target as HTMLInputElement).value) || 0) })"
+                @change="
+                  replay.updateConfig({
+                    autoIntervalSec: Math.max(
+                      0,
+                      parseInt(($event.target as HTMLInputElement).value) || 0,
+                    ),
+                  })
+                "
               />
               <span class="unit">秒 (0=不自动)</span>
             </div>
@@ -578,8 +642,14 @@ function handleEnterReplay() {
   animation: flash 0.6s ease;
 }
 @keyframes flash {
-  0% { background: var(--primary); color: var(--primary-foreground); }
-  100% { background: transparent; color: var(--foreground); }
+  0% {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+  100% {
+    background: transparent;
+    color: var(--foreground);
+  }
 }
 .history-menu {
   right: 0;
@@ -601,9 +671,16 @@ function handleEnterReplay() {
   animation: flagBounce 0.6s ease;
 }
 @keyframes flagBounce {
-  0%, 100% { transform: translateY(0); }
-  30% { transform: translateY(-4px) scale(1.1); }
-  60% { transform: translateY(1px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-4px) scale(1.1);
+  }
+  60% {
+    transform: translateY(1px);
+  }
 }
 
 /* 回放设置弹窗 */

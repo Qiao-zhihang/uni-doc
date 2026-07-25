@@ -9,10 +9,7 @@ import 'katex/dist/katex.min.css'
 
 /** 转义 HTML 特殊字符,防止注入 */
 function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 /** 用 KaTeX 渲染数学公式为 HTML 字符串 */
@@ -21,7 +18,7 @@ function renderMath(tex: string, displayMode: boolean): string {
     return katex.renderToString(tex, {
       displayMode,
       throwOnError: false,
-      output: 'html'
+      output: 'html',
     })
   } catch {
     return escapeHtml(tex)
@@ -56,7 +53,7 @@ function dedupMarks(marks: Mark[]): Mark[] {
       tag: (mark as any).tag,
       attrs: (mark as any).attrs,
       selfClosing: (mark as any).selfClosing,
-      displayMode: (mark as any).displayMode
+      displayMode: (mark as any).displayMode,
     })
     if (seen.has(key)) continue
     seen.add(key)
@@ -78,7 +75,8 @@ function buildEvents(marks: Mark[], textLen: number): MarkEvent[] {
   const events: MarkEvent[] = []
   marks.forEach((mark, idx) => {
     // selfClosing 标记:html(自闭合标签)和 image(单点占位)
-    const isSelfClosing = mark.selfClosing === true || (mark.type === 'html' && mark.start === mark.end)
+    const isSelfClosing =
+      mark.selfClosing === true || (mark.type === 'html' && mark.start === mark.end)
     // 跳过无效标记
     if (mark.start < 0 || mark.end > textLen) return
     if (!isSelfClosing && mark.start >= mark.end) return
@@ -111,17 +109,28 @@ function buildEvents(marks: Mark[], textLen: number): MarkEvent[] {
 /** 获取 mark 的源码前缀(编辑态显示) */
 function getSourcePrefix(mark: Mark): string {
   switch (mark.type) {
-    case 'bold': return '**'
-    case 'italic': return '*'
-    case 'strikethrough': return '~~'
-    case 'code': return '`'
-    case 'underline': return '<u>'
-    case 'link': return '['
-    case 'image': return mark.selfClosing ? `![${mark.alt ?? ''}](${mark.href ?? ''})` : '!['
-    case 'highlight': return '=='
-    case 'superscript': return '^'
-    case 'subscript': return '~'
-    case 'math': return mark.displayMode ? '$$' : '$'
+    case 'bold':
+      return '**'
+    case 'italic':
+      return '*'
+    case 'strikethrough':
+      return '~~'
+    case 'code':
+      return '`'
+    case 'underline':
+      return '<u>'
+    case 'link':
+      return '['
+    case 'image':
+      return mark.selfClosing ? `![${mark.alt ?? ''}](${mark.href ?? ''})` : '!['
+    case 'highlight':
+      return '=='
+    case 'superscript':
+      return '^'
+    case 'subscript':
+      return '~'
+    case 'math':
+      return mark.displayMode ? '$$' : '$'
     case 'wikilink': {
       const target = mark.target ?? ''
       const alias = mark.alias ?? ''
@@ -134,70 +143,112 @@ function getSourcePrefix(mark: Mark): string {
       const attrs = mark.attrs ? ` ${mark.attrs}` : ''
       return mark.selfClosing ? `<${mark.tag}${attrs}/>` : `<${mark.tag}${attrs}>`
     }
-    default: return ''
+    default:
+      return ''
   }
 }
 
 /** 获取 mark 的源码后缀(编辑态显示) */
 function getSourceSuffix(mark: Mark): string {
   switch (mark.type) {
-    case 'bold': return '**'
-    case 'italic': return '*'
-    case 'strikethrough': return '~~'
-    case 'code': return '`'
-    case 'underline': return '</u>'
-    case 'link': return `](${mark.href ?? ''})`
-    case 'image': return mark.selfClosing ? '' : `](${mark.href ?? ''})`
-    case 'highlight': return '=='
-    case 'superscript': return '^'
-    case 'subscript': return '~'
-    case 'math': return mark.displayMode ? '$$' : '$'
-    case 'wikilink': return ']]'
-    case 'html': return mark.selfClosing ? '' : `</${mark.tag}>`
-    default: return ''
+    case 'bold':
+      return '**'
+    case 'italic':
+      return '*'
+    case 'strikethrough':
+      return '~~'
+    case 'code':
+      return '`'
+    case 'underline':
+      return '</u>'
+    case 'link':
+      return `](${mark.href ?? ''})`
+    case 'image':
+      return mark.selfClosing ? '' : `](${mark.href ?? ''})`
+    case 'highlight':
+      return '=='
+    case 'superscript':
+      return '^'
+    case 'subscript':
+      return '~'
+    case 'math':
+      return mark.displayMode ? '$$' : '$'
+    case 'wikilink':
+      return ']]'
+    case 'html':
+      return mark.selfClosing ? '' : `</${mark.tag}>`
+    default:
+      return ''
   }
 }
 
 /** 获取 mark 的 HTML 前缀(阅读态显示) */
 function getHtmlPrefix(mark: Mark): string {
   switch (mark.type) {
-    case 'bold': return '<strong>'
-    case 'italic': return '<em>'
-    case 'strikethrough': return '<del>'
-    case 'code': return '<code class="inline-code">'
-    case 'underline': return '<u>'
-    case 'link': return `<a href="${escapeHtml(mark.href ?? '#')}" target="_blank" rel="noopener noreferrer" class="md-link">`
-    case 'image': return `<img src="${escapeHtml(mark.href ?? '')}" alt="${escapeHtml(mark.alt ?? '')}" class="md-image" />`
-    case 'highlight': return '<mark class="md-highlight">'
-    case 'superscript': return '<sup>'
-    case 'subscript': return '<sub>'
-    case 'wikilink': return `<a class="md-wikilink" data-target="${escapeHtml(mark.target ?? '')}">`
-    case 'math': return ''
+    case 'bold':
+      return '<strong>'
+    case 'italic':
+      return '<em>'
+    case 'strikethrough':
+      return '<del>'
+    case 'code':
+      return '<code class="inline-code">'
+    case 'underline':
+      return '<u>'
+    case 'link':
+      return `<a href="${escapeHtml(mark.href ?? '#')}" target="_blank" rel="noopener noreferrer" class="md-link">`
+    case 'image':
+      return `<img src="${escapeHtml(mark.href ?? '')}" alt="${escapeHtml(mark.alt ?? '')}" class="md-image" />`
+    case 'highlight':
+      return '<mark class="md-highlight">'
+    case 'superscript':
+      return '<sup>'
+    case 'subscript':
+      return '<sub>'
+    case 'wikilink':
+      return `<a class="md-wikilink" data-target="${escapeHtml(mark.target ?? '')}">`
+    case 'math':
+      return ''
     case 'html': {
       const attrs = mark.attrs ? ` ${mark.attrs}` : ''
       return mark.selfClosing ? `<${mark.tag}${attrs} />` : `<${mark.tag}${attrs}>`
     }
-    default: return ''
+    default:
+      return ''
   }
 }
 
 /** 获取 mark 的 HTML 后缀(阅读态显示) */
 function getHtmlSuffix(mark: Mark): string {
   switch (mark.type) {
-    case 'bold': return '</strong>'
-    case 'italic': return '</em>'
-    case 'strikethrough': return '</del>'
-    case 'code': return '</code>'
-    case 'underline': return '</u>'
-    case 'link': return '</a>'
-    case 'image': return ''
-    case 'highlight': return '</mark>'
-    case 'superscript': return '</sup>'
-    case 'subscript': return '</sub>'
-    case 'wikilink': return '</a>'
-    case 'math': return ''
-    case 'html': return mark.selfClosing ? '' : `</${mark.tag}>`
-    default: return ''
+    case 'bold':
+      return '</strong>'
+    case 'italic':
+      return '</em>'
+    case 'strikethrough':
+      return '</del>'
+    case 'code':
+      return '</code>'
+    case 'underline':
+      return '</u>'
+    case 'link':
+      return '</a>'
+    case 'image':
+      return ''
+    case 'highlight':
+      return '</mark>'
+    case 'superscript':
+      return '</sup>'
+    case 'subscript':
+      return '</sub>'
+    case 'wikilink':
+      return '</a>'
+    case 'math':
+      return ''
+    case 'html':
+      return mark.selfClosing ? '' : `</${mark.tag}>`
+    default:
+      return ''
   }
 }
 
@@ -243,7 +294,10 @@ export function marksToHtml(text: string, marks: Mark[] = []): string {
     }
     if (evt.kind === 'open') {
       if (evt.mark.type === 'math') {
-        result += renderMath(text.slice(evt.mark.start, evt.mark.end), evt.mark.displayMode ?? false)
+        result += renderMath(
+          text.slice(evt.mark.start, evt.mark.end),
+          evt.mark.displayMode ?? false,
+        )
         cursor = evt.mark.end
       } else {
         result += getHtmlPrefix(evt.mark)
@@ -256,7 +310,10 @@ export function marksToHtml(text: string, marks: Mark[] = []): string {
       }
     } else if (evt.kind === 'self') {
       if (evt.mark.type === 'math') {
-        result += renderMath(text.slice(evt.mark.start, evt.mark.end), evt.mark.displayMode ?? false)
+        result += renderMath(
+          text.slice(evt.mark.start, evt.mark.end),
+          evt.mark.displayMode ?? false,
+        )
         cursor = evt.mark.end
       } else {
         result += getHtmlPrefix(evt.mark)

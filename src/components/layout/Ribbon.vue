@@ -5,14 +5,7 @@
  * 48px 宽,顶部功能切换 + 底部系统操作
  */
 import { computed } from 'vue'
-import {
-  FileText,
-  Search,
-  List,
-  Sun,
-  Moon,
-  Settings
-} from 'lucide-vue-next'
+import { FileText, Search, List, Sun, Moon, Settings } from 'lucide-vue-next'
 import { useEditorStore } from '@/stores/editor'
 import { useThemeStore } from '@/stores/theme'
 import { useRouter } from 'vue-router'
@@ -41,11 +34,7 @@ function goToSettings() {
       >
         <FileText :size="20" />
       </button>
-      <button
-        class="ribbon-btn"
-        title="搜索 (Ctrl+P)"
-        @click=""
-      >
+      <button class="ribbon-btn" title="搜索 (Ctrl+P)" @click="">
         <Search :size="20" />
       </button>
       <button
@@ -68,19 +57,11 @@ function goToSettings() {
       >
         <img :src="AiIconUrl" class="ai-btn-icon" alt="UU鲨" />
       </button>
-      <button
-        class="ribbon-btn"
-        :title="isDark ? '切换浅色' : '切换深色'"
-        @click="theme.toggle()"
-      >
+      <button class="ribbon-btn" :title="isDark ? '切换浅色' : '切换深色'" @click="theme.toggle()">
         <Moon v-if="!isDark" :size="20" />
         <Sun v-else :size="20" />
       </button>
-      <button
-        class="ribbon-btn"
-        title="设置"
-        @click="goToSettings"
-      >
+      <button class="ribbon-btn" title="设置" @click="goToSettings">
         <Settings :size="20" />
       </button>
     </div>
@@ -115,7 +96,9 @@ function goToSettings() {
   height: 36px;
   border-radius: var(--radius-button);
   color: var(--muted-foreground);
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 .ribbon-btn:hover {
   background: var(--sidebar-accent);

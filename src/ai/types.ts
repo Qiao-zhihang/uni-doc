@@ -6,8 +6,14 @@
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool'
 
 /** 多模态内容块（用于图片理解等场景） */
-export interface TextContent { type: 'text'; text: string }
-export interface ImageUrlContent { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } }
+export interface TextContent {
+  type: 'text'
+  text: string
+}
+export interface ImageUrlContent {
+  type: 'image_url'
+  image_url: { url: string; detail?: 'low' | 'high' | 'auto' }
+}
 export type MessageContent = TextContent | ImageUrlContent
 
 export interface ToolCall {
@@ -25,13 +31,16 @@ export interface ChatMessage {
 
 export interface ToolParameterSchema {
   type: 'object'
-  properties: Record<string, {
-    type: string
-    description?: string
-    enum?: string[]
-    items?: { type: string }
-    default?: unknown
-  }>
+  properties: Record<
+    string,
+    {
+      type: string
+      description?: string
+      enum?: string[]
+      items?: { type: string }
+      default?: unknown
+    }
+  >
   required?: string[]
 }
 

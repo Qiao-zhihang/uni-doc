@@ -24,7 +24,7 @@ import {
   Pencil,
   Trash2,
   Copy,
-  Library
+  Library,
 } from 'lucide-vue-next'
 import { useDocumentStore } from '@/stores/document'
 import { useVaultStore } from '@/stores/vault'
@@ -38,7 +38,7 @@ import {
   deleteVaultEntry,
   createVaultFile,
   copyPathToClipboard,
-  type VaultNode
+  type VaultNode,
 } from '@/core/vault/vault'
 
 const doc = useDocumentStore()
@@ -57,7 +57,7 @@ const menu = ref<{ visible: boolean; x: number; y: number; node: VaultNode | nul
   visible: false,
   x: 0,
   y: 0,
-  node: null
+  node: null,
 })
 
 const hasVault = computed(() => doc.vaultRoot !== null)
@@ -91,7 +91,7 @@ watch(
       tree.value = []
       expanded.value = new Set()
     }
-  }
+  },
 )
 
 /** 监听 vaultTreeTick 变化,AI 创建/删除文件后自动刷新文件树 */
@@ -101,7 +101,7 @@ watch(
     if (doc.vaultRoot) {
       void refreshTree()
     }
-  }
+  },
 )
 
 /** 组件挂载时若已有 vaultRoot(如从设置返回),自动重新加载文件树 */
@@ -318,7 +318,7 @@ function closeMenu() {
       <span class="title">
         {{ hasVault ? (doc.vaultRoot?.split(/[\\/]/).pop() ?? 'vault') : 'uni-doc' }}
       </span>
-      <div class="actions" v-if="hasVault">
+      <div v-if="hasVault" class="actions">
         <button class="icon-btn" title="新建文件" @click="newFileAtRoot">
           <FilePlus :size="14" />
         </button>
@@ -562,7 +562,9 @@ function closeMenu() {
   color: var(--muted-foreground);
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
 }
 .vault-manager-bar:hover {
   background: var(--sidebar-accent);

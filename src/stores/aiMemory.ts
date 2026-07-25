@@ -40,7 +40,7 @@ export const useAiMemoryStore = defineStore('aiMemory', () => {
     category: MemoryCategory = 'knowledge',
     tags: string[] = [],
     source: string = 'unknown',
-    importance: number = 0.5
+    importance: number = 0.5,
   ): MemoryFact {
     const now = Date.now()
     const fact: MemoryFact = {
@@ -87,10 +87,16 @@ export const useAiMemoryStore = defineStore('aiMemory', () => {
 
   function searchFacts(query: string, maxResults: number = 10): MemoryFact[] {
     const now = Date.now()
-    const keywords = query.toLowerCase().split(/\s+/).filter((k) => k.length > 1)
+    const keywords = query
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((k) => k.length > 1)
     if (keywords.length === 0) {
       return [...memory.value.facts]
-        .sort((a, b) => b.importance * 0.5 + b.accessCount * 0.1 - (a.importance * 0.5 + a.accessCount * 0.1))
+        .sort(
+          (a, b) =>
+            b.importance * 0.5 + b.accessCount * 0.1 - (a.importance * 0.5 + a.accessCount * 0.1),
+        )
         .slice(0, maxResults)
     }
 
@@ -133,8 +139,14 @@ export const useAiMemoryStore = defineStore('aiMemory', () => {
 
     if (memory.value.facts.length > MAX_FACTS) {
       memory.value.facts.sort((a, b) => {
-        const scoreA = a.importance + Math.min(a.accessCount * 0.1, 1) - (now - a.lastAccessedAt) / (1000 * 60 * 60 * 24 * 365)
-        const scoreB = b.importance + Math.min(b.accessCount * 0.1, 1) - (now - b.lastAccessedAt) / (1000 * 60 * 60 * 24 * 365)
+        const scoreA =
+          a.importance +
+          Math.min(a.accessCount * 0.1, 1) -
+          (now - a.lastAccessedAt) / (1000 * 60 * 60 * 24 * 365)
+        const scoreB =
+          b.importance +
+          Math.min(b.accessCount * 0.1, 1) -
+          (now - b.lastAccessedAt) / (1000 * 60 * 60 * 24 * 365)
         return scoreA - scoreB
       })
       const excess = memory.value.facts.length - MAX_FACTS
@@ -205,13 +217,15 @@ export const useAiMemoryStore = defineStore('aiMemory', () => {
         memory.value = {
           version: parsed.version ?? 1,
           profile: parsed.profile ?? {},
-          facts: (parsed.facts ?? []).filter((f) => f && f.content).map((f) => ({
-            ...f,
-            lastAccessedAt: f.lastAccessedAt ?? f.createdAt ?? Date.now(),
-            accessCount: f.accessCount ?? 0,
-            confidence: f.confidence ?? 1,
-            importance: f.importance ?? 0.5,
-          })),
+          facts: (parsed.facts ?? [])
+            .filter((f) => f && f.content)
+            .map((f) => ({
+              ...f,
+              lastAccessedAt: f.lastAccessedAt ?? f.createdAt ?? Date.now(),
+              accessCount: f.accessCount ?? 0,
+              confidence: f.confidence ?? 1,
+              importance: f.importance ?? 0.5,
+            })),
           updatedAt: parsed.updatedAt ?? 0,
         }
         cleanup()

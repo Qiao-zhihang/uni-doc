@@ -85,15 +85,22 @@ watch(
     }
     nextTick(render)
   },
-  { deep: true }
+  { deep: true },
 )
 
-watch(() => doc.renderTick, () => {
-  nextTick(() => requestAnimationFrame(render))
-})
+watch(
+  () => doc.renderTick,
+  () => {
+    nextTick(() => requestAnimationFrame(render))
+  },
+)
 
 // props 变化(align)时重新渲染
-watch(() => props.block.props, () => nextTick(render), { deep: true })
+watch(
+  () => props.block.props,
+  () => nextTick(render),
+  { deep: true },
+)
 
 function commitWithMarks(text: string) {
   if (!el.value) return
@@ -102,8 +109,8 @@ function commitWithMarks(text: string) {
   emit('update', {
     content: {
       text: parsed.text,
-      marks: parsed.marks
-    }
+      marks: parsed.marks,
+    },
   })
 }
 
@@ -230,16 +237,20 @@ async function onPaste(e: ClipboardEvent) {
         commitWithMarks(el.value?.innerText || '')
         await nextTick()
         const newId = doc.insertBlockAfter(props.block.id, 'image', '粘贴图片')
-        doc.updateBlock(newId, {
-          content: { src: rel, alt: '' },
-          props: { align: 'center', width: 100 }
-        }, '更新图片属性')
+        doc.updateBlock(
+          newId,
+          {
+            content: { src: rel, alt: '' },
+            props: { align: 'center', width: 100 },
+          },
+          '更新图片属性',
+        )
       } else {
         selfUpdate.value = true
         emit('update', {
           type: 'image',
           content: { src: rel, alt: '' },
-          props: { align: 'center', width: 100 }
+          props: { align: 'center', width: 100 },
         })
       }
       return
@@ -285,10 +296,18 @@ async function onPaste(e: ClipboardEvent) {
   word-break: break-word;
   overflow-wrap: break-word;
 }
-.align-left { text-align: left; }
-.align-center { text-align: center; }
-.align-right { text-align: right; }
-.align-justify { text-align: justify; }
+.align-left {
+  text-align: left;
+}
+.align-center {
+  text-align: center;
+}
+.align-right {
+  text-align: right;
+}
+.align-justify {
+  text-align: justify;
+}
 :deep(.inline-code) {
   font-family: var(--font-mono);
   font-size: 0.9em;
@@ -296,8 +315,22 @@ async function onPaste(e: ClipboardEvent) {
   border-radius: 4px;
   background: var(--secondary);
 }
-:deep(.md-link) { color: var(--brand-500); text-decoration: underline; }
-:deep(.md-wikilink) { color: var(--brand-500); text-decoration: underline; cursor: pointer; }
-:deep(.md-image) { max-width: 100%; border-radius: 4px; }
-:deep(.md-highlight) { background: rgba(255, 235, 59, 0.3); padding: 0 2px; border-radius: 2px; }
+:deep(.md-link) {
+  color: var(--brand-500);
+  text-decoration: underline;
+}
+:deep(.md-wikilink) {
+  color: var(--brand-500);
+  text-decoration: underline;
+  cursor: pointer;
+}
+:deep(.md-image) {
+  max-width: 100%;
+  border-radius: 4px;
+}
+:deep(.md-highlight) {
+  background: rgba(255, 235, 59, 0.3);
+  padding: 0 2px;
+  border-radius: 2px;
+}
 </style>

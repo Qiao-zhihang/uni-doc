@@ -11,7 +11,7 @@ import {
   getStoredTheme,
   initTheme,
   toggleTheme as toggleThemeFn,
-  type ThemeMode
+  type ThemeMode,
 } from '@/core/theme/theme'
 
 export const useThemeStore = defineStore('theme', () => {
@@ -35,6 +35,6 @@ export const useThemeStore = defineStore('theme', () => {
     mode,
     toggle,
     setMode,
-    init
+    init,
   }
 })

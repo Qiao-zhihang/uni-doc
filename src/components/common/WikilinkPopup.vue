@@ -1,7 +1,4 @@
-/**
- * Wikilink 自动补全浮动选择框
- * 通过 Teleport 渲染到 body,跟随光标位置
- */
+/** * Wikilink 自动补全浮动选择框 * 通过 Teleport 渲染到 body,跟随光标位置 */
 <template>
   <Teleport to="body">
     <div

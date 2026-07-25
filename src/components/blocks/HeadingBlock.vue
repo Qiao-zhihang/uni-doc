@@ -77,15 +77,22 @@ watch(
     }
     nextTick(render)
   },
-  { deep: true }
+  { deep: true },
 )
 
-watch(() => doc.renderTick, () => {
-  nextTick(() => requestAnimationFrame(render))
-})
+watch(
+  () => doc.renderTick,
+  () => {
+    nextTick(() => requestAnimationFrame(render))
+  },
+)
 
 // props 变化(level/align)时重新渲染
-watch(() => props.block.props, () => nextTick(render), { deep: true })
+watch(
+  () => props.block.props,
+  () => nextTick(render),
+  { deep: true },
+)
 
 function commitWithMarks(text: string) {
   if (!el.value) return
@@ -102,9 +109,9 @@ function commitWithMarks(text: string) {
   emit('update', {
     content: {
       text: parsed.text,
-      marks: parsed.marks
+      marks: parsed.marks,
     },
-    props: { level: newLevel }
+    props: { level: newLevel },
   })
 }
 
@@ -236,12 +243,32 @@ function onMousedown(e: MouseEvent) {
   word-break: break-word;
   overflow-wrap: break-word;
 }
-h1.heading-block { font-size: 24px; font-weight: 600; line-height: 1.25; }
-h2.heading-block { font-size: 18px; font-weight: 600; }
-h3.heading-block { font-size: 16px; font-weight: 600; }
-h4.heading-block { font-size: 15px; font-weight: 600; }
-h5.heading-block { font-size: 14px; font-weight: 600; }
-h6.heading-block { font-size: 13px; font-weight: 600; color: var(--muted-foreground); }
+h1.heading-block {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+h2.heading-block {
+  font-size: 18px;
+  font-weight: 600;
+}
+h3.heading-block {
+  font-size: 16px;
+  font-weight: 600;
+}
+h4.heading-block {
+  font-size: 15px;
+  font-weight: 600;
+}
+h5.heading-block {
+  font-size: 14px;
+  font-weight: 600;
+}
+h6.heading-block {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
 :deep(.inline-code) {
   font-family: var(--font-mono);
   font-size: 0.9em;
@@ -249,8 +276,22 @@ h6.heading-block { font-size: 13px; font-weight: 600; color: var(--muted-foregro
   border-radius: 4px;
   background: var(--secondary);
 }
-:deep(.md-link) { color: var(--brand-500); text-decoration: underline; }
-:deep(.md-wikilink) { color: var(--brand-500); text-decoration: underline; cursor: pointer; }
-:deep(.md-image) { max-width: 100%; border-radius: 4px; }
-:deep(.md-highlight) { background: rgba(255, 235, 59, 0.3); padding: 0 2px; border-radius: 2px; }
+:deep(.md-link) {
+  color: var(--brand-500);
+  text-decoration: underline;
+}
+:deep(.md-wikilink) {
+  color: var(--brand-500);
+  text-decoration: underline;
+  cursor: pointer;
+}
+:deep(.md-image) {
+  max-width: 100%;
+  border-radius: 4px;
+}
+:deep(.md-highlight) {
+  background: rgba(255, 235, 59, 0.3);
+  padding: 0 2px;
+  border-radius: 2px;
+}
 </style>

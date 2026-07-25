@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import {
-  ChevronUp,
-  ChevronDown,
-  Copy,
-  Trash2,
-  Plus
-} from 'lucide-vue-next'
+import { ChevronUp, ChevronDown, Copy, Trash2, Plus } from 'lucide-vue-next'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { deserializeMarkdown } from '@/core/serializer/markdown'
@@ -29,7 +23,7 @@ const selectedId = computed(() => editor.selectedBlockId)
 
 const zoomStyle = computed(() => ({
   width: `calc(var(--a4-width) * ${editor.zoom / 100})`,
-  maxWidth: '100%'
+  maxWidth: '100%',
 }))
 
 function selectBlock(id: string) {
@@ -56,50 +50,68 @@ async function onEnter(id: string, afterText: string = '') {
   if (syntaxMatch && syntaxMatch.type !== 'paragraph') {
     if (syntaxMatch.type === 'code_block') {
       // 代码块：特殊处理，内容清空
-      doc.updateBlock(id, {
-        type: 'code_block',
-        content: { code: '' },
-        props: syntaxMatch.props ?? {}
-      }, '转换为代码块')
+      doc.updateBlock(
+        id,
+        {
+          type: 'code_block',
+          content: { code: '' },
+          props: syntaxMatch.props ?? {},
+        },
+        '转换为代码块',
+      )
     } else if (syntaxMatch.type === 'table' && syntaxMatch.extra?.headers) {
       // 表格：用 headers 初始化,解析每个单元格的行内 marks
       const headers = (syntaxMatch.extra.headers as string[]).map((h) => {
         const parsed = parseInlineMarkdown(h)
         return { text: parsed.text, marks: parsed.marks }
       })
-      doc.updateBlock(id, {
-        type: 'table',
-        content: { headers, rows: [] },
-        props: {}
-      }, '转换为表格')
+      doc.updateBlock(
+        id,
+        {
+          type: 'table',
+          content: { headers, rows: [] },
+          props: {},
+        },
+        '转换为表格',
+      )
     } else if (syntaxMatch.type === 'list') {
       // 列表：创建单元素 items 数组,解析行内 marks
       const parsed = parseInlineMarkdown(syntaxMatch.strippedText)
       const checked = syntaxMatch.extra?.checked as boolean | undefined
-      doc.updateBlock(id, {
-        type: 'list',
-        content: {
-          items: [
-            { id: uuid(), text: parsed.text, marks: parsed.marks, checked }
-          ]
+      doc.updateBlock(
+        id,
+        {
+          type: 'list',
+          content: {
+            items: [{ id: uuid(), text: parsed.text, marks: parsed.marks, checked }],
+          },
+          props: syntaxMatch.props ?? { listType: 'bullet' },
         },
-        props: syntaxMatch.props ?? { listType: 'bullet' }
-      }, '转换为列表')
+        '转换为列表',
+      )
     } else if (syntaxMatch.type === 'divider') {
       // 分隔线：无内容
-      doc.updateBlock(id, {
-        type: 'divider',
-        content: {},
-        props: {}
-      }, '转换为分隔线')
+      doc.updateBlock(
+        id,
+        {
+          type: 'divider',
+          content: {},
+          props: {},
+        },
+        '转换为分隔线',
+      )
     } else {
       // 标题/引用：解析行内语法
       const parsed = parseInlineMarkdown(syntaxMatch.strippedText)
-      doc.updateBlock(id, {
-        type: syntaxMatch.type,
-        content: { text: parsed.text, marks: parsed.marks },
-        props: syntaxMatch.props ?? {}
-      }, '转换区块类型')
+      doc.updateBlock(
+        id,
+        {
+          type: syntaxMatch.type,
+          content: { text: parsed.text, marks: parsed.marks },
+          props: syntaxMatch.props ?? {},
+        },
+        '转换区块类型',
+      )
     }
   }
 
@@ -107,9 +119,13 @@ async function onEnter(id: string, afterText: string = '') {
   const newId = doc.insertBlockAfter(id, 'paragraph', '新建区块')
   if (afterText) {
     const parsed = parseInlineMarkdown(afterText)
-    doc.updateBlock(newId, {
-      content: { text: parsed.text, marks: parsed.marks }
-    }, '设置分割文本')
+    doc.updateBlock(
+      newId,
+      {
+        content: { text: parsed.text, marks: parsed.marks },
+      },
+      '设置分割文本',
+    )
   }
   editor.selectBlock(newId)
   await nextTick()
@@ -144,16 +160,20 @@ async function onBackspaceMerge(id: string) {
   const offsetMarks: Mark[] = currentMarks.map((m) => ({
     ...m,
     start: m.start + offset,
-    end: m.end + offset
+    end: m.end + offset,
   }))
 
   // 合并文本 + marks，更新上一行
-  doc.updateBlock(prev.id, {
-    content: {
-      text: prevText + currentText,
-      marks: [...prevMarks, ...offsetMarks]
-    }
-  }, '合并区块')
+  doc.updateBlock(
+    prev.id,
+    {
+      content: {
+        text: prevText + currentText,
+        marks: [...prevMarks, ...offsetMarks],
+      },
+    },
+    '合并区块',
+  )
 
   // 删除当前行
   doc.removeBlock(id, '删除空区块')
@@ -213,13 +233,19 @@ function focusBlockAt(id: string, at: 'start' | 'end' | number) {
   sel.addRange(range)
 }
 
-function moveUp(id: string) { doc.moveBlockUp(id) }
-function moveDown(id: string) { doc.moveBlockDown(id) }
+function moveUp(id: string) {
+  doc.moveBlockUp(id)
+}
+function moveDown(id: string) {
+  doc.moveBlockDown(id)
+}
 function duplicate(id: string) {
   const newId = doc.duplicateBlock(id)
   if (newId) editor.selectBlock(newId)
 }
-function remove(id: string) { doc.removeBlock(id, '删除区块') }
+function remove(id: string) {
+  doc.removeBlock(id, '删除区块')
+}
 
 /** 同步检测并拦截外链点击，返回是否处理了 */
 function isExternalLinkClick(e: MouseEvent): boolean {
@@ -258,7 +284,9 @@ function onSourceInput() {
   isSourceInputting.value = true
   const parsed = deserializeMarkdown(sourceText.value)
   doc.replaceBlocks(parsed, '编辑源码')
-  nextTick(() => { isSourceInputting.value = false })
+  nextTick(() => {
+    isSourceInputting.value = false
+  })
 }
 
 // 源码模式:blocks 变化时(撤销/重做/外部修改)自动同步 textarea
@@ -269,7 +297,7 @@ watch(
       syncSource()
     }
   },
-  { deep: true }
+  { deep: true },
 )
 
 /* ===== 全局快捷键 ===== */
@@ -321,12 +349,12 @@ watch(
     }
     // 先 nextTick 让 Vue 完成虚拟 DOM patch,再 rAF 等布局完成
     nextTick(() => requestAnimationFrame(applyScroll))
-  }
+  },
 )
 </script>
 
 <template>
-  <div class="editor-canvas no-scrollbar" ref="canvasRef" @click="onCanvasClick">
+  <div ref="canvasRef" class="editor-canvas no-scrollbar" @click="onCanvasClick">
     <!-- 源码模式 -->
     <div v-if="editor.mode === 'source'" class="source-wrap" :style="zoomStyle">
       <textarea
@@ -350,7 +378,7 @@ watch(
           @click.stop="(e: MouseEvent) => onBlockRowClick(e, block.id)"
         >
           <!-- Block 操作按钮 -->
-          <div class="block-actions" v-if="selectedId === block.id">
+          <div v-if="selectedId === block.id" class="block-actions">
             <button class="action-btn" title="上移" @click.stop="moveUp(block.id)">
               <ChevronUp :size="12" />
             </button>
@@ -365,7 +393,7 @@ watch(
             </button>
           </div>
 
-          <div class="drag-handle" v-if="selectedId === block.id">
+          <div v-if="selectedId === block.id" class="drag-handle">
             <Plus :size="10" />
           </div>
 
@@ -402,7 +430,9 @@ watch(
   padding: 48px 48px 24px;
   background: var(--card);
   border-radius: 8px;
-  box-shadow: var(--shadow-lg), 0 1px 3px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    var(--shadow-lg),
+    0 1px 3px rgba(0, 0, 0, 0.06);
 }
 .block-row {
   position: relative;

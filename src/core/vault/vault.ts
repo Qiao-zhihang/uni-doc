@@ -55,7 +55,11 @@ export async function readVaultFile(rootPath: string, relPath: string): Promise<
 }
 
 /** 写入 vault 内 .md 文件(覆盖) */
-export async function writeVaultFile(rootPath: string, relPath: string, content: string): Promise<void> {
+export async function writeVaultFile(
+  rootPath: string,
+  relPath: string,
+  content: string,
+): Promise<void> {
   if (!isTauri()) {
     return
   }
@@ -68,7 +72,7 @@ export async function writeVaultFile(rootPath: string, relPath: string, content:
 export async function renameVaultEntry(
   rootPath: string,
   oldRel: string,
-  newRel: string
+  newRel: string,
 ): Promise<void> {
   if (!isTauri()) return
   await tauriInvoke<void>('rename_vault_entry', { rootPath, oldRel, newRel })
@@ -81,11 +85,7 @@ export async function deleteVaultEntry(rootPath: string, rel: string): Promise<v
 }
 
 /** 在 vault 内创建新 .md 文件 */
-export async function createVaultFile(
-  rootPath: string,
-  rel: string,
-  content = ''
-): Promise<void> {
+export async function createVaultFile(rootPath: string, rel: string, content = ''): Promise<void> {
   if (!isTauri()) return
   await tauriInvoke<void>('create_vault_file', { rootPath, rel, content })
 }
@@ -103,7 +103,10 @@ export async function createDirAtPath(path: string): Promise<void> {
 }
 
 /** 弹出文件选择器选择图片,复制到"文档所在目录/assets/",返回相对路径(相对文档目录) */
-export async function pickImageToVault(rootPath: string, fileRelPath: string): Promise<string | null> {
+export async function pickImageToVault(
+  rootPath: string,
+  fileRelPath: string,
+): Promise<string | null> {
   if (!isTauri()) return null
   // 走 Rust command,绕过 fs plugin 权限作用域限制
   return tauriInvoke<string | null>('pick_image_to_vault', { rootPath, fileRelPath })
@@ -114,10 +117,7 @@ export async function pickImageToVault(rootPath: string, fileRelPath: string): P
  * 返回匹配文件的相对路径(相对 vault 根),找不到返回 null
  * Obsidian 规则:按基本名匹配,重名时返回第一个找到的
  */
-export function findFileByName(
-  tree: VaultNode[],
-  name: string
-): string | null {
+export function findFileByName(tree: VaultNode[], name: string): string | null {
   const target = name.trim().toLowerCase()
   const stack: VaultNode[] = [...tree]
   while (stack.length > 0) {
@@ -140,7 +140,7 @@ export async function writeImageToVault(
   rootPath: string,
   fileRelPath: string,
   data: Uint8Array,
-  ext: string
+  ext: string,
 ): Promise<string> {
   if (!isTauri()) return ''
   // 走 Rust command,绕过 fs plugin 权限作用域限制
@@ -156,7 +156,7 @@ const MIME_TO_EXT: Record<string, string> = {
   'image/gif': 'gif',
   'image/webp': 'webp',
   'image/svg+xml': 'svg',
-  'image/bmp': 'bmp'
+  'image/bmp': 'bmp',
 }
 
 /** 从 URL 路径推断图片扩展名,推断失败返回 null */
@@ -175,7 +175,7 @@ function inferExtFromUrl(url: string): string | null {
 export async function downloadImageToVault(
   rootPath: string,
   fileRelPath: string,
-  url: string
+  url: string,
 ): Promise<string> {
   if (!isTauri()) return url
   const resp = await fetch(url)
@@ -221,12 +221,12 @@ function mockVaultTree(): VaultNode[] {
       isDir: true,
       children: [
         { name: '数学笔记.md', path: '笔记/数学笔记.md', isDir: false },
-        { name: '物理笔记.md', path: '笔记/物理笔记.md', isDir: false }
-      ]
+        { name: '物理笔记.md', path: '笔记/物理笔记.md', isDir: false },
+      ],
     },
     { name: '欢迎文档.md', path: '欢迎文档.md', isDir: false },
     { name: '会议记录.md', path: '会议记录.md', isDir: false },
-    { name: '草稿.md', path: '草稿.md', isDir: false }
+    { name: '草稿.md', path: '草稿.md', isDir: false },
   ]
 }
 

@@ -28,7 +28,7 @@ export function createEmptyHistoryData(docPath: string, title: string): HistoryF
     docPath,
     title,
     config: defaultReplayConfig(),
-    snapshots: []
+    snapshots: [],
   }
 }
 
@@ -70,7 +70,7 @@ function dbGet<T>(key: string): Promise<T | undefined> {
         const req = tx.objectStore(STORE_NAME).get(key)
         req.onsuccess = () => resolve(req.result as T | undefined)
         req.onerror = () => reject(req.error)
-      })
+      }),
   )
 }
 
@@ -84,14 +84,14 @@ function dbPut<T>(value: T): Promise<void> {
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
         tx.onabort = () => reject(tx.error)
-      })
+      }),
   )
 }
 
 /** 读取文档的 history 文件(不存在则返回 null) */
 export async function loadHistory(
   vaultRoot: string,
-  mdPath: string
+  mdPath: string,
 ): Promise<HistoryFileData | null> {
   if (!isTauri()) {
     // Web 环境:IndexedDB 持久化
@@ -124,7 +124,7 @@ export async function loadHistory(
 export async function saveHistory(
   vaultRoot: string,
   mdPath: string,
-  data: HistoryFileData
+  data: HistoryFileData,
 ): Promise<void> {
   if (!isTauri()) {
     // Web 环境:IndexedDB 持久化

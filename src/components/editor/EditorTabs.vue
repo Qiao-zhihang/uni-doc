@@ -15,7 +15,7 @@ const menu = ref<{ visible: boolean; x: number; y: number; tabId: string | null 
   visible: false,
   x: 0,
   y: 0,
-  tabId: null
+  tabId: null,
 })
 
 const tabs = computed(() => doc.openTabs)
@@ -48,7 +48,7 @@ const menuItems = computed<MenuItem[]>(() => {
     { key: 'close', label: '关闭' },
     { key: 'close-others', label: '关闭其他' },
     { key: 'close-right', label: '关闭右侧' },
-    { key: 'close-all', label: '关闭所有' }
+    { key: 'close-all', label: '关闭所有' },
   ]
   return items
 })
@@ -129,7 +129,9 @@ function closeMenu() {
   color: var(--muted-foreground);
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
   flex-shrink: 0;
 }
 .tab:hover {
@@ -158,8 +160,13 @@ function closeMenu() {
   animation: tab-dot-pulse 1s ease-in-out infinite;
 }
 @keyframes tab-dot-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 .tab-title {
   max-width: 140px;

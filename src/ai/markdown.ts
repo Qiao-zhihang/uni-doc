@@ -30,13 +30,10 @@ function renderInline(text: string): string {
   // 删除线 ~~text~~
   s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>')
   // 链接 [text](url) — 防 javascript: 协议
-  s = s.replace(
-    /\[([^\]]+)\]\(([^)]+)\)/g,
-    (_, txt, url) => {
-      const safe = /^(https?:\/\/|mailto:)/.test(url) ? url : '#'
-      return `<a href="${safe}" target="_blank" rel="noopener">${txt}</a>`
-    }
-  )
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, txt, url) => {
+    const safe = /^(https?:\/\/|mailto:)/.test(url) ? url : '#'
+    return `<a href="${safe}" target="_blank" rel="noopener">${txt}</a>`
+  })
   // 换行
   s = s.replace(/\n/g, '<br>')
   return s
@@ -86,7 +83,7 @@ export function renderMarkdown(md: string): string {
       }
       i++ // 跳过结束的 ```
       html.push(
-        `<pre class="md-pre"><code${lang ? ` class="language-${escapeHtml(lang)}"` : ''}>${escapeHtml(codeLines.join('\n'))}</code></pre>`
+        `<pre class="md-pre"><code${lang ? ` class="language-${escapeHtml(lang)}"` : ''}>${escapeHtml(codeLines.join('\n'))}</code></pre>`,
       )
       continue
     }
@@ -138,7 +135,7 @@ export function renderMarkdown(md: string): string {
       if (taskMatch) {
         const checked = taskMatch[1].toLowerCase() === 'x'
         html.push(
-          `<li class="md-li md-task"><input type="checkbox" disabled ${checked ? 'checked' : ''}> ${renderInline(escapeHtml(taskMatch[2]))}</li>`
+          `<li class="md-li md-task"><input type="checkbox" disabled ${checked ? 'checked' : ''}> ${renderInline(escapeHtml(taskMatch[2]))}</li>`,
         )
       } else {
         html.push(`<li class="md-li">${renderInline(escapeHtml(item))}</li>`)
@@ -163,11 +160,7 @@ export function renderMarkdown(md: string): string {
 
     // GFM 表格：当前行含 |，下一行是分隔行（| --- | --- | 或 ---|---|---）
     const tableSep = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/
-    if (
-      line.includes('|') &&
-      i + 1 < lines.length &&
-      tableSep.test(lines[i + 1])
-    ) {
+    if (line.includes('|') && i + 1 < lines.length && tableSep.test(lines[i + 1])) {
       closeList()
       closeQuote()
       const headerCells = splitTableRow(line)

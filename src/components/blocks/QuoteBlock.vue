@@ -78,12 +78,15 @@ watch(
     }
     nextTick(render)
   },
-  { deep: true }
+  { deep: true },
 )
 
-watch(() => doc.renderTick, () => {
-  nextTick(() => requestAnimationFrame(render))
-})
+watch(
+  () => doc.renderTick,
+  () => {
+    nextTick(() => requestAnimationFrame(render))
+  },
+)
 
 function commitWithMarks(text: string) {
   if (!el.value) return
@@ -224,8 +227,25 @@ function onMousedown(e: MouseEvent) {
   min-height: 1.7em;
   word-break: break-word;
 }
-:deep(.md-link) { color: var(--brand-500); text-decoration: underline; }
-:deep(.md-wikilink) { color: var(--brand-500); text-decoration: underline; cursor: pointer; }
-:deep(.md-highlight) { background: rgba(255, 235, 59, 0.3); padding: 0 2px; border-radius: 2px; }
-:deep(.inline-code) { font-family: var(--font-mono); font-size: 0.9em; padding: 1px 4px; border-radius: 4px; background: var(--secondary); }
+:deep(.md-link) {
+  color: var(--brand-500);
+  text-decoration: underline;
+}
+:deep(.md-wikilink) {
+  color: var(--brand-500);
+  text-decoration: underline;
+  cursor: pointer;
+}
+:deep(.md-highlight) {
+  background: rgba(255, 235, 59, 0.3);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+:deep(.inline-code) {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--secondary);
+}
 </style>

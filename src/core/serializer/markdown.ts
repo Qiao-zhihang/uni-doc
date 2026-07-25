@@ -21,7 +21,7 @@ import type {
   ListProps,
   ParagraphContent,
   QuoteContent,
-  TableContent
+  TableContent,
 } from '../blocks/types'
 import {
   createParagraphBlock,
@@ -32,7 +32,7 @@ import {
   createQuoteBlock,
   createCodeBlockBlock,
   createTableBlock,
-  createImageBlock
+  createImageBlock,
 } from '../blocks/factory'
 import { parseInlineMarkdown } from '../parser/inlineMarkdown'
 import { marksToSource } from '@/components/blocks/marks'
@@ -77,15 +77,17 @@ function serializeBlock(block: Block): string {
       const { headers = [], rows = [], aligns = [] } = block.content as TableContent
       if (!headers.length) return ''
       const headerLine = `| ${headers.map((c) => marksToSource(c.text, c.marks)).join(' | ')} |`
-      const dividerLine = `| ${headers.map((_, i) => {
-        const a = aligns[i]
-        if (a === 'left') return ':---'
-        if (a === 'center') return ':---:'
-        if (a === 'right') return '---:'
-        return '---'
-      }).join(' | ')} |`
+      const dividerLine = `| ${headers
+        .map((_, i) => {
+          const a = aligns[i]
+          if (a === 'left') return ':---'
+          if (a === 'center') return ':---:'
+          if (a === 'right') return '---:'
+          return '---'
+        })
+        .join(' | ')} |`
       const rowLines = rows.map(
-        (r) => `| ${r.map((c) => marksToSource(c.text, c.marks)).join(' | ')} |`
+        (r) => `| ${r.map((c) => marksToSource(c.text, c.marks)).join(' | ')} |`,
       )
       return [headerLine, dividerLine, ...rowLines].join('\n')
     }
@@ -223,7 +225,10 @@ export function parseFrontmatter(markdown: string): {
       meta.tags = Array.isArray(value) ? value : [value]
     }
   }
-  const body = lines.slice(endIdx + 1).join('\n').replace(/^\n+/, '')
+  const body = lines
+    .slice(endIdx + 1)
+    .join('\n')
+    .replace(/^\n+/, '')
   return { meta, body }
 }
 
@@ -252,11 +257,39 @@ export function deserializeMarkdown(markdown: string): Block[] {
       const restLine = htmlBlockStart[3] || ''
       // 只处理块级标签(行内标签走普通段落解析)
       const blockTags = new Set([
-        'div', 'details', 'summary', 'table', 'thead', 'tbody', 'tfoot',
-        'tr', 'td', 'th', 'caption', 'colgroup', 'figure', 'figcaption',
-        'blockquote', 'pre', 'ul', 'ol', 'li', 'dl', 'dt', 'dd',
-        'section', 'article', 'header', 'footer', 'nav', 'aside', 'main',
-        'p', 'center', 'form', 'fieldset'
+        'div',
+        'details',
+        'summary',
+        'table',
+        'thead',
+        'tbody',
+        'tfoot',
+        'tr',
+        'td',
+        'th',
+        'caption',
+        'colgroup',
+        'figure',
+        'figcaption',
+        'blockquote',
+        'pre',
+        'ul',
+        'ol',
+        'li',
+        'dl',
+        'dt',
+        'dd',
+        'section',
+        'article',
+        'header',
+        'footer',
+        'nav',
+        'aside',
+        'main',
+        'p',
+        'center',
+        'form',
+        'fieldset',
       ])
       if (blockTags.has(tag)) {
         const closeTag = `</${tag}>`
@@ -342,7 +375,10 @@ export function deserializeMarkdown(markdown: string): Block[] {
       }
       if (tableLines.length >= 2) {
         const dividerLine = tableLines[1]
-        const dividerCells = dividerLine.split('|').slice(1, -1).map((c) => c.trim())
+        const dividerCells = dividerLine
+          .split('|')
+          .slice(1, -1)
+          .map((c) => c.trim())
         // 判断分隔行是否为有效的表格分隔符(包含 ---)
         const isDivider = dividerCells.every((c) => /^:?-{3,}:?$/.test(c))
         if (isDivider) {
@@ -361,7 +397,7 @@ export function deserializeMarkdown(markdown: string): Block[] {
             row
               .split('|')
               .slice(1, -1)
-              .map((c) => parseInlineMarkdown(c.trim()))
+              .map((c) => parseInlineMarkdown(c.trim())),
           )
           blocks.push(createTableBlock(headers, rows, aligns))
         }
@@ -374,7 +410,10 @@ export function deserializeMarkdown(markdown: string): Block[] {
     const setextMatch = line.match(/^(={3,}|-{3,})\s*$/)
     if (setextMatch && blocks.length > 0) {
       const lastBlock = blocks[blocks.length - 1]
-      if (lastBlock.type === 'paragraph' && (lastBlock.content as ParagraphContent).text.trim() !== '') {
+      if (
+        lastBlock.type === 'paragraph' &&
+        (lastBlock.content as ParagraphContent).text.trim() !== ''
+      ) {
         const level = setextMatch[1].startsWith('=') ? 1 : 2
         const text = (lastBlock.content as ParagraphContent).text
         const marks = (lastBlock.content as ParagraphContent).marks ?? []
@@ -395,7 +434,9 @@ export function deserializeMarkdown(markdown: string): Block[] {
     }
 
     // 图片(Obsidian 嵌入语法): ![[src]] / ![[src|width]] / ![[src|widthxheight]] / ![[src|width|alt]]
-    const obsidianImageMatch = line.match(/^!\[\[([^\]|]+)(?:\|(\d+)(?:x\d+)?)?(?:\|([^\]]*))?\]\]\s*$/)
+    const obsidianImageMatch = line.match(
+      /^!\[\[([^\]|]+)(?:\|(\d+)(?:x\d+)?)?(?:\|([^\]]*))?\]\]\s*$/,
+    )
     if (obsidianImageMatch) {
       const src = obsidianImageMatch[1]
       const width = obsidianImageMatch[2] ? Number(obsidianImageMatch[2]) : undefined
@@ -452,15 +493,15 @@ export function deserializeMarkdown(markdown: string): Block[] {
           id: crypto.randomUUID(),
           text: parsed.text,
           marks: parsed.marks,
-          checked: tm[1].toLowerCase() === 'x'
+          checked: tm[1].toLowerCase() === 'x',
         })
         i++
       }
       blocks.push(
         createListBlock(
           items.map((it) => ({ text: it.text, marks: it.marks, checked: it.checked })),
-          'task'
-        )
+          'task',
+        ),
       )
       continue
     }
@@ -477,7 +518,10 @@ export function deserializeMarkdown(markdown: string): Block[] {
         i++
       }
       blocks.push(
-        createListBlock(items.map((it) => ({ text: it.text, marks: it.marks })), 'bullet')
+        createListBlock(
+          items.map((it) => ({ text: it.text, marks: it.marks })),
+          'bullet',
+        ),
       )
       continue
     }
@@ -494,7 +538,10 @@ export function deserializeMarkdown(markdown: string): Block[] {
         i++
       }
       blocks.push(
-        createListBlock(items.map((it) => ({ text: it.text, marks: it.marks })), 'ordered')
+        createListBlock(
+          items.map((it) => ({ text: it.text, marks: it.marks })),
+          'ordered',
+        ),
       )
       continue
     }

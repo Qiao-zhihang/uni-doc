@@ -17,10 +17,14 @@ const emit = defineEmits<{ (e: 'presentation'): void }>()
 
 const saveStatusText = computed(() => {
   switch (doc.savedStatus) {
-    case 'unsaved': return '编辑中…'
-    case 'saving': return '保存中…'
-    case 'saved': return '已保存'
-    default: return '已保存'
+    case 'unsaved':
+      return '编辑中…'
+    case 'saving':
+      return '保存中…'
+    case 'saved':
+      return '已保存'
+    default:
+      return '已保存'
   }
 })
 const saveStatusClass = computed(() => doc.savedStatus)
@@ -45,9 +49,9 @@ const saveStatusClass = computed(() => doc.savedStatus)
     <span class="copyright">Copyright © 2026 Qiao Zhihang. All Rights Reserved.</span>
     <!-- 右侧 -->
     <div class="group">
-      <button class="zoom-btn" @click="editor.zoomOut" title="缩小">−</button>
+      <button class="zoom-btn" title="缩小" @click="editor.zoomOut">−</button>
       <span class="zoom-value">{{ editor.zoom }}%</span>
-      <button class="zoom-btn" @click="editor.zoomIn" title="放大">+</button>
+      <button class="zoom-btn" title="放大" @click="editor.zoomIn">+</button>
       <span class="sep"></span>
       <button
         class="present-btn"
@@ -104,8 +108,15 @@ const saveStatusClass = computed(() => doc.savedStatus)
   background: var(--state-success); /* 绿:已保存 */
 }
 @keyframes save-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(1.3); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.3);
+  }
 }
 .copyright {
   color: var(--muted-foreground);
@@ -147,7 +158,9 @@ const saveStatusClass = computed(() => doc.savedStatus)
   font-size: 11px;
   color: var(--muted-foreground);
   cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
 }
 .present-btn:hover:not(:disabled) {
   background: var(--secondary);

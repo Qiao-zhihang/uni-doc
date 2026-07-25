@@ -44,8 +44,8 @@ export const useVaultStore = defineStore('vault', () => {
   const currentVaultPath = computed(() => doc.vaultRoot)
 
   /** 当前仓库条目 */
-  const currentVault = computed(() =>
-    vaults.value.find((v) => v.path === currentVaultPath.value) ?? null
+  const currentVault = computed(
+    () => vaults.value.find((v) => v.path === currentVaultPath.value) ?? null,
   )
 
   /** 添加一个仓库到列表(如果不存在) */
@@ -55,7 +55,7 @@ export const useVaultStore = defineStore('vault', () => {
     const entry: VaultEntry = {
       path,
       name: name ?? path.split(/[\\/]/).pop() ?? 'vault',
-      lastOpened: Date.now()
+      lastOpened: Date.now(),
     }
     vaults.value.unshift(entry)
     saveVaults(vaults.value)
@@ -142,6 +142,6 @@ export const useVaultStore = defineStore('vault', () => {
     removeVault,
     switchVault,
     pickAndAddVault,
-    createNewVault
+    createNewVault,
   }
 })

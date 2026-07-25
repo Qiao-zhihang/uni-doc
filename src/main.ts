@@ -11,7 +11,8 @@ import './style.css'
 
 function showError(msg: string) {
   const div = document.createElement('div')
-  div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#ff3b30;color:#fff;padding:16px;font-family:monospace;font-size:13px;white-space:pre-wrap;'
+  div.style.cssText =
+    'position:fixed;top:0;left:0;right:0;z-index:99999;background:#ff3b30;color:#fff;padding:16px;font-family:monospace;font-size:13px;white-space:pre-wrap;'
   div.textContent = msg
   document.body.appendChild(div)
 }

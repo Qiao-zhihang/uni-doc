@@ -20,9 +20,15 @@ import type { useEditorStore } from '@/stores/editor'
 const MAX_CONTINUE = 3
 
 /** OpenAI 函数调用工具描述格式（与 model.ts 中的 ToolSpec 一致） */
-type ToolSpec = Array<{ type: 'function'; function: { name: string; description: string; parameters: unknown } }>
+type ToolSpec = Array<{
+  type: 'function'
+  function: { name: string; description: string; parameters: unknown }
+}>
 
-function formatToolResultForAI(toolName: string, result: { ok: boolean; data?: unknown; error?: string; total?: number }): string {
+function formatToolResultForAI(
+  toolName: string,
+  result: { ok: boolean; data?: unknown; error?: string; total?: number },
+): string {
   if (!result.ok) {
     return `【工具失败】${TOOL_LABELS[toolName] ?? toolName}: ${result.error ?? '未知错误'}`
   }
@@ -122,7 +128,7 @@ async function streamChatWithContinue(
   tools: ToolSpec,
   config: ModelConfig,
   onDelta?: (text: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<StreamResult> {
   // 用临时消息数组保存状态，避免修改原 messages
   const tempMessages = [...messages]
@@ -170,7 +176,11 @@ export interface Agent {
    * 调用方负责持久化
    * 返回一个 AbortController，可用于取消对话
    */
-  chat: (messages: ChatMessage[], userInput: string | MessageContent[], callbacks?: StreamCallbacks) => AbortController
+  chat: (
+    messages: ChatMessage[],
+    userInput: string | MessageContent[],
+    callbacks?: StreamCallbacks,
+  ) => AbortController
 }
 
 /** 工具调用最大轮次，超过则强制生成最终回复 */
@@ -199,7 +209,11 @@ export function createAgent(deps: AgentDeps): Agent {
 
   const MAX_CONTEXT_ROUNDS = 30
 
-  function chat(messages: ChatMessage[], userInput: string | MessageContent[], callbacks?: StreamCallbacks): AbortController {
+  function chat(
+    messages: ChatMessage[],
+    userInput: string | MessageContent[],
+    callbacks?: StreamCallbacks,
+  ): AbortController {
     const abortController = new AbortController()
     const signal = abortController.signal
 
@@ -217,10 +231,19 @@ export function createAgent(deps: AgentDeps): Agent {
         const runtimeConfig: ModelConfig = { ...config, nativeSearch: useNativeSearch }
 
         const context = buildContext(doc, editor, canvasEl())
-        const userInputText = typeof userInput === 'string'
-          ? userInput
-          : userInput.filter((p) => p.type === 'text').map((p) => (p as { text: string }).text).join(' ')
-        const systemPrompt = buildSystemPrompt(context, useToolSearch, useNativeSearch, userInputText)
+        const userInputText =
+          typeof userInput === 'string'
+            ? userInput
+            : userInput
+                .filter((p) => p.type === 'text')
+                .map((p) => (p as { text: string }).text)
+                .join(' ')
+        const systemPrompt = buildSystemPrompt(
+          context,
+          useToolSearch,
+          useNativeSearch,
+          userInputText,
+        )
 
         // 保留 tool 角色消息，确保 tool_calls 序列完整
         const historyMessages = messages.filter((m) => m.role !== 'system')
@@ -270,7 +293,7 @@ export function createAgent(deps: AgentDeps): Agent {
               toolDefs,
               runtimeConfig,
               callbacks?.onDelta,
-              signal
+              signal,
             )
           } catch (e) {
             if ((e as Error).name === 'AbortError') {
@@ -284,7 +307,9 @@ export function createAgent(deps: AgentDeps): Agent {
           // c. 用最终结果更新两个数组中的 assistant 消息
           const lastCtxMsg = contextMessages[contextMessages.length - 1]
           lastCtxMsg.content = streamResult.content
-          lastCtxMsg.tool_calls = streamResult.toolCalls?.length ? streamResult.toolCalls : undefined
+          lastCtxMsg.tool_calls = streamResult.toolCalls?.length
+            ? streamResult.toolCalls
+            : undefined
 
           const lastMsg = messages[messages.length - 1]
           lastMsg.content = streamResult.content
@@ -302,7 +327,9 @@ export function createAgent(deps: AgentDeps): Agent {
           if (callKey === lastCallKey) {
             consecutiveSame++
             if (consecutiveSame >= MAX_CONSECUTIVE_SAME_CALLS) {
-              callbacks?.onError?.(`检测到工具调用循环 (${streamResult.toolCalls[0].function.name})，已终止`)
+              callbacks?.onError?.(
+                `检测到工具调用循环 (${streamResult.toolCalls[0].function.name})，已终止`,
+              )
               break
             }
           } else {
@@ -359,7 +386,7 @@ export function createAgent(deps: AgentDeps): Agent {
                 [],
                 runtimeConfig,
                 callbacks?.onDelta,
-                signal
+                signal,
               )
               messages.push({
                 role: 'assistant',
@@ -406,7 +433,7 @@ export function createAgent(deps: AgentDeps): Agent {
  */
 function autoExtractMemory(
   messages: ChatMessage[],
-  memory: ReturnType<typeof useAiMemoryStore>
+  memory: ReturnType<typeof useAiMemoryStore>,
 ): void {
   const userMessages = messages
     .filter((m) => m.role === 'user')
@@ -421,10 +448,22 @@ function autoExtractMemory(
   }
 
   const recentUserText = userMessages.slice(-3).join(' ')
-  const extractionPatterns: Array<{ pattern: RegExp; category: 'personal' | 'preference' | 'project' | 'knowledge'; tag: string }> = [
+  const extractionPatterns: Array<{
+    pattern: RegExp
+    category: 'personal' | 'preference' | 'project' | 'knowledge'
+    tag: string
+  }> = [
     { pattern: /我(?:叫|是|名字是)\s*([^\s，。,.\n]{2,10})/, category: 'personal', tag: '姓名' },
-    { pattern: /(?:喜欢|偏好|习惯|常用|爱用)\s*([^\s，。,.\n]{2,10})/, category: 'preference', tag: '偏好' },
-    { pattern: /(?:项目|工程|仓库)\s*[:：]?\s*([^\s，。,.\n]{2,20})/, category: 'project', tag: '项目' },
+    {
+      pattern: /(?:喜欢|偏好|习惯|常用|爱用)\s*([^\s，。,.\n]{2,10})/,
+      category: 'preference',
+      tag: '偏好',
+    },
+    {
+      pattern: /(?:项目|工程|仓库)\s*[:：]?\s*([^\s，。,.\n]{2,20})/,
+      category: 'project',
+      tag: '项目',
+    },
     { pattern: /(?:使用|用|技术栈)\s*([^\s，。,.\n]{2,15})/, category: 'knowledge', tag: '技术' },
   ]
 
@@ -433,7 +472,7 @@ function autoExtractMemory(
     if (match) {
       const content = match[0]
       const existing = memory.facts.find(
-        (f) => f.category === category && f.content.includes(content.slice(0, 5))
+        (f) => f.category === category && f.content.includes(content.slice(0, 5)),
       )
       if (!existing) {
         parseAndSaveFact(content, category, [tag], 'auto-extract')
