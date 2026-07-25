@@ -267,7 +267,7 @@ const CURRENT_VERSION = __APP_VERSION__
 const GITHUB_REPO = 'Qiao-zhihang/uni-doc'
 
 const aboutRows = [
-  { label: '版本', value: `v${CURRENT_VERSION} (Milestone 1)` },
+  { label: '版本', value: `v${CURRENT_VERSION}` },
   { label: '技术栈', value: 'Vite + Vue 3 + TypeScript + Pinia' },
   { label: '文件格式', value: '.md (Markdown)' },
   { label: 'Tauri 后端', value: '已集成' },
@@ -719,7 +719,7 @@ const updateStatusText = computed(() => {
             <div class="update-card">
               <div class="update-info">
                 <div class="update-version">当前版本：v{{ CURRENT_VERSION }}</div>
-                <div class="update-build">构建代号：M1 Initial Release</div>
+                <div class="update-build">构建号：v{{ CURRENT_VERSION }}</div>
                 <div class="update-status" :class="updateStatus">
                   <RefreshCw v-if="updateStatus === 'checking'" :size="12" class="spin" />
                   <CheckCircle2 v-else-if="updateStatus === 'latest'" :size="12" class="ok" />

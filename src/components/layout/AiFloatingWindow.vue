@@ -96,9 +96,10 @@ const displayMessages = computed(() => {
       }
       return false
     })
-    .map((m) => ({
+    .map((m, i) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
+      _key: (m as { _id?: string })._id ?? `${m.role}-${i}-${typeof m.content === 'string' ? m.content.length : m.content.map(c => c.type).join(',')}`,
     }))
 })
 
@@ -122,10 +123,11 @@ function scrollToBottom() {
   })
 }
 
-// 消息变化时自动滚动
+// 消息变化时自动滚动（监听完整引用，确保组件重挂载后也能触发）
 watch(
-  () => displayMessages.value.length,
+  () => [displayMessages.value.length, convStore.activeConversationId],
   () => scrollToBottom(),
+  { deep: false },
 )
 // 流式输出时持续滚动(100ms 节流,避免每个 delta 都触发)
 let streamScrollTs = 0
@@ -301,6 +303,8 @@ onMounted(async () => {
     enableWebSearch: () => localWebSearch.value,
     memory: memoryStore,
   })
+
+  scrollToBottom()
 })
 
 /** 新建会话 */
@@ -1025,8 +1029,8 @@ onUnmounted(() => {
           </div>
           <div v-else class="messages" @click="handleExternalLinkClick">
             <div
-              v-for="(msg, i) in displayMessages"
-              :key="i"
+              v-for="msg in displayMessages"
+              :key="msg._key"
               class="message-row"
               :class="msg.role === 'user' ? 'message-row-user' : 'message-row-ai'"
             >
@@ -1034,7 +1038,7 @@ onUnmounted(() => {
                 <div v-if="extractImages(msg.content).length" class="bubble-images">
                   <img
                     v-for="(img, j) in extractImages(msg.content)"
-                    :key="j"
+                    :key="img.url.slice(0, 80) + j"
                     :src="img.url"
                     class="bubble-image"
                     alt="发送的图片"

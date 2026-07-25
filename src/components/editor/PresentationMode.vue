@@ -198,9 +198,6 @@ const progress = computed(() => {
   font-family: var(--font-sans);
   color: #fff;
 }
-:global(.dark) .presentation-mode {
-  background: #0f0f12;
-}
 
 .slide-container {
   flex: 1;
@@ -221,11 +218,6 @@ const progress = computed(() => {
   padding: 48px 64px;
   min-height: 60vh;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
-}
-:global(.dark) .slide-content {
-  background: #2a2a32;
-  color: #e8e8ed;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
 }
 
 /* 幻灯片内容样式覆盖 */
@@ -361,5 +353,16 @@ const progress = computed(() => {
 }
 .exit-btn:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+</style>
+
+<style>
+html.dark .presentation-mode {
+  background: #0f1014;
+}
+html.dark .slide-content {
+  background: #23242a;
+  color: #f5f5f7;
+  box-shadow: 0 16px 48px -12px rgba(0, 0, 0, 0.75);
 }
 </style>
