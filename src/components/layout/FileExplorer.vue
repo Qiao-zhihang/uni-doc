@@ -60,8 +60,21 @@ const menu = ref<{ visible: boolean; x: number; y: number; node: VaultNode | nul
   node: null,
 })
 
+const HIDDEN_DIRS = new Set(['assets'])
+
+function filterHiddenNodes(nodes: VaultNode[]): VaultNode[] {
+  return nodes
+    .filter((n) => !n.isDir || !HIDDEN_DIRS.has(n.name))
+    .map((n) =>
+      n.isDir && n.children
+        ? { ...n, children: filterHiddenNodes(n.children) }
+        : n,
+    )
+}
+
+const filteredTree = computed(() => filterHiddenNodes(tree.value))
 const hasVault = computed(() => doc.vaultRoot !== null)
-const isEmpty = computed(() => hasVault.value && tree.value.length === 0)
+const isEmpty = computed(() => hasVault.value && filteredTree.value.length === 0)
 // 高亮规则:只有当前激活 tab 对应的文件高亮(而非所有已打开的 tab)
 const openedPaths = computed(() => {
   const activeTab = doc.openTabs.find((t) => t.id === doc.activeTabId)
@@ -121,8 +134,8 @@ async function refreshTree() {
     tree.value = data
     // 同步到 store,供 wikilink 等功能使用(直接赋值触发响应式)
     doc.vaultTree = data
-    // 默认展开所有文件夹,让用户立刻看到完整文件树
-    expanded.value = collectAllDirPaths(data)
+    // 默认展开所有可见文件夹,让用户立刻看到完整文件树
+    expanded.value = collectAllDirPaths(filterHiddenNodes(data))
   } catch (e) {
     errorMsg.value = String(e)
     tree.value = []
@@ -361,7 +374,7 @@ function closeMenu() {
     <div v-else class="tree-wrap no-scrollbar" role="tree">
       <ul class="tree" role="tree">
         <VaultTreeNode
-          v-for="node in tree"
+          v-for="node in filteredTree"
           :key="node.path"
           :node="node"
           :depth="0"
