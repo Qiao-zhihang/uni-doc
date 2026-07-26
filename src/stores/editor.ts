@@ -10,6 +10,7 @@ import { ref } from 'vue'
 export type EditorMode = 'visual' | 'source'
 export type OutlineTab = 'outline' | 'tags' | 'info'
 export type AiFloatingState = 'closed' | 'expanded' | 'minimized'
+export type AiLayoutMode = 'floating' | 'split'
 
 export const useEditorStore = defineStore('editor', () => {
   // 当前选中的 Block id
@@ -31,6 +32,7 @@ export const useEditorStore = defineStore('editor', () => {
 
   // ===== AI 浮窗 =====
   const aiFloatingState = ref<AiFloatingState>('closed')
+  const aiLayoutMode = ref<AiLayoutMode>('floating')
 
   // ===== 兼容旧字段(标记为弃用,逐步迁移) =====
   /** @deprecated 改用 fileExplorerOpen */
@@ -97,6 +99,14 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
+  function setAiLayoutMode(mode: AiLayoutMode) {
+    aiLayoutMode.value = mode
+  }
+
+  function toggleAiLayoutMode() {
+    aiLayoutMode.value = aiLayoutMode.value === 'floating' ? 'split' : 'floating'
+  }
+
   /** @deprecated */
   function toggleAiBar() {
     toggleAiFloating()
@@ -124,6 +134,7 @@ export const useEditorStore = defineStore('editor', () => {
     outlinePanelOpen,
     outlineTab,
     aiFloatingState,
+    aiLayoutMode,
     // deprecated
     sidebarOpen,
     panelOpen,
@@ -142,6 +153,8 @@ export const useEditorStore = defineStore('editor', () => {
     minimizeAiFloating,
     closeAiFloating,
     toggleAiFloating,
+    setAiLayoutMode,
+    toggleAiLayoutMode,
     setCurrentPage,
     // deprecated
     toggleAiBar,

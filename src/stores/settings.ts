@@ -54,6 +54,7 @@ const PRESETS: Record<
 interface SettingsPayload {
   profiles: ApiProfile[]
   activeProfileId: string
+  splitPanelWidth?: number
 }
 
 /** 动态导入 Tauri invoke,避免 Web 环境下打包报错 */
@@ -113,6 +114,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const initial = createDefaultProfile()
   const profiles = ref<ApiProfile[]>([initial])
   const activeProfileId = ref<string>(initial.id)
+  const splitPanelWidth = ref<number>(420)
 
   /** 当前激活的 Profile；找不到时回退到第一个 */
   const activeProfile = computed<ApiProfile>(() => {
@@ -245,6 +247,7 @@ export const useSettingsStore = defineStore('settings', () => {
       const config: SettingsPayload = {
         profiles: encodedProfiles,
         activeProfileId: activeProfileId.value,
+        splitPanelWidth: splitPanelWidth.value,
       }
       const json = JSON.stringify(config)
       try {
@@ -294,6 +297,9 @@ export const useSettingsStore = defineStore('settings', () => {
           const id = parsed.activeProfileId
           activeProfileId.value =
             id && profiles.value.some((p) => p.id === id) ? id : profiles.value[0].id
+          if (typeof parsed.splitPanelWidth === 'number' && parsed.splitPanelWidth >= 300) {
+            splitPanelWidth.value = parsed.splitPanelWidth
+          }
           // 迁移后立即保存覆盖旧数据（明文 key → 编码 key）
           save()
         } else if (parsed.provider !== undefined) {
@@ -316,6 +322,15 @@ export const useSettingsStore = defineStore('settings', () => {
       console.error('加载设置失败:', e)
     } finally {
       loaded.value = true
+    }
+  }
+
+  /** 设置分屏面板宽度并持久化 */
+  function setSplitPanelWidth(w: number) {
+    const clamped = Math.max(300, Math.min(1200, w))
+    if (clamped !== splitPanelWidth.value) {
+      splitPanelWidth.value = clamped
+      save()
     }
   }
 
@@ -362,6 +377,7 @@ export const useSettingsStore = defineStore('settings', () => {
     activeProfileId,
     activeProfile,
     modelCapabilities,
+    splitPanelWidth,
     // 兼容代理
     provider,
     apiKey,
@@ -379,5 +395,6 @@ export const useSettingsStore = defineStore('settings', () => {
     save,
     load,
     testConnection,
+    setSplitPanelWidth,
   }
 })

@@ -22,6 +22,7 @@ import PresentationMode from '@/components/editor/PresentationMode.vue'
 import ReplayPlayer from '@/components/editor/ReplayPlayer.vue'
 import { useEditorStore } from '@/stores/editor'
 import { useDocumentStore } from '@/stores/document'
+import { useSettingsStore } from '@/stores/settings'
 import { useReplayStore } from '@/stores/replay'
 import { useBreakpoint } from '@/composables/useBreakpoint'
 
@@ -62,8 +63,55 @@ function randomShark() {
 
 const editor = useEditorStore()
 const doc = useDocumentStore()
+const settings = useSettingsStore()
 const replay = useReplayStore()
 const breakpoint = useBreakpoint()
+
+const isSplitAndOpen = computed(
+  () => editor.aiLayoutMode === 'split' && editor.aiFloatingState === 'expanded',
+)
+
+const splitResizing = ref(false)
+const splitResizeStart = ref({ x: 0, startWidth: 0 })
+
+function onSplitResizeDown(e: PointerEvent) {
+  e.preventDefault()
+  e.stopPropagation()
+  ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  document.body.style.userSelect = 'none'
+  document.body.style.cursor = 'col-resize'
+  splitResizing.value = true
+  splitResizeStart.value = {
+    x: e.clientX,
+    startWidth: settings.splitPanelWidth,
+  }
+  window.addEventListener('pointermove', onSplitResizeMove)
+  window.addEventListener('pointerup', onSplitResizeUp)
+}
+
+function onSplitResizeMove(e: PointerEvent) {
+  if (!splitResizing.value) return
+  e.preventDefault()
+  const dx = splitResizeStart.value.x - e.clientX
+  const newWidth = splitResizeStart.value.startWidth + dx
+  settings.setSplitPanelWidth(newWidth)
+}
+
+function onSplitResizeUp(e: PointerEvent) {
+  splitResizing.value = false
+  document.body.style.userSelect = ''
+  document.body.style.cursor = ''
+  try {
+    ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+  } catch (_) {}
+  window.removeEventListener('pointermove', onSplitResizeMove)
+  window.removeEventListener('pointerup', onSplitResizeUp)
+}
+
+onUnmounted(() => {
+  window.removeEventListener('pointermove', onSplitResizeMove)
+  window.removeEventListener('pointerup', onSplitResizeUp)
+})
 
 // 演示模式
 const presentationMode = ref(false)
@@ -194,34 +242,74 @@ onUnmounted(() => {
     <!-- 左侧文件浏览器 -->
     <FileExplorer v-if="showFileExplorer" />
 
-    <!-- 主内容区 -->
-    <div class="main-area">
-      <TitleBar />
-      <EditorTabs />
-      <Toolbar @presentation="enterPresentation" @replay="enterReplay" />
+    <!-- 分屏模式:主内容区 + 拖拽分隔条 + AI 面板 -->
+    <template v-if="isSplitAndOpen">
+      <!-- 主内容区 -->
+      <div class="main-area split-main">
+        <TitleBar />
+        <EditorTabs />
+        <Toolbar @presentation="enterPresentation" @replay="enterReplay" />
 
-      <!-- 编辑器 + 右侧大纲面板 -->
-      <div class="editor-area">
-        <BlockEditor v-if="doc.openTabs.length > 0" />
-        <div v-else class="editor-empty">
-          <img
-            v-if="currentShark.url"
-            :src="currentShark.url"
-            class="shark-img"
-            alt="鲨鱼吉祥物"
-            draggable="false"
-          />
-          <div class="shark-quote">{{ currentShark.quote }}</div>
+        <!-- 编辑器 + 右侧大纲面板 -->
+        <div class="editor-area">
+          <BlockEditor v-if="doc.openTabs.length > 0" />
+          <div v-else class="editor-empty">
+            <img
+              v-if="currentShark.url"
+              :src="currentShark.url"
+              class="shark-img"
+              alt="鲨鱼吉祥物"
+              draggable="false"
+            />
+            <div class="shark-quote">{{ currentShark.quote }}</div>
+          </div>
+          <OutlinePanel v-if="showOutlinePanel" />
         </div>
-        <OutlinePanel v-if="showOutlinePanel" />
+
+        <!-- 状态栏 -->
+        <StatusBar @presentation="enterPresentation" />
       </div>
 
-      <!-- 状态栏 -->
-      <StatusBar @presentation="enterPresentation" />
-    </div>
+      <!-- 拖拽分隔条 -->
+      <div class="split-resizer" @pointerdown="onSplitResizeDown"></div>
 
-    <!-- AI 独立浮窗(非模态,浮于所有内容之上) -->
-    <AiFloatingWindow />
+      <!-- AI 面板(嵌入布局) -->
+      <div class="ai-split-panel" :style="{ width: `${settings.splitPanelWidth}px` }">
+        <AiFloatingWindow />
+      </div>
+    </template>
+
+    <!-- 非分屏模式:普通布局 -->
+    <template v-else>
+      <!-- 主内容区 -->
+      <div class="main-area">
+        <TitleBar />
+        <EditorTabs />
+        <Toolbar @presentation="enterPresentation" @replay="enterReplay" />
+
+        <!-- 编辑器 + 右侧大纲面板 -->
+        <div class="editor-area">
+          <BlockEditor v-if="doc.openTabs.length > 0" />
+          <div v-else class="editor-empty">
+            <img
+              v-if="currentShark.url"
+              :src="currentShark.url"
+              class="shark-img"
+              alt="鲨鱼吉祥物"
+              draggable="false"
+            />
+            <div class="shark-quote">{{ currentShark.quote }}</div>
+          </div>
+          <OutlinePanel v-if="showOutlinePanel" />
+        </div>
+
+        <!-- 状态栏 -->
+        <StatusBar @presentation="enterPresentation" />
+      </div>
+
+      <!-- AI 独立浮窗(非模态,浮于所有内容之上) -->
+      <AiFloatingWindow />
+    </template>
 
     <!-- 演示模式(全屏覆盖) -->
     <PresentationMode
@@ -277,5 +365,36 @@ onUnmounted(() => {
   text-align: center;
   max-width: 320px;
   line-height: 1.5;
+}
+
+/* ===== 分屏模式 ===== */
+.main-area.split-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.split-resizer {
+  width: 4px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: var(--border);
+  position: relative;
+  transition: background 0.15s ease;
+}
+.split-resizer::after {
+  content: '';
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  top: 0;
+  bottom: 0;
+}
+.split-resizer:hover {
+  background: var(--primary);
+}
+.ai-split-panel {
+  flex-shrink: 0;
+  height: 100%;
+  overflow: hidden;
+  min-width: 300px;
 }
 </style>

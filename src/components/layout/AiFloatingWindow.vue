@@ -61,6 +61,7 @@ const SIDEBAR_DELTA = SIDEBAR_W - SIDEBAR_COLLAPSED_W
 
 const isOpen = computed(() => editor.aiFloatingState === 'expanded')
 const isMinimized = computed(() => editor.aiFloatingState === 'minimized')
+const isSplitMode = computed(() => editor.aiLayoutMode === 'split')
 
 /** 从消息内容中提取纯文本（过滤掉 AI 内部提示标记） */
 function extractText(content: string | MessageContent[]): string {
@@ -368,25 +369,23 @@ function cancelRename() {
 /** 切换左侧面板折叠 */
 function toggleSidebar() {
   sidebarAnimating.value = true
-  if (sidebarCollapsed.value) {
-    // 展开：窗口变宽，左移
-    windowSize.value.w += SIDEBAR_DELTA
-    windowPos.value.x -= SIDEBAR_DELTA
-  } else {
-    // 折叠：窗口变窄，右移
-    windowSize.value.w -= SIDEBAR_DELTA
-    windowPos.value.x += SIDEBAR_DELTA
+  if (!isSplitMode.value) {
+    if (sidebarCollapsed.value) {
+      windowSize.value.w += SIDEBAR_DELTA
+      windowPos.value.x -= SIDEBAR_DELTA
+    } else {
+      windowSize.value.w -= SIDEBAR_DELTA
+      windowPos.value.x += SIDEBAR_DELTA
+    }
+    const clamped = clampToViewport(
+      windowPos.value.x,
+      windowPos.value.y,
+      windowSize.value.w,
+      windowSize.value.h,
+    )
+    windowPos.value = clamped
   }
-  // 折叠/展开后钳制到视口内,避免越界
-  const clamped = clampToViewport(
-    windowPos.value.x,
-    windowPos.value.y,
-    windowSize.value.w,
-    windowSize.value.h,
-  )
-  windowPos.value = clamped
   sidebarCollapsed.value = !sidebarCollapsed.value
-  // 动画结束后移除动画类，避免影响拖动/调整大小
   setTimeout(() => {
     sidebarAnimating.value = false
   }, 200)
@@ -769,16 +768,23 @@ onUnmounted(() => {
   <div
     v-if="isOpen"
     class="ai-floating"
-    :class="{ 'floating-animating': sidebarAnimating }"
-    :style="{
-      left: `${windowPos.x}px`,
-      top: `${windowPos.y}px`,
-      width: `${windowSize.w}px`,
-      height: `${windowSize.h}px`,
+    :class="{
+      'floating-animating': sidebarAnimating,
+      'split-mode': isSplitMode,
     }"
+    :style="
+      isSplitMode
+        ? {}
+        : {
+            left: `${windowPos.x}px`,
+            top: `${windowPos.y}px`,
+            width: `${windowSize.w}px`,
+            height: `${windowSize.h}px`,
+          }
+    "
   >
     <!-- 标题栏 -->
-    <div class="title-bar" @pointerdown="onPointerDown">
+    <div class="title-bar" @pointerdown="!isSplitMode && onPointerDown($event)">
       <div class="title-left">
         <img :src="AiIconUrl" class="shark-icon" alt="UU鲨" />
         <span class="title-text">UU鲨</span>
@@ -837,18 +843,42 @@ onUnmounted(() => {
       </div>
 
       <div class="title-right">
-        <button class="title-btn" title="新建会话" @click.stop="handleNewConversation">
+        <button
+          class="title-btn"
+          :title="isSplitMode ? '切换为浮窗模式' : '切换为分屏模式'"
+          @click.stop="editor.toggleAiLayoutMode()"
+        >
           <svg
+            v-if="isSplitMode"
             viewBox="0 0 14 14"
             fill="none"
             stroke="currentColor"
-            stroke-width="1.5"
+            stroke-width="1.3"
             stroke-linecap="round"
+            stroke-linejoin="round"
           >
-            <path d="M7 2V12M2 7H12" />
+            <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
+            <path d="M5.5 2V12" />
+          </svg>
+          <svg
+            v-else
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="2" y="2" width="5" height="10" rx="1" />
+            <rect x="8" y="3.5" width="4.5" height="7" rx="1" />
           </svg>
         </button>
-        <button class="title-btn" title="最小化" @click.stop="editor.minimizeAiFloating()">
+        <button
+          v-if="!isSplitMode"
+          class="title-btn"
+          title="最小化"
+          @click.stop="editor.minimizeAiFloating()"
+        >
           <svg
             viewBox="0 0 14 14"
             fill="none"
@@ -1170,8 +1200,8 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- 调整大小手柄 -->
-    <div class="resize-handle" @pointerdown="onResizeDown"></div>
+    <!-- 调整大小手柄（分屏模式下隐藏） -->
+    <div v-if="!isSplitMode" class="resize-handle" @pointerdown="onResizeDown"></div>
   </div>
 
   <!-- 最小化气泡 -->
@@ -2201,5 +2231,27 @@ onUnmounted(() => {
 }
 .md-bubble :deep(.md-td) {
   vertical-align: top;
+}
+
+/* ===== 分屏模式 ===== */
+.ai-floating.split-mode {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 0;
+  border: none;
+  border-left: 1px solid var(--border);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.ai-floating.split-mode .title-bar {
+  cursor: default;
+}
+.ai-floating.split-mode .confirm-overlay {
+  position: fixed;
 }
 </style>
