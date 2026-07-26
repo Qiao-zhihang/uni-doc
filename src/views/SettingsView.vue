@@ -24,9 +24,15 @@ import {
   Download as DownloadIcon,
   CheckCircle2,
   XCircle,
+  Puzzle,
+  ShieldAlert,
+  ShieldCheck,
+  RotateCw,
 } from 'lucide-vue-next'
 import { useThemeStore } from '@/stores/theme'
 import { useSettingsStore, type ApiProfile, type ProviderPreset } from '@/stores/settings'
+import { usePluginStore } from '@/stores/plugin'
+import { PERMISSION_LABELS, type PluginPermission } from '@/core/plugin/types'
 import { useRouter } from 'vue-router'
 import type { ModelConfig } from '@/ai/types'
 
@@ -40,19 +46,21 @@ import alipayQr from '@/assets/settings-icons/alipay-qr.png'
 
 const theme = useThemeStore()
 const settings = useSettingsStore()
+const plugins = usePluginStore()
 const router = useRouter()
 
 function backToEditor() {
   router.push('/editor')
 }
 
-type SectionKey = 'appearance' | 'ai' | 'shortcuts' | 'about'
+type SectionKey = 'appearance' | 'ai' | 'shortcuts' | 'plugins' | 'about'
 const activeSection = ref<SectionKey>('appearance')
 
 const navItems: { key: SectionKey; label: string; icon: typeof Sun | string; isImg?: boolean }[] = [
   { key: 'appearance', label: '外观', icon: Sun },
   { key: 'ai', label: 'AI 配置', icon: uusharkIcon, isImg: true },
   { key: 'shortcuts', label: '快捷键', icon: Keyboard },
+  { key: 'plugins', label: '插件', icon: Puzzle },
   { key: 'about', label: '关于', icon: Info },
 ]
 
@@ -326,6 +334,27 @@ const updateStatusText = computed(() => {
       return `检查失败: ${updateError.value}`
   }
 })
+
+const reloading = ref(false)
+
+async function togglePlugin(id: string) {
+  const p = plugins.plugins.find((x) => x.manifest.id === id)
+  if (!p) return
+  if (p.enabled) {
+    await plugins.disable(id)
+  } else {
+    await plugins.enable(id)
+  }
+}
+
+async function reloadPlugins() {
+  reloading.value = true
+  try {
+    await plugins.reload()
+  } finally {
+    reloading.value = false
+  }
+}
 </script>
 
 <template>
@@ -677,6 +706,119 @@ const updateStatusText = computed(() => {
               </tr>
             </tbody>
           </table>
+        </section>
+
+        <!-- 插件 -->
+        <section v-show="activeSection === 'plugins'" class="section">
+          <header class="section-header">
+            <h2 class="section-title">
+              <Puzzle :size="18" class="section-icon" />
+              插件管理
+            </h2>
+            <div class="plugin-header-actions">
+              <button
+                class="icon-btn-solid"
+                title="重新扫描插件"
+                :disabled="plugins.safeMode"
+                @click="reloadPlugins"
+              >
+                <RotateCw :size="14" :class="{ spin: reloading }" />
+              </button>
+              <div class="safe-mode-toggle" :title="plugins.safeMode ? '安全模式已启用：所有第三方插件被禁用' : '启用安全模式'">
+                <ShieldCheck v-if="!plugins.safeMode" :size="16" />
+                <ShieldAlert v-else :size="16" class="warn" />
+                <span class="safe-mode-label">{{ plugins.safeMode ? '安全模式' : '正常模式' }}</span>
+                <button
+                  type="button"
+                  class="switch"
+                  :class="{ on: plugins.safeMode }"
+                  @click="plugins.toggleSafeMode()"
+                >
+                  <span class="switch-knob"></span>
+                </button>
+              </div>
+            </div>
+          </header>
+          <p class="section-desc">
+            插件目录：<code class="inline-code">.unidoc/plugins/</code>（当前 Vault 下）。安全模式下所有插件被禁用。
+          </p>
+
+          <div v-if="plugins.plugins.length === 0" class="placeholder-card">
+            <div class="placeholder-icon">
+              <Puzzle :size="32" />
+            </div>
+            <div class="placeholder-text">暂无插件</div>
+            <div class="placeholder-hint">
+              将插件文件夹放入 <code class="inline-code">.unidoc/plugins/</code> 即可自动加载。
+            </div>
+          </div>
+
+          <div v-else class="plugin-list">
+            <div
+              v-for="p in plugins.plugins"
+              :key="p.manifest.id"
+              class="plugin-card"
+              :class="{ disabled: !p.enabled, error: !!p.error }"
+            >
+              <div class="plugin-main">
+                <div class="plugin-icon">
+                  <Puzzle :size="20" />
+                </div>
+                <div class="plugin-info">
+                  <div class="plugin-name-row">
+                    <span class="plugin-name">{{ p.manifest.name }}</span>
+                    <span class="plugin-version">v{{ p.manifest.version }}</span>
+                    <span v-if="p.error" class="plugin-badge error-badge">加载失败</span>
+                    <span v-else-if="p.enabled && p.loaded" class="plugin-badge ok-badge">已启用</span>
+                    <span v-else-if="p.enabled && !p.loaded" class="plugin-badge warn-badge">未加载</span>
+                    <span v-else class="plugin-badge">已禁用</span>
+                  </div>
+                  <div class="plugin-desc">{{ p.manifest.description }}</div>
+                  <div class="plugin-meta">
+                    <span>作者：{{ p.manifest.author }}</span>
+                    <span v-if="p.manifest.minAppVersion">最低版本：v{{ p.manifest.minAppVersion }}</span>
+                  </div>
+                  <div v-if="p.manifest.permissions && p.manifest.permissions.length > 0" class="plugin-permissions">
+                    <span class="perm-label">权限：</span>
+                    <span
+                      v-for="perm in p.manifest.permissions"
+                      :key="perm"
+                      class="perm-tag"
+                      :title="perm"
+                    >
+                      {{ PERMISSION_LABELS[perm as PluginPermission] || perm }}
+                    </span>
+                  </div>
+                  <div v-if="p.error" class="plugin-error">{{ p.error }}</div>
+                </div>
+              </div>
+              <div class="plugin-actions">
+                <button
+                  type="button"
+                  class="switch"
+                  :class="{ on: p.enabled }"
+                  :disabled="plugins.safeMode"
+                  @click="togglePlugin(p.manifest.id)"
+                >
+                  <span class="switch-knob"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="plugins.getCustomSettingsPanels().length > 0"
+            class="plugin-settings-panels"
+          >
+            <div
+              v-for="panel in plugins.getCustomSettingsPanels()"
+              :key="panel.title"
+              class="plugin-settings-panel"
+            >
+              <h3 class="plugin-settings-panel-title">{{ panel.title }}</h3>
+              <component :is="panel.component" />
+            </div>
+          </div>
         </section>
 
         <!-- 关于 -->
@@ -1666,5 +1808,172 @@ kbd {
 .toast.error {
   background: var(--destructive);
   color: var(--destructive-foreground);
+}
+
+/* ===== 插件面板 ===== */
+.inline-code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 1px 6px;
+  background: var(--muted);
+  border-radius: 4px;
+  color: var(--foreground);
+}
+.plugin-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.safe-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.safe-mode-toggle .warn {
+  color: var(--warning, #f59e0b);
+}
+.safe-mode-label {
+  min-width: 52px;
+}
+.plugin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.plugin-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color 0.15s, opacity 0.15s;
+}
+.plugin-card.disabled {
+  opacity: 0.6;
+}
+.plugin-card.error {
+  border-color: var(--destructive);
+}
+.plugin-main {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+.plugin-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--muted);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.plugin-info {
+  flex: 1;
+  min-width: 0;
+}
+.plugin-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.plugin-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.plugin-version {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--muted-foreground);
+}
+.plugin-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+.plugin-badge.ok-badge {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.plugin-badge.warn-badge {
+  background: var(--warning, #f59e0b);
+  color: #fff;
+}
+.plugin-badge.error-badge {
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+}
+.plugin-desc {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+.plugin-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-bottom: 6px;
+}
+.plugin-permissions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.perm-label {
+  flex-shrink: 0;
+}
+.perm-tag {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: var(--muted);
+  color: var(--foreground);
+}
+.plugin-error {
+  font-size: 12px;
+  color: var(--destructive);
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+.plugin-actions {
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+.plugin-actions .switch:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.plugin-settings-panels {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.plugin-settings-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 0 0 12px 0;
 }
 </style>

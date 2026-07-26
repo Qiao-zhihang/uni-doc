@@ -1,0 +1,13 @@
+{
+  "id": "callout-block",
+  "name": "Callout 提示块",
+  "version": "1.0.0",
+  "description": "添加类似 Obsidian 的 Callout 提示块类型（info/warning/success/error）",
+  "author": "UniDoc",
+  "minAppVersion": "3.5.0",
+  "main": "index.js",
+  "permissions": [
+    "editor:read",
+    "editor:modify-blocks"
+  ]
+}

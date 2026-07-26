@@ -1,0 +1,9 @@
+{
+  "id": "theme-color",
+  "name": "主题色切换",
+  "version": "1.0.0",
+  "description": "自定义 UniDoc 的主题色（品牌主色），支持多种预设色板和自定义颜色，偏好将保存到本地。",
+  "author": "UniDoc",
+  "permissions": ["settings:modify"],
+  "main": "index.js"
+}

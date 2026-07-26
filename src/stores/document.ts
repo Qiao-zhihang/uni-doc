@@ -613,6 +613,9 @@ export const useDocumentStore = defineStore('document', () => {
     } else {
       vaultTree.value = []
     }
+    const { usePluginStore } = await import('@/stores/plugin')
+    const plugins = usePluginStore()
+    await plugins.init(path)
   }
 
   /** 刷新 vault 文件树 */

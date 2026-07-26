@@ -1,0 +1,9 @@
+{
+  "id": "timer-block",
+  "name": "计时器",
+  "version": "1.0.0",
+  "description": "可嵌入文档的倒计时/正计时块，用于番茄钟、演讲计时等场景",
+  "author": "UniDoc",
+  "permissions": ["editor:read", "editor:modify-blocks", "editor:insert-blocks", "ui:dialog"],
+  "main": "index.js"
+}

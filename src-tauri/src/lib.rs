@@ -52,6 +52,11 @@ pub fn run() {
             commands::settings::save_reminders,
             commands::settings::load_reminders,
             commands::search::web_search,
+            commands::vault::plugin_dir_exists,
+            commands::vault::list_plugin_dirs,
+            commands::vault::write_plugin_data,
+            commands::vault::file_exists,
+            commands::vault::read_plugin_file,
         ])
         .run(tauri::generate_context!())
     {

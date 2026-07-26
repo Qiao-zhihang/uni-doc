@@ -213,3 +213,58 @@ pub fn create_dir_at_path(path: String) -> Result<(), String> {
     fs::create_dir_all(target).map_err(|e| format!("创建文件夹失败: {}", e))?;
     Ok(())
 }
+
+#[tauri::command]
+pub fn plugin_dir_exists(path: String) -> bool {
+    Path::new(&path).exists() && Path::new(&path).is_dir()
+}
+
+#[derive(serde::Serialize)]
+pub struct PluginDirEntry {
+    pub name: String,
+    pub is_dir: bool,
+}
+
+#[tauri::command]
+pub fn list_plugin_dirs(path: String) -> Result<Vec<PluginDirEntry>, String> {
+    let dir = Path::new(&path);
+    if !dir.exists() || !dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    let entries = fs::read_dir(dir).map_err(|e| format!("读取目录失败: {}", e))?;
+    let mut result: Vec<PluginDirEntry> = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("读取条目失败: {}", e))?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        let file_type = entry
+            .file_type()
+            .map_err(|e| format!("读取文件类型失败: {}", e))?;
+        result.push(PluginDirEntry {
+            name,
+            is_dir: file_type.is_dir(),
+        });
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn write_plugin_data(path: String, content: String) -> Result<(), String> {
+    let target = Path::new(&path);
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("创建父目录失败: {}", e))?;
+    }
+    let mut file = File::create(target).map_err(|e| format!("创建文件失败: {}", e))?;
+    file.write_all(content.as_bytes())
+        .map_err(|e| format!("写入文件失败: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn file_exists(path: String) -> bool {
+    Path::new(&path).exists()
+}
+
+#[tauri::command]
+pub fn read_plugin_file(path: String) -> Result<String, String> {
+    fs::read_to_string(&path).map_err(|e| format!("读取插件文件失败 {}: {}", path, e))
+}

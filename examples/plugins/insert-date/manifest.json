@@ -1,0 +1,16 @@
+{
+  "id": "insert-date",
+  "name": "插入日期",
+  "version": "1.0.0",
+  "description": "在当前光标位置插入当前日期/时间，支持自定义格式和快捷键 Ctrl+Shift+D",
+  "author": "UniDoc",
+  "minAppVersion": "3.5.0",
+  "main": "index.js",
+  "permissions": [
+    "editor:read",
+    "editor:insert-blocks",
+    "editor:modify-blocks",
+    "settings:read",
+    "settings:modify"
+  ]
+}

@@ -16,6 +16,7 @@ export type BlockType =
   | 'code_block'
   | 'table'
   | 'image'
+  | (string & {})
 
 /** 行内标记(粗体/斜体等) */
 export type MarkType =

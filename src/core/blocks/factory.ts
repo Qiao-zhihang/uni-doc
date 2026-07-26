@@ -16,6 +16,7 @@ import type {
   ParagraphProps,
   TableCell,
 } from './types'
+import { PluginManager } from '../plugin/manager'
 
 /** 生成 RFC4122 风格 UUID(优先使用原生,回退到随机实现) */
 export function uuid(): string {
@@ -157,8 +158,16 @@ export function createBlock(type: BlockType): Block {
       return createTableBlock()
     case 'image':
       return createImageBlock()
-    default:
+    default: {
+      const def = PluginManager.instance.getCustomBlockType(type as string)
+      if (def) {
+        const b = createBaseBlock(type)
+        b.content = { ...(def.defaultContent || {}) }
+        b.props = { ...(def.defaultProps || {}) }
+        return b
+      }
       return createParagraphBlock()
+    }
   }
 }
 

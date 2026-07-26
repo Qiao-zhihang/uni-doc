@@ -20,6 +20,7 @@ import EditorTabs from '@/components/editor/EditorTabs.vue'
 import BlockEditor from '@/components/editor/BlockEditor.vue'
 import PresentationMode from '@/components/editor/PresentationMode.vue'
 import ReplayPlayer from '@/components/editor/ReplayPlayer.vue'
+import CommandPalette from '@/components/common/CommandPalette.vue'
 import { useEditorStore } from '@/stores/editor'
 import { useDocumentStore } from '@/stores/document'
 import { useSettingsStore } from '@/stores/settings'
@@ -66,6 +67,7 @@ const doc = useDocumentStore()
 const settings = useSettingsStore()
 const replay = useReplayStore()
 const breakpoint = useBreakpoint()
+const commandPaletteVisible = ref(false)
 
 const isSplitAndOpen = computed(
   () => editor.aiLayoutMode === 'split' && editor.aiFloatingState === 'expanded',
@@ -224,6 +226,12 @@ function onKeydown(e: KeyboardEvent) {
     editor.toggleAiFloating()
     return
   }
+  // Ctrl+Shift+P 打开命令面板
+  if (ctrl && e.shiftKey && (e.key === 'p' || e.key === 'P')) {
+    e.preventDefault()
+    commandPaletteVisible.value = true
+    return
+  }
 }
 
 onMounted(() => {
@@ -320,6 +328,9 @@ onUnmounted(() => {
 
     <!-- 文档回放模式(全屏覆盖) -->
     <ReplayPlayer v-if="replayMode" @exit="exitReplay" />
+
+    <!-- 命令面板 -->
+    <CommandPalette :visible="commandPaletteVisible" @close="commandPaletteVisible = false" />
   </main>
 </template>
 

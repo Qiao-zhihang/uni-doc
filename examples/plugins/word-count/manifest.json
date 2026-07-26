@@ -1,0 +1,13 @@
+{
+  "id": "word-count",
+  "name": "字数统计",
+  "version": "1.0.0",
+  "description": "统计当前文档的字数、字符数、段落数，支持快捷键 Ctrl+Shift+C",
+  "author": "UniDoc",
+  "minAppVersion": "3.5.0",
+  "main": "index.js",
+  "permissions": [
+    "editor:read",
+    "ui:dialog"
+  ]
+}

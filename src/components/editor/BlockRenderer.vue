@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Component } from 'vue'
 import type { Block } from '@/core/blocks/types'
 import HeadingBlock from '@/components/blocks/HeadingBlock.vue'
@@ -11,6 +12,7 @@ import CodeBlock from '@/components/blocks/CodeBlock.vue'
 import TableBlock from '@/components/blocks/TableBlock.vue'
 import ImageBlock from '@/components/blocks/ImageBlock.vue'
 import ErrorBoundary from '@/components/common/ErrorBoundary.vue'
+import { PluginManager } from '@/core/plugin/manager'
 
 defineProps<{ block: Block }>()
 
@@ -21,7 +23,7 @@ const emit = defineEmits<{
   (e: 'select'): void
 }>()
 
-const componentMap: Record<string, Component> = {
+const builtinComponents: Record<string, Component> = {
   heading: HeadingBlock,
   paragraph: ParagraphBlock,
   list: ListBlock,
@@ -32,6 +34,15 @@ const componentMap: Record<string, Component> = {
   table: TableBlock,
   image: ImageBlock,
 }
+
+const componentMap = computed(() => {
+  const custom = PluginManager.instance.getCustomBlockTypes()
+  const merged: Record<string, Component> = { ...builtinComponents }
+  for (const [type, def] of custom) {
+    merged[type] = def.component
+  }
+  return merged
+})
 </script>
 
 <template>
