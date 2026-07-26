@@ -113,6 +113,46 @@ function formatToolResultForAI(
       const text = String(result.data ?? '').slice(0, 3000)
       return `【记忆检索】\n${text}`
     }
+    case 'set_reminder': {
+      const d = result.data as {
+        id: string
+        title: string
+        triggerType: string
+        timeStr: string
+        triggerAt: number
+      }
+      const typeLabel: Record<string, string> = {
+        once: '一次性',
+        daily: '每天',
+        weekly: '每周',
+        interval: '间隔',
+      }
+      const date = new Date(d.triggerAt)
+      const dateStr = `${date.getMonth() + 1}/${date.getDate()}`
+      return `【提醒已设置】${d.title} | 类型=${typeLabel[d.triggerType] ?? d.triggerType} | 时间=${dateStr} ${d.timeStr} | ID=${d.id}`
+    }
+    case 'list_reminders': {
+      const items = (result.data ?? []) as Array<{
+        id: string
+        title: string
+        status: string
+        timeStr: string
+        triggerType: string
+      }>
+      const total = result.total ?? items.length
+      if (total === 0) return `【提醒列表】暂无活跃提醒`
+      const typeLabel: Record<string, string> = {
+        once: '一次性',
+        daily: '每天',
+        weekly: '每周',
+        interval: '间隔',
+      }
+      return `【提醒列表】共 ${total} 个:\n${items.map((r, i) => `${i + 1}. [${typeLabel[r.triggerType] ?? r.triggerType}] ${r.title} (${r.timeStr}) [${r.status}] ID=${r.id}`).join('\n')}`
+    }
+    case 'cancel_reminder': {
+      const d = result.data as { id: string }
+      return `【提醒已取消】ID=${d.id}`
+    }
     default:
       return `【执行完成】${label}`
   }
@@ -193,6 +233,8 @@ export interface AgentDeps {
   enableWebSearch: () => boolean
   /** AI 记忆 Store（可选，不传则不启用记忆工具） */
   memory?: ReturnType<typeof useAiMemoryStore>
+  /** 获取当前对话 ID（可选，用于设置提醒时关联对话） */
+  getConversationId?: () => string | null
 }
 
 export interface Agent {
@@ -230,7 +272,7 @@ const DOC_MODIFYING_TOOLS = new Set([
  * 不再维护内部 messages 闭包，chat 方法接收外部 messages 数组
  */
 export function createAgent(deps: AgentDeps): Agent {
-  const { doc, editor, getConfig, canvasEl, enableWebSearch, memory } = deps
+  const { doc, editor, getConfig, canvasEl, enableWebSearch, memory, getConversationId } = deps
 
   const MAX_CONTEXT_ROUNDS = 30
 
@@ -300,7 +342,7 @@ export function createAgent(deps: AgentDeps): Agent {
         const contextMessages = prepareMessagesForModel(rawContextMessages, hasVision)
 
         // 准备工具：内部 ToolDefinition[] 与 OpenAI Function Calling 格式
-        const tools = createTools(doc, editor, useToolSearch, memory)
+        const tools = createTools(doc, editor, useToolSearch, memory, getConversationId)
         const toolDefs = getToolDefinitions(tools)
 
         // 多轮工具调用循环

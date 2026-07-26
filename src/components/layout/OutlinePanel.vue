@@ -255,7 +255,7 @@ function closeMenu() {
     </div>
 
     <!-- 信息 -->
-    <div v-else class="tab-body no-scrollbar">
+    <div v-else-if="editor.outlineTab === 'info'" class="tab-body no-scrollbar">
       <div class="info-list">
         <div v-for="row in info" :key="row.label" class="info-row">
           <span class="info-label">{{ row.label }}</span>

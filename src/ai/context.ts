@@ -150,9 +150,27 @@ export function buildSystemPrompt(
   userInput: string = '',
 ): string {
   const lines: string[] = []
+  const now = new Date()
+  const nowStr = now.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    weekday: 'long',
+    hour12: false,
+  })
+  const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
   lines.push('# 角色')
   lines.push('你是 UniDoc 文档编辑器的 AI 助手「UU鲨」,可以帮用户编辑文档、管理文件、分析内容。')
+  lines.push('')
+  lines.push('# 当前时间（必须以此为基准计算所有时间）')
+  lines.push(`- 当前本地时间: ${nowStr}`)
+  lines.push(`- 当前时间戳(毫秒): ${now.getTime()}`)
+  lines.push(`- 今日是: ${weekdayNames[now.getDay()]}`)
+  lines.push(`- 注意: 你的系统时间可能与用户本地时间不同,必须以本区块提供的时间为准。`)
   lines.push('')
   lines.push('# 重要概念区分')
   lines.push('**编辑器文档**: 当前在 UniDoc 编辑器中打开的活动文档,你可以直接对其进行编辑操作。')
@@ -260,6 +278,37 @@ export function buildSystemPrompt(
   lines.push('- 移动区块: 使用 move_block')
   lines.push('- 转换区块类型: 使用 convert_block')
   lines.push('- 获取完整区块列表: 使用 list_blocks（修改前不确定 id 时必须先调用）')
+  lines.push('')
+  lines.push('# 提醒/定时功能（重要！）')
+  lines.push(
+    '你拥有设置和管理定时提醒的能力。当用户要求你"提醒我..."、"叫我..."、"X分钟后..."、"每天X点..."时,使用以下工具:',
+  )
+  lines.push('- set_reminder: 设置一个新的提醒,支持一次性和周期性(每天/每周/间隔)')
+  lines.push(
+    '  ⚠️ triggerAt 必须是**具体的毫秒数字**,不能是表达式字符串。根据上方「当前时间」区块提供的时间戳进行计算。',
+  )
+  lines.push(
+    `  ⚠️ 例: 当前时间戳为 T,则 30 分钟后 = T + 30*60*1000, 1 小时后 = T + 3600000, 2 天后 = T + 2*24*3600*1000。`,
+  )
+  lines.push('  - 一次性提醒(如"30分钟后叫我"): triggerType="once", triggerAt=计算出的具体数字')
+  lines.push(
+    '  - 每天提醒(如"每天6点叫我喝水"): triggerType="daily", triggerAt=今天 6:00 的时间戳数字(日期部分任意,取时/分/秒即可)')
+  lines.push(
+    '  - 每周提醒(如"每周一早上9点开会"): triggerType="weekly", triggerAt=下周一 9:00 的时间戳数字, weekdays=[1]')
+  lines.push('  - 间隔提醒(如"每小时提醒我"): triggerType="interval", intervalMinutes=60')
+  lines.push('- list_reminders: 查看所有当前活跃的提醒')
+  lines.push('- cancel_reminder: 取消一个提醒(通过 id)')
+  lines.push('')
+  lines.push('**重要规则:**')
+  lines.push(
+    '1. 用户说"提醒我"、"叫我"、"X分钟后"、"每天X点"等,必须用 set_reminder 工具,不要只在对话中答应而不设置。',
+  )
+  lines.push('2. 设置提醒时,title 要简短概括提醒事项,message 要给出具体的提醒内容。')
+  lines.push('3. 提醒到期后会自动发送系统通知,并在当前对话中发消息提醒用户。')
+  lines.push(
+    '4. 时间计算必须基于上方「当前时间」区块提供的时间戳。triggerAt 必须是具体的毫秒数字,不能写 "Date.now()+..." 之类的表达式。',
+  )
+  lines.push('5. 不确定用户的具体时间要求时,可以先询问用户确认再设置。')
   lines.push('')
   lines.push('# 各区块类型的参数格式（重要！创建/修改区块时必须传入对应内容）')
   lines.push('- paragraph/heading/quote: 传 text 字段;heading 额外传 level(1-6)')

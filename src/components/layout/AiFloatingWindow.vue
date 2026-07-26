@@ -303,6 +303,7 @@ onMounted(async () => {
     canvasEl: () => document.querySelector('.editor-canvas') as HTMLElement | null,
     enableWebSearch: () => localWebSearch.value,
     memory: memoryStore,
+    getConversationId: () => convStore.activeConversationId,
   })
 
   scrollToBottom()
@@ -727,6 +728,28 @@ function formatToolResult(toolName: string, result: ToolResult): string {
       const count = matches ? matches.length : 0
       return `已找到 ${count} 条相关记忆`
     }
+    case 'set_reminder': {
+      const d = data as { title?: string; triggerType?: string; timeStr?: string; triggerAt?: number }
+      const typeLabel: Record<string, string> = {
+        once: '一次性',
+        daily: '每天',
+        weekly: '每周',
+        interval: '间隔',
+      }
+      const type = typeLabel[d?.triggerType ?? ''] ?? d?.triggerType ?? ''
+      if (d?.title) {
+        return `已设置${type}提醒「${d.title}」(${d.timeStr ?? ''})`
+      }
+      return `已设置${type}提醒`
+    }
+    case 'list_reminders': {
+      const items = (data ?? []) as unknown[]
+      const total = r.total ?? items.length
+      if (total === 0) return `暂无活跃提醒`
+      return `共 ${total} 个提醒`
+    }
+    case 'cancel_reminder':
+      return `已取消提醒`
     default:
       return `已完成 ${formatToolName(toolName)}`
   }

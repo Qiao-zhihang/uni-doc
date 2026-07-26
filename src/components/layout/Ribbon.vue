@@ -5,7 +5,7 @@
  * 48px 宽,顶部功能切换 + 底部系统操作
  */
 import { computed } from 'vue'
-import { FileText, Search, List, Sun, Moon, Settings } from 'lucide-vue-next'
+import { FileText, Search, List, Bell, Sun, Moon, Settings } from 'lucide-vue-next'
 import { useEditorStore } from '@/stores/editor'
 import { useThemeStore } from '@/stores/theme'
 import { useRouter } from 'vue-router'
@@ -19,6 +19,9 @@ const isDark = computed(() => theme.mode === 'dark')
 
 function goToSettings() {
   router.push('/settings')
+}
+function goToReminders() {
+  router.push('/reminders')
 }
 </script>
 
@@ -40,10 +43,17 @@ function goToSettings() {
       <button
         class="ribbon-btn"
         :class="{ 'is-active': editor.outlinePanelOpen }"
-        title="大纲 (Ctrl+Shift+\\)"
+        title="大纲 (Ctrl+Shift+\)"
         @click="editor.toggleOutlinePanel()"
       >
         <List :size="20" />
+      </button>
+      <button
+        class="ribbon-btn"
+        title="提醒"
+        @click="goToReminders()"
+      >
+        <Bell :size="20" />
       </button>
     </div>
 

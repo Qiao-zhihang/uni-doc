@@ -24,6 +24,7 @@ import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { useAiMemoryStore } from '@/stores/aiMemory'
 import { searchAndFormatMemories, listAllMemories } from './memory'
+import type { Reminder } from '@/stores/reminder'
 
 type DocumentStore = ReturnType<typeof useDocumentStore>
 type EditorStore = ReturnType<typeof useEditorStore>
@@ -54,6 +55,9 @@ export const TOOL_LABELS: Record<string, string> = {
   save_memory: '保存记忆',
   list_memory: '查看记忆',
   search_memory: '搜索记忆',
+  set_reminder: '设置提醒',
+  list_reminders: '查看提醒',
+  cancel_reminder: '取消提醒',
 }
 
 const BLOCK_TYPES: BlockType[] = [
@@ -182,12 +186,13 @@ const BLOCK_CONTENT_PARAMS = {
   align: { type: 'string', description: '对齐方式 left/center/right,仅文本类区块可选' },
 }
 
-/** 工具工厂:绑定 doc/editor 实例,返回 16 个 ToolDefinition */
+/** 工具工厂:绑定 doc/editor 实例,返回 19 个 ToolDefinition */
 export function createTools(
   doc: DocumentStore,
   editor: EditorStore,
   enableWebSearch = false,
   memory?: MemoryStore,
+  getConversationId?: () => string | null,
 ): ToolDefinition[] {
   const tools: ToolDefinition[] = [
     {
@@ -763,7 +768,205 @@ export function createTools(
     })
   }
 
+  // ===== 提醒工具 =====
+  tools.push(
+    {
+      name: 'set_reminder',
+      description:
+        '设置一个定时提醒。支持一次性提醒（如"30分钟后叫我"）和周期性提醒（如"每天早上6点叫我喝水"、"每周一上午9点开会"）。到期后会同时发送系统通知和在当前对话中发消息提醒用户。',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: {
+            type: 'string',
+            description: '提醒标题,简短说明提醒事项(如"喝水提醒"、"会议")',
+          },
+          message: {
+            type: 'string',
+            description: '详细的提醒内容(如"该喝水了,保持水分充足")',
+          },
+          triggerType: {
+            type: 'string',
+            enum: ['once', 'daily', 'weekly', 'interval'],
+            description:
+              '提醒类型: once=一次性提醒, daily=每天固定时间, weekly=每周固定时间, interval=间隔固定时间重复',
+          },
+          triggerAt: {
+            type: 'number',
+            description:
+              '触发时间的 Unix 时间戳(毫秒)。对于一次性提醒是具体触发时间;对于每日/每周提醒是当天的基准时间(时/分/秒有效,日期忽略);对于 interval 类型是首次触发时间。使用 Date.now() + 偏移量 计算。',
+          },
+          weekdays: {
+            type: 'array',
+            description:
+              '周几触发(仅 weekly 类型需要)。0=周日,1=周一,...,6=周六。如 [1,3,5] 表示周一、周三、周五',
+            items: { type: 'number' },
+          },
+          intervalMinutes: {
+            type: 'number',
+            description: '间隔多少分钟重复(仅 interval 类型需要),例如 30 表示每 30 分钟',
+          },
+        },
+        required: ['title', 'message', 'triggerType', 'triggerAt'],
+      },
+      execute: async (args) => {
+        const title = String(args.title ?? '提醒')
+        const message = String(args.message ?? '')
+        const triggerType = (args.triggerType as 'once' | 'daily' | 'weekly' | 'interval') ?? 'once'
+        const triggerAt = resolveTriggerAt(args.triggerAt)
+
+        let repeatConfig: Reminder['repeatConfig'] | undefined
+        if (triggerType === 'weekly' && Array.isArray(args.weekdays)) {
+          repeatConfig = {
+            weekdays: (args.weekdays as number[]).map((d) =>
+              Math.max(0, Math.min(6, Math.floor(d))),
+            ),
+          }
+        }
+        if (triggerType === 'interval' && typeof args.intervalMinutes === 'number') {
+          repeatConfig = { intervalMs: Math.max(1, args.intervalMinutes) * 60_000 }
+        }
+
+        const { useReminderStore } = await import('@/stores/reminder')
+        const reminderStore = useReminderStore()
+        await reminderStore.load()
+
+        const conversationId = getConversationId?.() ?? undefined
+        const reminder = reminderStore.createReminder(
+          title,
+          message,
+          triggerType,
+          triggerAt,
+          repeatConfig,
+          conversationId,
+        )
+
+        const triggerDate = new Date(triggerAt)
+        const timeStr = `${String(triggerDate.getHours()).padStart(2, '0')}:${String(triggerDate.getMinutes()).padStart(2, '0')}`
+        return {
+          ok: true,
+          data: {
+            id: reminder.id,
+            title,
+            message,
+            triggerType,
+            triggerAt,
+            timeStr,
+          },
+        }
+      },
+    },
+    {
+      name: 'list_reminders',
+      description: '列出所有当前活跃的提醒(包括一次性和周期性),显示标题、触发时间和状态。',
+      parameters: { type: 'object', properties: {}, required: [] },
+      execute: async () => {
+        const { useReminderStore } = await import('@/stores/reminder')
+        const reminderStore = useReminderStore()
+        await reminderStore.load()
+        const list = reminderStore.listReminders()
+        const data = list.map((r) => {
+          const d = new Date(r.triggerAt)
+          return {
+            id: r.id,
+            title: r.title,
+            message: r.message,
+            triggerType: r.triggerType,
+            status: r.status,
+            triggerAt: r.triggerAt,
+            timeStr: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+          }
+        })
+        return { ok: true, data, total: data.length }
+      },
+    },
+    {
+      name: 'cancel_reminder',
+      description: '取消(删除)一个指定的提醒。传入提醒的 id,可通过 list_reminders 获取。',
+      parameters: {
+        type: 'object',
+        properties: {
+          reminderId: { type: 'string', description: '要取消的提醒 id' },
+        },
+        required: ['reminderId'],
+      },
+      execute: async (args) => {
+        const id = String(args.reminderId ?? '')
+        if (!id) return { ok: false, error: 'reminderId 不能为空' }
+        const { useReminderStore } = await import('@/stores/reminder')
+        const reminderStore = useReminderStore()
+        await reminderStore.load()
+        const ok = reminderStore.cancelReminder(id)
+        if (!ok) return { ok: false, error: `提醒 ${id} 不存在` }
+        return { ok: true, data: { id } }
+      },
+    },
+  )
+
   return tools
+}
+
+/**
+ * 健壮解析 triggerAt 参数
+ * 支持: 数字(毫秒时间戳)、数字字符串、ISO 日期字符串、
+ *       "Date.now()+..." 表达式、相对秒数字符串
+ * 兜底: 解析失败返回 1 分钟后
+ */
+function resolveTriggerAt(raw: unknown): number {
+  const fallback = Date.now() + 60_000
+  if (raw == null) return fallback
+
+  // 1. 纯数字
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    // 如果看起来是秒级时间戳(10位或11位),转毫秒
+    if (raw > 1_000_000_000 && raw < 10_000_000_000) return raw * 1000
+    return raw
+  }
+
+  // 2. 字符串
+  if (typeof raw === 'string') {
+    const s = raw.trim()
+
+    // 2a. 纯数字字符串
+    if (/^-?\d+$/.test(s)) {
+      const n = Number(s)
+      if (Number.isFinite(n)) {
+        if (n > 1_000_000_000 && n < 10_000_000_000) return n * 1000
+        return n
+      }
+    }
+
+    // 2b. Date.now() + xxx 表达式或简单算术表达式
+    const exprMatch = s.match(/^Date\.now\(\)\s*([+\-*\/]\s*\d+(?:\.\d+)?(?:\s*[+\-*\/]\s*\d+(?:\.\d+)?)*)\s*$/i)
+    if (exprMatch) {
+      try {
+        // eslint-disable-next-line no-new-func
+        const calc = new Function(`return Date.now() ${exprMatch[1]}`) as () => number
+        const result = calc()
+        if (Number.isFinite(result) && result > 0) return result
+      } catch {
+        // 继续尝试其他方式
+      }
+    }
+
+    // 2c. 简单的 "1234567890 + 1800000" 形式(两个数字相加)
+    const simpleMath = s.match(/^(\d+)\s*([+\-])\s*(\d+)$/)
+    if (simpleMath) {
+      const a = Number(simpleMath[1])
+      const b = Number(simpleMath[3])
+      const result = simpleMath[2] === '+' ? a + b : a - b
+      if (Number.isFinite(result)) {
+        if (result > 1_000_000_000 && result < 10_000_000_000) return result * 1000
+        return result
+      }
+    }
+
+    // 2d. ISO 日期字符串或其他 Date 可解析的格式
+    const parsed = Date.parse(s)
+    if (Number.isFinite(parsed) && parsed > 0) return parsed
+  }
+
+  return fallback
 }
 
 /** 将内部 ToolDefinition 转换为 OpenAI Function Calling 请求格式 */

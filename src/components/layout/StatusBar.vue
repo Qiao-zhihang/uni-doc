@@ -78,11 +78,16 @@ const saveStatusClass = computed(() => doc.savedStatus)
   border-top: 1px solid var(--border);
   font-size: 11px;
   color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
 }
 .group {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 .save-status {
   display: inline-flex;
@@ -123,6 +128,11 @@ const saveStatusClass = computed(() => doc.savedStatus)
   font-size: 10px;
   letter-spacing: 0.2px;
   user-select: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
 }
 .sep {
   width: 1px;

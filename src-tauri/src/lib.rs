@@ -11,6 +11,7 @@ pub fn run() {
     if let Err(e) = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let level = if cfg!(debug_assertions) {
                 log::LevelFilter::Info
@@ -48,6 +49,8 @@ pub fn run() {
             commands::settings::load_ai_conversations,
             commands::settings::save_ai_memory,
             commands::settings::load_ai_memory,
+            commands::settings::save_reminders,
+            commands::settings::load_reminders,
             commands::search::web_search,
         ])
         .run(tauri::generate_context!())

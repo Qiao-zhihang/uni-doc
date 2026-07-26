@@ -68,3 +68,13 @@ pub fn save_ai_memory(json: String) -> Result<(), String> {
 pub fn load_ai_memory() -> Result<String, String> {
     read_json_file("ai_memory.json", "读取记忆数据失败")
 }
+
+#[tauri::command]
+pub fn save_reminders(json: String) -> Result<(), String> {
+    write_json_file("reminders.json", &json, "写入提醒数据失败")
+}
+
+#[tauri::command]
+pub fn load_reminders() -> Result<String, String> {
+    read_json_file("reminders.json", "读取提醒数据失败")
+}

@@ -22,6 +22,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/SettingsView.vue'),
     meta: { title: '设置' },
   },
+  {
+    path: '/reminders',
+    name: 'reminders',
+    component: () => import('@/views/RemindersView.vue'),
+    meta: { title: '提醒' },
+  },
 ]
 
 export const router = createRouter({
