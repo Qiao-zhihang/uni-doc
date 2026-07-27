@@ -454,29 +454,14 @@ async function execute() {
     }
   }
 
-  // 不支持 vision 的 AI：图片自动插入文档
-  if (hasImages && !caps.value.vision && savedImagePaths.length > 0 && doc.activeTabPath) {
-    for (const relPath of savedImagePaths) {
-      try {
-        const blockId = doc.appendBlock('image')
-        if (blockId) {
-          doc.updateBlock(blockId, { content: { src: relPath, alt: '' } })
-        }
-      } catch (e) {
-        console.error('插入图片到文档失败:', e)
-      }
-    }
-  }
-
   // 所有情况都用多模态结构存储（text + image_url）
   // agent.chat 会负责：发给模型时根据 vision 能力决定是否剥离图片
   if (hasImages) {
     const imageInfo = savedImagePaths.length > 0
       ? savedImagePaths.map((p, i) => `图片${i + 1}: ${p}`).join('，')
       : ''
-    const aiHintBase = caps.value.vision
-      ? '以下图片已保存到 vault，路径如上。如需将图片插入文档，可直接使用上述路径调用 insert_block 工具，type=image，src 填相对路径（相对文档所在目录）。'
-      : '以下图片已保存并自动插入当前文档，路径如上。无需再调用 insert_block 插入。'
+    const aiHintBase =
+      '以下图片已保存到 vault，路径如上。如需将图片插入文档，可直接使用上述路径调用 insert_block 工具，type=image，src 填相对路径（相对文档所在目录）。'
     const aiInternal = imageInfo
       ? `__AI_INTERNAL__: ${imageInfo}。${aiHintBase}__AI_INTERNAL_END__`
       : `__AI_INTERNAL__: ${aiHintBase}__AI_INTERNAL_END__`
