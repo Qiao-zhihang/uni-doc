@@ -133,13 +133,12 @@ onUnmounted(() => {
   }
 })
 
-// 文档变化后重新计算
+// 文档变化后重新计算(renderTick 递增信号)
 watch(
-  () => doc.blocks,
+  () => doc.renderTick,
   () => {
     nextTick(updateCurrentHeading)
   },
-  { deep: true },
 )
 
 // Tab 切换
@@ -285,74 +284,69 @@ function closeMenu() {
   background: var(--sidebar);
   border-left: 1px solid var(--sidebar-border);
   user-select: none;
+  z-index: 5;
 }
 .tab-header {
   display: flex;
   align-items: center;
   height: var(--titlebar-height);
   flex-shrink: 0;
-  border-bottom: 1px solid var(--sidebar-border);
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0 4px;
 }
 .tab-btn {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  height: 100%;
-  font-size: 11px;
+  gap: 5px;
+  height: calc(100% - 4px);
+  font-size: 11.5px;
   font-weight: 500;
   color: var(--muted-foreground);
+  border-radius: var(--radius-button);
   border-bottom: 2px solid transparent;
-  transition:
-    color 0.12s ease,
-    border-color 0.12s ease;
+  margin: 0 2px;
+  transition: all var(--transition-base);
 }
 .tab-btn:hover {
   color: var(--sidebar-foreground);
+  background: var(--sidebar-accent);
 }
 .tab-btn.active {
   color: var(--brand-500);
-  border-bottom-color: var(--brand-500);
+  background: var(--brand-50);
+  border-bottom-color: transparent;
+}
+.dark .tab-btn.active {
+  background: rgba(79, 157, 255, 0.15);
 }
 .tab-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 4px 12px;
+  padding: 10px 6px 14px;
 }
 .outline-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding-right: 8px;
+  gap: 7px;
+  height: 30px;
+  padding-right: 10px;
   border-radius: var(--radius-button);
   font-size: 13px;
   color: var(--sidebar-foreground);
   cursor: pointer;
-  transition:
-    background 0.12s ease,
-    color 0.12s ease;
+  transition: all var(--transition-base);
   position: relative;
 }
 .outline-item:hover {
   background: var(--sidebar-accent);
+  transform: translateX(2px);
 }
 .outline-item.active {
   background: var(--sidebar-accent);
   color: var(--brand-500);
   font-weight: 500;
-}
-.outline-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 2px;
-  height: 16px;
-  border-radius: 1px;
-  background: var(--brand-500);
 }
 .dot {
   width: 4px;

@@ -316,7 +316,9 @@ onUnmounted(() => {
       </div>
 
       <!-- AI 独立浮窗(非模态,浮于所有内容之上) -->
-      <AiFloatingWindow />
+      <Teleport to="body">
+        <AiFloatingWindow />
+      </Teleport>
     </template>
 
     <!-- 演示模式(全屏覆盖) -->
@@ -330,7 +332,9 @@ onUnmounted(() => {
     <ReplayPlayer v-if="replayMode" @exit="exitReplay" />
 
     <!-- 命令面板 -->
-    <CommandPalette :visible="commandPaletteVisible" @close="commandPaletteVisible = false" />
+    <Teleport to="body">
+      <CommandPalette :visible="commandPaletteVisible" @close="commandPaletteVisible = false" />
+    </Teleport>
   </main>
 </template>
 

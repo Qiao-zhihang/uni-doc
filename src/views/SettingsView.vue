@@ -948,11 +948,12 @@ async function reloadPlugins() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 48px;
-  padding: 0 16px;
+  height: 52px;
+  padding: 0 20px;
   flex-shrink: 0;
-  background: var(--background);
-  border-bottom: 1px solid var(--border);
+  background: var(--sidebar);
+  border-bottom: 1px solid var(--sidebar-border);
+  z-index: 10;
 }
 .topbar-left {
   display: flex;
@@ -1015,29 +1016,27 @@ async function reloadPlugins() {
 
 /* ===== 侧边栏 ===== */
 .sidebar {
-  width: 200px;
-  min-width: 200px;
+  width: 220px;
+  min-width: 220px;
   flex-shrink: 0;
-  padding: 8px;
-  border-right: 1px solid var(--border);
-  background: var(--background);
+  padding: 12px;
+  border-right: 1px solid var(--sidebar-border);
+  background: var(--sidebar);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   overflow-y: auto;
 }
 .nav-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
-  border-radius: 6px;
+  padding: 9px 14px;
+  border-radius: var(--radius-button);
   font-size: 13px;
   color: var(--foreground);
   cursor: pointer;
-  transition:
-    background 0.15s,
-    color 0.15s;
+  transition: all var(--transition-base);
   user-select: none;
 }
 .nav-img {
@@ -1048,6 +1047,7 @@ async function reloadPlugins() {
 }
 .nav-item:hover {
   background: var(--muted);
+  transform: translateX(2px);
 }
 .nav-item.active {
   background: var(--accent);
@@ -1059,7 +1059,7 @@ async function reloadPlugins() {
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 32px;
+  padding: 28px 36px;
   background: var(--background);
 }
 .section {

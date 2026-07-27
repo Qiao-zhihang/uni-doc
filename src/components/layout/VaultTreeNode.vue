@@ -138,7 +138,6 @@ function onChildContextmenu(e: MouseEvent, node: VaultNode) {
   background: var(--sidebar-accent);
   color: var(--brand-500);
   font-weight: 500;
-  box-shadow: inset 2px 0 0 0 var(--brand-500);
 }
 .chevron {
   flex-shrink: 0;

@@ -77,7 +77,6 @@ watch(
     }
     nextTick(render)
   },
-  { deep: true },
 )
 
 watch(
@@ -91,7 +90,6 @@ watch(
 watch(
   () => props.block.props,
   () => nextTick(render),
-  { deep: true },
 )
 
 function commitWithMarks(text: string) {

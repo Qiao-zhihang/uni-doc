@@ -404,7 +404,9 @@ function closeMenu() {
     </div>
 
     <!-- 仓库管理弹窗 -->
-    <VaultManagerDialog v-if="showVaultManager" @close="showVaultManager = false" />
+    <Teleport to="body">
+      <VaultManagerDialog v-if="showVaultManager" @close="showVaultManager = false" />
+    </Teleport>
   </aside>
 </template>
 
@@ -418,17 +420,19 @@ function closeMenu() {
   border-right: 1px solid var(--sidebar-border);
   user-select: none;
   position: relative;
+  z-index: 5;
 }
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: var(--titlebar-height);
-  padding: 0 8px 0 12px;
+  padding: 0 10px 0 16px;
   flex-shrink: 0;
+  border-bottom: 1px solid var(--glass-border);
 }
 .title {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -436,29 +440,34 @@ function closeMenu() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 140px;
+  max-width: 150px;
 }
 .actions {
   display: flex;
-  gap: 2px;
+  gap: 3px;
 }
 .icon-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--radius-button);
   color: var(--muted-foreground);
+  transition: all var(--transition-base), transform var(--transition-fast);
 }
 .icon-btn:hover {
   background: var(--sidebar-accent);
   color: var(--sidebar-foreground);
+  transform: translateY(-1px);
+}
+.icon-btn:active {
+  transform: scale(0.94);
 }
 .tree-wrap {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 4px 12px;
+  padding: 8px 6px 14px;
 }
 .tree {
   list-style: none;
@@ -468,34 +477,34 @@ function closeMenu() {
 .node {
   display: flex;
   align-items: center;
-  gap: 4px;
-  height: 24px;
-  padding-right: 8px;
+  gap: 5px;
+  height: 28px;
+  padding-right: 10px;
   border-radius: var(--radius-button);
   font-size: 13px;
   color: var(--sidebar-foreground);
   cursor: pointer;
-  transition: background 0.12s ease;
+  transition: all var(--transition-base);
 }
 .node:hover {
   background: var(--sidebar-accent);
+  transform: translateX(2px);
 }
 .node.active {
   background: var(--sidebar-accent);
   color: var(--brand-500);
   font-weight: 500;
-  box-shadow: inset 2px 0 0 0 var(--brand-500);
 }
 .chevron {
   flex-shrink: 0;
   color: var(--muted-foreground);
-  transition: transform 0.15s ease;
+  transition: transform var(--transition-base);
 }
 .chevron.expanded {
   transform: rotate(90deg);
 }
 .chevron-placeholder {
-  width: 12px;
+  width: 14px;
   flex-shrink: 0;
 }
 .icon {
@@ -521,8 +530,8 @@ function closeMenu() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px 16px;
-  gap: 8px;
+  padding: 40px 20px;
+  gap: 10px;
   flex: 1;
   text-align: center;
 }
@@ -532,7 +541,7 @@ function closeMenu() {
   margin-bottom: 4px;
 }
 .empty-title {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 500;
   color: var(--sidebar-foreground);
 }
@@ -540,48 +549,55 @@ function closeMenu() {
   color: var(--destructive);
 }
 .empty-desc {
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--muted-foreground);
-  line-height: 1.5;
+  line-height: 1.6;
   margin-bottom: 8px;
 }
 .empty-btn {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 12px;
+  height: 32px;
+  padding: 0 14px;
   border-radius: var(--radius-button);
-  font-size: 12px;
-  background: var(--brand-500);
+  font-size: 12.5px;
+  background: linear-gradient(135deg, var(--brand-500) 0%, var(--brand-600) 100%);
   color: var(--primary-foreground);
+  transition: all var(--transition-base), transform var(--transition-fast);
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);
 }
 .empty-btn:hover:not(:disabled) {
-  filter: brightness(0.96);
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.35);
+}
+.empty-btn:active:not(:disabled) {
+  transform: scale(0.96);
 }
 .empty-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  box-shadow: none;
 }
 /* 底部管理仓库按钮 */
 .vault-manager-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 32px;
-  padding: 0 12px;
+  height: 36px;
+  padding: 0 14px;
   flex-shrink: 0;
-  border-top: 1px solid var(--sidebar-border);
+  border-top: 1px solid var(--glass-border);
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: 12.5px;
   cursor: pointer;
-  transition:
-    background 0.12s ease,
-    color 0.12s ease;
+  transition: all var(--transition-base);
 }
 .vault-manager-bar:hover {
   background: var(--sidebar-accent);
   color: var(--sidebar-foreground);
+  transform: translateY(-1px);
 }
 .vault-manager-text {
   font-weight: 500;

@@ -153,7 +153,10 @@ function isCursorAtStart(): boolean {
   if (!sel || sel.rangeCount === 0) return false
   const range = sel.getRangeAt(0)
   if (!range.collapsed || !el.value) return false
-  return el.value.innerText.length === 0
+  const testRange = document.createRange()
+  testRange.selectNodeContents(el.value)
+  testRange.setEnd(range.startContainer, range.startOffset)
+  return testRange.toString().length === 0
 }
 
 function onKeydown(e: KeyboardEvent) {

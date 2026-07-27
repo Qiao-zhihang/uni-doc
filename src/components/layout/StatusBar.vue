@@ -72,19 +72,20 @@ const saveStatusClass = computed(() => doc.savedStatus)
   align-items: center;
   justify-content: space-between;
   height: var(--statusbar-height);
-  padding: 0 12px;
+  padding: 0 16px;
   flex-shrink: 0;
-  background: var(--background);
-  border-top: 1px solid var(--border);
-  font-size: 11px;
+  background: var(--sidebar);
+  border-top: 1px solid var(--sidebar-border);
+  font-size: 11.5px;
   color: var(--muted-foreground);
   white-space: nowrap;
   overflow: hidden;
+  z-index: 10;
 }
 .group {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-shrink: 0;
   min-width: 0;
   overflow: hidden;
@@ -92,25 +93,25 @@ const saveStatusClass = computed(() => doc.savedStatus)
 .save-status {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   user-select: none;
 }
 .save-status .dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  transition: background 0.2s ease;
+  transition: background var(--transition-base), transform var(--transition-fast);
   background: var(--muted-foreground);
 }
 .save-status.unsaved .dot {
-  background: #f59e0b; /* orange-500:编辑中 */
+  background: #f59e0b;
 }
 .save-status.saving .dot {
-  background: #3b82f6; /* blue-500:保存中 */
+  background: #3b82f6;
   animation: save-pulse 1s ease-in-out infinite;
 }
 .save-status.saved .dot {
-  background: var(--state-success); /* 绿:已保存 */
+  background: var(--state-success);
 }
 @keyframes save-pulse {
   0%,
@@ -120,12 +121,12 @@ const saveStatusClass = computed(() => doc.savedStatus)
   }
   50% {
     opacity: 0.4;
-    transform: scale(1.3);
+    transform: scale(1.35);
   }
 }
 .copyright {
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: 10.5px;
   letter-spacing: 0.2px;
   user-select: none;
   overflow: hidden;
@@ -137,44 +138,45 @@ const saveStatusClass = computed(() => doc.savedStatus)
 .sep {
   width: 1px;
   height: 12px;
-  background: var(--border);
+  background: var(--glass-border);
 }
 .zoom-btn {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: var(--radius-tag);
   font-size: 14px;
   color: var(--muted-foreground);
+  transition: background var(--transition-base), color var(--transition-base), transform var(--transition-fast);
 }
 .zoom-btn:hover {
   background: var(--secondary);
   color: var(--foreground);
+  transform: translateY(-1px);
 }
 .zoom-value {
-  min-width: 44px;
+  min-width: 46px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
 .present-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 18px;
-  padding: 0 8px;
+  gap: 5px;
+  height: 20px;
+  padding: 0 10px;
   border-radius: var(--radius-button);
   font-size: 11px;
   color: var(--muted-foreground);
   cursor: pointer;
-  transition:
-    background 0.12s ease,
-    color 0.12s ease;
+  transition: all var(--transition-base), transform var(--transition-fast);
 }
 .present-btn:hover:not(:disabled) {
   background: var(--secondary);
   color: var(--foreground);
+  transform: translateY(-1px);
 }
 .present-btn:disabled {
   opacity: 0.4;

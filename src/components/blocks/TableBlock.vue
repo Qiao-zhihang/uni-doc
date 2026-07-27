@@ -102,7 +102,6 @@ watch(
     }
     nextTick(syncCells)
   },
-  { deep: true },
 )
 watch(
   () => doc.renderTick,

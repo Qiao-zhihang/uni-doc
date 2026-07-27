@@ -494,42 +494,47 @@ function handleEnterReplay() {
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
-  height: 40px;
-  padding: 0 12px;
+  gap: 6px;
+  height: var(--toolbar-height);
+  padding: 0 16px;
   flex-shrink: 0;
   overflow: visible;
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
+  background: var(--sidebar);
+  border-bottom: 1px solid var(--sidebar-border);
+  z-index: 10;
 }
 .group {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   flex-shrink: 0;
 }
 .tool-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-button);
   color: var(--foreground);
+  transition: all var(--transition-base), transform var(--transition-fast);
 }
 .tool-btn:hover:not(.disabled):not(:disabled) {
   background: var(--secondary);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.tool-btn:active:not(.disabled):not(:disabled) {
+  transform: scale(0.94);
 }
 .tool-btn.disabled,
 .tool-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 .divider {
-  width: 1px;
-  height: 20px;
-  margin: 0 4px;
-  background: var(--border);
+  width: 8px;
+  height: 22px;
   flex-shrink: 0;
 }
 .spacer {
@@ -542,77 +547,93 @@ function handleEnterReplay() {
 .select-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 8px;
-  font-size: 12px;
+  gap: 5px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-button);
+  font-size: 12.5px;
   font-weight: 500;
   white-space: nowrap;
   background: var(--secondary);
   color: var(--foreground);
+  transition: all var(--transition-base), transform var(--transition-fast);
 }
 .select-btn:hover:not(:disabled) {
   background: var(--muted);
+  transform: translateY(-1px);
+}
+.select-btn:active:not(:disabled) {
+  transform: scale(0.96);
 }
 .select-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 .menu {
   position: absolute;
-  top: 32px;
+  top: 38px;
   left: 0;
   z-index: 50;
-  min-width: 120px;
-  padding: 4px;
-  border-radius: 8px;
+  min-width: 130px;
+  padding: 6px;
+  border-radius: var(--radius-compact);
   background: var(--popover);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
   display: flex;
   flex-direction: column;
   gap: 2px;
+  animation: slideUp 0.15s var(--ease-out);
 }
 .menu-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 4px;
-  font-size: 12px;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-button);
+  font-size: 12.5px;
   text-align: left;
   color: var(--popover-foreground);
+  transition: all var(--transition-fast);
 }
 .menu-item:hover:not(.disabled):not(:disabled) {
   background: var(--accent);
+  transform: translateX(2px);
 }
 .menu-item.disabled,
 .menu-item:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 .mode-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 8px;
-  font-size: 12px;
+  gap: 5px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-button);
+  font-size: 12.5px;
   font-weight: 500;
   white-space: nowrap;
-  background: var(--primary);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--brand-600) 100%);
   color: var(--primary-foreground);
   flex-shrink: 0;
+  transition: all var(--transition-base), transform var(--transition-fast);
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);
 }
 .mode-btn:hover:not(:disabled) {
-  filter: brightness(0.96);
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.35);
+}
+.mode-btn:active:not(:disabled) {
+  transform: scale(0.96);
 }
 .mode-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 /* 历史菜单 */
@@ -692,7 +713,6 @@ function handleEnterReplay() {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(2px);
 }
 .replay-settings-card {
   width: 360px;

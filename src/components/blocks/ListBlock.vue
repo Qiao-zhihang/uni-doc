@@ -93,7 +93,6 @@ watch(
     }
     nextTick(syncText)
   },
-  { deep: true },
 )
 watch(
   () => doc.renderTick,
@@ -106,7 +105,6 @@ watch(
 watch(
   () => props.block.props,
   () => nextTick(syncText),
-  { deep: true },
 )
 
 /** 回车时解析行内 Markdown 并提交 marks */

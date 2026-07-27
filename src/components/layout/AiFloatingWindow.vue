@@ -1236,15 +1236,11 @@ onUnmounted(() => {
   color: var(--popover-foreground);
   border: 1px solid var(--border);
   border-radius: 14px;
-  box-shadow:
-    0 1px 2px 0 rgba(0, 0, 0, 0.04),
-    0 8px 24px -4px rgba(0, 0, 0, 0.08),
-    0 24px 48px -12px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
   z-index: 1000;
   overflow: hidden;
   font-family: var(--font-sans);
   user-select: none;
-  backdrop-filter: blur(20px);
 }
 .floating-animating {
   transition:
@@ -1520,16 +1516,6 @@ onUnmounted(() => {
 }
 .conv-item.active {
   background: var(--conversation-active-bg);
-}
-.conv-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 6px;
-  bottom: 6px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--conversation-active-bar);
 }
 .conv-title {
   font-size: 12px;

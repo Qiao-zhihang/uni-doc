@@ -137,54 +137,62 @@ function runCmd(cmd: Command) {
 .cmd-mask {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 15vh;
+  padding-top: 14vh;
   z-index: 9999;
+  animation: fadeIn 0.15s var(--ease-out);
 }
 .cmd-panel {
-  width: min(560px, 90vw);
-  background: var(--background, #fff);
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 12px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  width: min(580px, 90vw);
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.25);
   overflow: hidden;
+  animation: scaleIn 0.2s var(--ease-out);
 }
 .cmd-input {
   width: 100%;
-  padding: 14px 16px;
+  padding: 16px 18px;
   font-size: 15px;
   border: none;
   outline: none;
   background: transparent;
   color: var(--foreground, #111);
-  border-bottom: 1px solid var(--border, #e5e7eb);
+  border-bottom: 1px solid var(--glass-border);
   font-family: inherit;
 }
 .cmd-list {
-  max-height: 320px;
+  max-height: 340px;
   overflow-y: auto;
-  padding: 6px;
+  padding: 8px;
 }
 .cmd-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
-  border-radius: 6px;
+  padding: 11px 14px;
+  border-radius: var(--radius-button);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13.5px;
   color: var(--foreground, #111);
+  transition: all var(--transition-fast);
+}
+.cmd-item:hover {
+  background: var(--accent);
 }
 .cmd-item.active {
-  background: var(--primary, #3b82f6);
+  background: linear-gradient(135deg, var(--primary, #3b82f6) 0%, var(--brand-600, #2563eb) 100%);
   color: var(--primary-foreground, #fff);
+  transform: translateX(2px);
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.25);
 }
 .cmd-item.active .cmd-hotkey {
-  color: rgba(255, 255, 255, 0.8);
-  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.18);
 }
 .cmd-name {
   flex: 1;
@@ -192,13 +200,13 @@ function runCmd(cmd: Command) {
 .cmd-hotkey {
   font-family: var(--font-mono, monospace);
   font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-tag);
   background: var(--muted, #f3f4f6);
   color: var(--muted-foreground, #6b7280);
 }
 .cmd-empty {
-  padding: 24px;
+  padding: 28px;
   text-align: center;
   font-size: 13px;
   color: var(--muted-foreground, #9ca3af);

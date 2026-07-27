@@ -301,7 +301,7 @@ const emit = defineEmits<{
   align-items: center;
   gap: 3px;
   font-size: 10px;
-  color: var(--brand-500);
+  color: var(--primary);
   font-weight: 600;
 }
 .remove-btn {

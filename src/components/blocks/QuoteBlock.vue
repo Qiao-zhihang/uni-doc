@@ -78,7 +78,6 @@ watch(
     }
     nextTick(render)
   },
-  { deep: true },
 )
 
 watch(

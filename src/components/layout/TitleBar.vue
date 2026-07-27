@@ -72,27 +72,29 @@ function commitEdit() {
   display: flex;
   align-items: center;
   height: var(--titlebar-height);
-  padding: 0 12px;
+  padding: 0 16px;
   flex-shrink: 0;
-  background: var(--background);
-  border-bottom: 1px solid var(--border);
-  gap: 8px;
+  background: var(--sidebar);
+  border-bottom: 1px solid var(--sidebar-border);
+  gap: 10px;
   user-select: none;
+  z-index: 10;
 }
 .breadcrumb {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 8px;
+  font-size: 12.5px;
   min-width: 0;
 }
 .crumb {
   color: var(--muted-foreground);
   white-space: nowrap;
+  transition: color var(--transition-fast);
 }
 .crumb.vault {
   color: var(--foreground);
-  font-weight: 500;
+  font-weight: 600;
 }
 .crumb.title {
   color: var(--foreground);
@@ -104,17 +106,22 @@ function commitEdit() {
 }
 .sep {
   color: var(--muted-foreground);
-  opacity: 0.6;
+  opacity: 0.5;
+  font-size: 11px;
 }
 .title-input {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--foreground);
-  background: var(--secondary);
+  background: var(--card);
   border: 1px solid var(--ring);
   border-radius: var(--radius-button);
-  padding: 1px 6px;
+  padding: 3px 8px;
   outline: none;
-  min-width: 160px;
+  min-width: 180px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.title-input:focus {
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
 }
 .spacer {
   flex: 1;

@@ -22,6 +22,7 @@ const menu = ref<{ visible: boolean; x: number; y: number; tabId: string | null 
 
 const dragState = ref<{
   isDragging: boolean
+  isSettling: boolean
   draggingId: string | null
   draggingIndex: number
   overIndex: number | null
@@ -31,8 +32,10 @@ const dragState = ref<{
   currentY: number
   originLeft: number
   justDragged: boolean
+  settleTargetOffset: number
 }>({
   isDragging: false,
+  isSettling: false,
   draggingId: null,
   draggingIndex: -1,
   overIndex: null,
@@ -42,9 +45,11 @@ const dragState = ref<{
   currentY: 0,
   originLeft: 0,
   justDragged: false,
+  settleTargetOffset: 0,
 })
 
 const tabWidths = ref<Map<string, number>>(new Map())
+const tabInitialLefts = ref<Map<string, number>>(new Map())
 
 const tabBarRef = ref<HTMLElement | null>(null)
 const tabRefs = ref<Map<string, HTMLElement>>(new Map())
@@ -123,15 +128,18 @@ function closeMenu() {
 }
 
 function findTabIndexAt(x: number): number {
+  const barRect = tabBarRef.value?.getBoundingClientRect()
+  const scrollLeft = tabBarRef.value?.scrollLeft ?? 0
+  const relX = barRect ? x - barRect.left + scrollLeft : x
   let insertIndex = tabs.value.length
   for (let i = 0; i < tabs.value.length; i++) {
     const tab = tabs.value[i]
     if (tab.id === dragState.value.draggingId) continue
-    const el = tabRefs.value.get(tab.id)
-    if (!el) continue
-    const rect = el.getBoundingClientRect()
-    const midpoint = rect.left + rect.width / 2
-    if (x < midpoint) {
+    const left = tabInitialLefts.value.get(tab.id)
+    const width = tabWidths.value.get(tab.id)
+    if (left === undefined || width === undefined) continue
+    const threshold = left + width / 2
+    if (relX < threshold) {
       insertIndex = i
       break
     }
@@ -141,7 +149,7 @@ function findTabIndexAt(x: number): number {
 
 function getTabOffset(index: number): number {
   const ds = dragState.value
-  if (!ds.isDragging || ds.overIndex === null || ds.draggingIndex < 0) return 0
+  if ((!ds.isDragging && !ds.isSettling) || ds.overIndex === null || ds.draggingIndex < 0) return 0
   if (index === ds.draggingIndex) return 0
 
   const draggingWidth = tabWidths.value.get(ds.draggingId ?? '') ?? 0
@@ -162,15 +170,24 @@ function getTabOffset(index: number): number {
 
 function getTabStyle(tabId: string, index: number) {
   const ds = dragState.value
-  if (!ds.isDragging) return {}
+  if (!ds.isDragging && !ds.isSettling) return {}
 
   if (tabId === ds.draggingId) {
+    if (ds.isSettling) {
+      return {
+        position: 'relative' as const,
+        zIndex: 10,
+        transform: `translateX(${ds.settleTargetOffset}px)`,
+        transition: 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease',
+        boxShadow: 'none',
+      }
+    }
     const offsetX = ds.currentX - ds.startX
     return {
       position: 'relative' as const,
       zIndex: 10,
       transform: `translateX(${offsetX}px) scale(1.02)`,
-      transition: 'transform 0s',
+      transition: 'transform 0s, box-shadow 0.15s ease',
       boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
     }
   }
@@ -179,25 +196,36 @@ function getTabStyle(tabId: string, index: number) {
   if (offset === 0) return {}
   return {
     transform: `translateX(${offset}px)`,
-    transition: 'transform 0.2s cubic-bezier(0.2, 0, 0, 1)',
+    transition: 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)',
   }
 }
 
 function onMouseDown(e: MouseEvent, id: string) {
   if (e.button !== 0) return
+  if (dragState.value.isSettling) return
   const idx = tabs.value.findIndex((t) => t.id === id)
   if (idx < 0) return
 
+  const barRect = tabBarRef.value?.getBoundingClientRect()
+  const scrollLeft = tabBarRef.value?.scrollLeft ?? 0
+
   tabWidths.value.clear()
+  tabInitialLefts.value.clear()
   for (const t of tabs.value) {
     const el = tabRefs.value.get(t.id)
     if (el) {
-      tabWidths.value.set(t.id, el.getBoundingClientRect().width)
+      const rect = el.getBoundingClientRect()
+      tabWidths.value.set(t.id, rect.width)
+      tabInitialLefts.value.set(t.id, barRect ? rect.left - barRect.left + scrollLeft : rect.left)
     }
   }
 
   const draggingEl = tabRefs.value.get(id)
-  const originLeft = draggingEl ? draggingEl.getBoundingClientRect().left : 0
+  const originLeft = draggingEl
+    ? barRect
+      ? draggingEl.getBoundingClientRect().left - barRect.left + scrollLeft
+      : draggingEl.getBoundingClientRect().left
+    : 0
 
   dragState.value.draggingId = id
   dragState.value.draggingIndex = idx
@@ -222,11 +250,14 @@ function onMouseMove(e: MouseEvent) {
   if (!dragState.value.isDragging) {
     if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
       dragState.value.isDragging = true
+      document.body.style.cursor = 'grabbing'
+      document.body.style.userSelect = 'none'
     } else {
       return
     }
   }
 
+  e.preventDefault()
   const overIdx = findTabIndexAt(e.clientX)
   dragState.value.overIndex = overIdx
 }
@@ -235,18 +266,58 @@ function onMouseUp() {
   document.removeEventListener('mousemove', onMouseMove)
   document.removeEventListener('mouseup', onMouseUp)
 
-  if (dragState.value.isDragging && dragState.value.draggingId && dragState.value.overIndex !== null) {
-    doc.moveTab(dragState.value.draggingId, dragState.value.overIndex)
-    dragState.value.justDragged = true
+  const ds = dragState.value
+  if (
+    ds.isDragging &&
+    ds.draggingId &&
+    ds.overIndex !== null &&
+    ds.overIndex !== ds.draggingIndex
+  ) {
+    const from = ds.draggingIndex
+    const to = ds.overIndex
+
+    let targetOffset = 0
+    if (from < to) {
+      for (let i = from + 1; i <= to; i++) {
+        const tabId = tabs.value[i].id
+        targetOffset += tabWidths.value.get(tabId) ?? 0
+      }
+    } else if (from > to) {
+      for (let i = to; i < from; i++) {
+        const tabId = tabs.value[i].id
+        targetOffset -= tabWidths.value.get(tabId) ?? 0
+      }
+    }
+
+    ds.isSettling = true
+    ds.isDragging = false
+    ds.settleTargetOffset = targetOffset
+
+    const movedId = ds.draggingId
+    const movedTo = to
     setTimeout(() => {
-      dragState.value.justDragged = false
-    }, 0)
+      doc.moveTab(movedId, movedTo)
+      dragState.value.justDragged = true
+      setTimeout(() => {
+        dragState.value.justDragged = false
+      }, 0)
+      dragState.value.isSettling = false
+      dragState.value.draggingId = null
+      dragState.value.draggingIndex = -1
+      dragState.value.overIndex = null
+      dragState.value.settleTargetOffset = 0
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }, 200)
+    return
   }
 
-  dragState.value.isDragging = false
-  dragState.value.draggingId = null
-  dragState.value.draggingIndex = -1
-  dragState.value.overIndex = null
+  ds.isDragging = false
+  ds.draggingId = null
+  ds.draggingIndex = -1
+  ds.overIndex = null
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
 }
 
 onBeforeUnmount(() => {
@@ -293,41 +364,70 @@ onBeforeUnmount(() => {
 <style scoped>
 .tab-bar {
   display: flex;
-  align-items: stretch;
+  align-items: flex-end;
   height: var(--tabbar-height);
-  padding: 0 8px;
-  background: var(--background);
-  border-bottom: 1px solid var(--border);
+  padding: 0 8px 0 8px;
+  background: var(--sidebar);
+  border-bottom: 1px solid var(--sidebar-border);
   overflow-x: auto;
+  overflow-y: hidden;
+  gap: 2px;
+  z-index: 5;
+  flex-shrink: 0;
+  min-width: 0;
 }
 .tab {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 100%;
-  padding: 0 10px;
-  border-radius: var(--radius-button) var(--radius-button) 0 0;
-  font-size: 12px;
-  color: var(--muted-foreground);
+  height: calc(100% - 4px);
+  flex: 0 0 160px;
+  min-width: 120px;
+  max-width: 200px;
+  padding: 0 10px 0 12px;
+  border-radius: 10px 10px 0 0;
+  font-size: 12.5px;
+  color: var(--text-700);
+  background: var(--background-200);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition:
-    background 0.12s ease,
-    color 0.12s ease,
-    opacity 0.15s ease,
-    box-shadow 0.2s ease;
-  flex-shrink: 0;
   position: relative;
   user-select: none;
-  will-change: transform;
+}
+.dark .tab {
+  color: var(--muted-foreground);
+  background: var(--background-100);
+}
+.dark .tab:hover {
+  background: var(--background-200);
+}
+.dark .tab.is-active {
+  background: var(--background-300);
+}
+.tab::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 16px;
+  background: var(--glass-border);
+}
+.tab:last-child::after,
+.tab:hover::after,
+.tab.is-active::after {
+  display: none;
 }
 .tab:hover {
-  background: var(--secondary);
+  background: var(--sidebar-accent);
   color: var(--foreground);
 }
 .tab.is-active {
   color: var(--foreground);
-  border-bottom-color: var(--brand-500);
+  background: var(--card);
+}
+.dark .tab.is-active {
+  background: var(--background-300);
 }
 .tab.is-dragging {
   cursor: grabbing;
@@ -359,22 +459,28 @@ onBeforeUnmount(() => {
   }
 }
 .tab-title {
-  max-width: 140px;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .tab-ext {
   font-size: 11px;
   color: var(--muted-foreground);
+  flex-shrink: 0;
 }
 .tab-close {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: var(--radius-tag);
   color: var(--muted-foreground);
   opacity: 0;
-  transition: opacity 0.12s ease;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
 }
 .tab:hover .tab-close,
 .tab.is-active .tab-close {

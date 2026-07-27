@@ -86,51 +86,52 @@ function goToReminders() {
   justify-content: space-between;
   width: var(--ribbon-width);
   flex-shrink: 0;
-  padding: 8px 0;
+  padding: 10px 0;
   background: var(--sidebar);
   border-right: 1px solid var(--sidebar-border);
+  z-index: 10;
 }
 .top,
 .bottom {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 .ribbon-btn {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-button);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   color: var(--muted-foreground);
   transition:
-    background 0.15s ease,
-    color 0.15s ease;
+    background var(--transition-base),
+    color var(--transition-base),
+    transform var(--transition-fast),
+    box-shadow var(--transition-base);
 }
 .ribbon-btn:hover {
   background: var(--sidebar-accent);
   color: var(--sidebar-foreground);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+.ribbon-btn:active {
+  transform: scale(0.94);
 }
 .ribbon-btn.is-active {
   color: var(--brand-500);
+  background: var(--brand-50);
 }
-.ribbon-btn.is-active::before {
-  content: '';
-  position: absolute;
-  left: -8px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 2px;
-  height: 18px;
-  border-radius: 1px;
-  background: var(--brand-500);
+.dark .ribbon-btn.is-active {
+  background: rgba(79, 157, 255, 0.15);
 }
 .ai-btn-icon {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   object-fit: contain;
   pointer-events: none;
 }

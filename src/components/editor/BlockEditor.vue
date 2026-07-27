@@ -10,6 +10,7 @@ import { uuid } from '@/core/blocks/factory'
 import type { Block, Mark } from '@/core/blocks/types'
 import BlockRenderer from './BlockRenderer.vue'
 import { interceptExternalLink, openExternalUrl } from '@/core/serializer/markdownFile'
+import { marksToSource } from '@/components/blocks/marks'
 
 const doc = useDocumentStore()
 const editor = useEditorStore()
@@ -133,6 +134,27 @@ async function onEnter(id: string, afterText: string = '') {
   focusBlockAt(newId, 'start')
 }
 
+const TEXT_BASED_TYPES = new Set(['paragraph', 'heading', 'quote'])
+
+function findEditableBlockIndex(fromIdx: number): number {
+  for (let i = fromIdx; i >= 0; i--) {
+    if (TEXT_BASED_TYPES.has(doc.blocks[i].type)) return i
+  }
+  return -1
+}
+
+/** 计算合并点在 DOM 源码文本中的偏移量(含语法标记和标题前缀) */
+function getDomMergePoint(block: Block): number {
+  const text = (block.content.text as string) || ''
+  const marks: Mark[] = (block.content.marks as Mark[]) || []
+  const sourceLen = marksToSource(text, marks).length
+  if (block.type === 'heading') {
+    const level = (block.props as { level?: number }).level ?? 1
+    return level + 1 + sourceLen
+  }
+  return sourceLen
+}
+
 /** 行首 Backspace：合并到上一行（或删除空行） */
 async function onBackspaceMerge(id: string) {
   const idx = doc.blocks.findIndex((b) => b.id === id)
@@ -140,28 +162,44 @@ async function onBackspaceMerge(id: string) {
   const current = doc.blocks[idx]
   const prev = doc.blocks[idx - 1]
 
-  // 上一行不是可编辑块（divider/page_break/list）→ 仅删除当前行
-  if (prev.type !== 'paragraph' && prev.type !== 'heading') {
+  // 上一行不是可编辑文本块 → 仅删除当前行，focus 跳到最近的可编辑块末尾
+  if (!TEXT_BASED_TYPES.has(prev.type)) {
     doc.removeBlock(id, '删除空区块')
-    editor.selectBlock(prev.id)
+    const targetIdx = findEditableBlockIndex(idx - 2)
+    if (targetIdx >= 0) {
+      editor.selectBlock(doc.blocks[targetIdx].id)
+    } else {
+      editor.selectBlock(prev.id)
+    }
     await nextTick()
     await nextTick()
-    focusBlockAt(prev.id, 'end')
+    if (targetIdx >= 0) {
+      focusBlockAt(doc.blocks[targetIdx].id, 'end')
+    }
     return
   }
 
   const prevText = (prev.content.text as string) || ''
   const prevMarks: Mark[] = (prev.content.marks as Mark[]) || []
-  const currentText = (current.content.text as string) || ''
-  const currentMarks: Mark[] = (current.content.marks as Mark[]) || []
+  let currentText = ''
+  let currentMarks: Mark[] = []
+  if (current.type === 'code_block') {
+    currentText = (current.content.code as string) || ''
+  } else if (TEXT_BASED_TYPES.has(current.type)) {
+    currentText = (current.content.text as string) || ''
+    currentMarks = (current.content.marks as Mark[]) || []
+  }
 
-  // 将当前行 marks 偏移到上一行文本末尾
-  const offset = prevText.length
+  // 将当前行 marks 偏移到上一行纯文本末尾(marks 基于纯文本坐标)
+  const mergePoint = prevText.length
   const offsetMarks: Mark[] = currentMarks.map((m) => ({
     ...m,
-    start: m.start + offset,
-    end: m.end + offset,
+    start: m.start + mergePoint,
+    end: m.end + mergePoint,
   }))
+
+  // 合并点在 DOM 源码文本中的偏移量(updateBlock 之前计算,避免 prev 被替换)
+  const domMergePoint = getDomMergePoint(prev)
 
   // 合并文本 + marks，更新上一行
   doc.updateBlock(
@@ -181,8 +219,7 @@ async function onBackspaceMerge(id: string) {
 
   await nextTick()
   await nextTick()
-  // 光标停在合并点（上一行原文末尾）
-  focusBlockAt(prev.id, offset)
+  focusBlockAt(prev.id, domMergePoint)
 }
 
 function focusBlockAt(id: string, at: 'start' | 'end' | number) {
@@ -289,15 +326,14 @@ function onSourceInput() {
   })
 }
 
-// 源码模式:blocks 变化时(撤销/重做/外部修改)自动同步 textarea
+// 源码模式:renderTick 变化时(撤销/重做/外部修改)自动同步 textarea
 watch(
-  () => doc.blocks,
+  () => [doc.renderTick, editor.mode],
   () => {
     if (editor.mode === 'source' && !isSourceInputting.value) {
       syncSource()
     }
   },
-  { deep: true },
 )
 
 /* ===== 全局快捷键 ===== */
