@@ -1,6 +1,6 @@
 ---
 title: unidoc - 通用文档说明
-author: UniDoc User
+author: Qiao-zhihang
 version: 1.0.0
 created_at: "2026-07-17T14:32:43.322Z"
 updated_at: "2026-07-17T14:40:57.687Z"
