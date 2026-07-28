@@ -142,7 +142,7 @@
 
   --spacing: 0.25rem;
 
-  /* 玻璃拟态变量 */
+  /* 玻璃拟态变量(纯色 fallback,无 backdrop-filter 时使用) */
   --glass-bg: rgba(255, 255, 255, 0.72);
   --glass-bg-sidebar: rgba(250, 250, 252, 0.78);
   --glass-bg-card: rgba(255, 255, 255, 0.82);
@@ -150,6 +150,27 @@
   --glass-border: rgba(0, 0, 0, 0.06);
   --glass-blur: 20px;
   --glass-blur-strong: 28px;
+
+  /* ===== 液态玻璃 token(liquid glass) =====
+   * 仅在 [data-liquid-glass="on"] 时启用 backdrop-filter 路径,
+   * 否则保持原纯色玻璃风格(老 Linux WebKitGTK 性能/兼容更稳)。
+   * 调参原则:blur 半径越大越耗 GPU;饱和度 1.2~1.4 已能模拟"折射"。
+   */
+  --lg-blur: 18px;
+  --lg-blur-strong: 28px;
+  --lg-saturate: 1.25;
+  --lg-brightness: 1.04;
+  /* 高光描边(模拟玻璃边缘对光的折射) */
+  --lg-highlight: rgba(255, 255, 255, 0.55);
+  --lg-highlight-strong: rgba(255, 255, 255, 0.85);
+  /* 内层暗影(模拟玻璃下表面的折射暗角) */
+  --lg-inner-shadow: rgba(0, 0, 0, 0.06);
+  /* 镜面光泽渐变(顶部高光) */
+  --lg-sheen: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0) 32%
+  );
 
   /* 过渡动画 - 统一缓动函数 */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -245,6 +266,86 @@
   --glass-bg-card: rgba(35, 36, 42, 0.82);
   --glass-bg-popover: rgba(42, 43, 49, 0.88);
   --glass-border: rgba(255, 255, 255, 0.07);
+
+  /* 液态玻璃 token - 深色(高光更弱,避免在深底上刺眼) */
+  --lg-highlight: rgba(255, 255, 255, 0.18);
+  --lg-highlight-strong: rgba(255, 255, 255, 0.32);
+  --lg-inner-shadow: rgba(0, 0, 0, 0.32);
+  --lg-sheen: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0) 32%
+  );
+}
+
+/* ===== 液态玻璃:仅在 <html data-liquid-glass="on"> 且支持时启用 =====
+ * 用 :root[...] 提升特异性,确保压过组件 scoped 样式(0,2,0)
+ * 的 background / border 简写,避免 backdrop 路径被覆盖失效。
+ *
+ * 注意:此处不加 contain: paint/layout —— 部分表面(如 Toolbar 的下拉
+ * 菜单、FileExplorer 的右键菜单)需要绝对定位子元素溢出可见,
+ * contain: paint 会把它们裁掉。isolation: isolate 已足以建立独立
+ * stacking context,让 backdrop-filter 不被其它层污染。
+ * 不覆盖 box-shadow:避免覆盖组件原有的外层 drop-shadow(如 AiFloatingWindow)。
+ * 边缘高光通过 background-image 多层渐变(顶部 1px 高光 + 顶部光泽)实现,
+ * 不依赖 box-shadow。
+ */
+:root[data-liquid-glass='on'] .glass,
+:root[data-liquid-glass='on'] .glass-sidebar,
+:root[data-liquid-glass='on'] .glass-card,
+:root[data-liquid-glass='on'] .glass-popover {
+  /* 建立独立 stacking context,避免父级 transform/filter 把 backdrop 源
+   * 切到错误的合成层导致 backdrop-filter 失效或重影。 */
+  isolation: isolate;
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  :root[data-liquid-glass='on'] .glass-sidebar {
+    background-color: var(--glass-bg-sidebar);
+    background-image:
+      var(--lg-sheen),
+      linear-gradient(to bottom, var(--lg-highlight) 0, var(--lg-highlight) 1px, transparent 1px);
+    -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate))
+      brightness(var(--lg-brightness));
+    backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate))
+      brightness(var(--lg-brightness));
+  }
+  :root[data-liquid-glass='on'] .glass {
+    background-color: var(--glass-bg);
+    background-image:
+      var(--lg-sheen),
+      linear-gradient(to bottom, var(--lg-highlight) 0, var(--lg-highlight) 1px, transparent 1px);
+    -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate))
+      brightness(var(--lg-brightness));
+    backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate))
+      brightness(var(--lg-brightness));
+  }
+  :root[data-liquid-glass='on'] .glass-card {
+    background-color: var(--glass-bg-card);
+    background-image:
+      var(--lg-sheen),
+      linear-gradient(to bottom, var(--lg-highlight) 0, var(--lg-highlight) 1px, transparent 1px);
+    -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+    backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+  }
+  :root[data-liquid-glass='on'] .glass-popover {
+    background-color: var(--glass-bg-popover);
+    background-image:
+      var(--lg-sheen),
+      linear-gradient(to bottom, var(--lg-highlight) 0, var(--lg-highlight) 1px, transparent 1px);
+    -webkit-backdrop-filter: blur(var(--lg-blur-strong)) saturate(var(--lg-saturate))
+      brightness(var(--lg-brightness));
+    backdrop-filter: blur(var(--lg-blur-strong)) saturate(var(--lg-saturate))
+      brightness(var(--lg-brightness));
+  }
+}
+
+/* 减少动效偏好:保留玻璃质感本身,但禁用相关过渡动画 */
+:root[data-reduce-motion='on'] .glass,
+:root[data-reduce-motion='on'] .glass-sidebar,
+:root[data-reduce-motion='on'] .glass-card,
+:root[data-reduce-motion='on'] .glass-popover {
+  transition: none !important;
 }
 
 /* ===== 全局基础样式 ===== */
@@ -290,7 +391,19 @@ button:active {
   transform: scale(0.97);
 }
 
-/* 玻璃拟态工具类(纯色版,无 backdrop-filter) */
+/* ============================================================
+ * 玻璃拟态工具类
+ * 默认(无 [data-liquid-glass="on"]):纯色 fallback,兼容老 WebView
+ * 启用后:真实 backdrop-filter + 折射高光 + 镜面光泽
+ *
+ * 性能要点:
+ *  - backdrop-filter 元素自身被强制提升为合成层,GPU 负责,
+ *    但相邻元素若频繁重绘会拖累 backdrop 源采样。因此这里仅作
+ *    chrome 表面的视觉壳,内部仍走纯色。
+ *  - contain: paint 把内部绘制隔离在层内,避免 reflow 传染。
+ *  - 不要在可滚动内容容器(如聊天消息列表)直接挂 .glass-popover,
+ *    应让滚动容器在玻璃壳内部以普通 background 绘制。
+ * ============================================================ */
 .glass {
   background: var(--sidebar);
   border: 1px solid var(--sidebar-border);

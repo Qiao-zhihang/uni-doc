@@ -106,7 +106,7 @@ function runCmd(cmd: Command) {
 <template>
   <Teleport to="body">
     <div v-if="visible" class="cmd-mask" @pointerdown.self="emit('close')">
-      <div class="cmd-panel" role="dialog" @keydown="onKeydown">
+      <div class="cmd-panel glass-popover" role="dialog" @keydown="onKeydown">
         <input
           ref="inputRef"
           v-model="query"

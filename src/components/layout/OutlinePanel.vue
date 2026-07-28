@@ -204,7 +204,7 @@ function closeMenu() {
 </script>
 
 <template>
-  <aside class="outline-panel">
+  <aside class="outline-panel glass-sidebar">
     <!-- Tab 头 -->
     <div class="tab-header">
       <button

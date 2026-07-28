@@ -39,7 +39,7 @@ function onPromptKeydown(e: KeyboardEvent) {
 <template>
   <!-- 确认对话框 -->
   <div v-if="confirmState.visible" class="dialog-mask" @pointerdown.self="resolveConfirm(false)">
-    <div class="dialog" role="dialog" aria-modal="true">
+    <div class="dialog glass-popover" role="dialog" aria-modal="true">
       <div class="dialog-header">
         <span class="dialog-title">{{ confirmState.title }}</span>
       </div>
@@ -53,7 +53,7 @@ function onPromptKeydown(e: KeyboardEvent) {
 
   <!-- 输入对话框 -->
   <div v-if="promptState.visible" class="dialog-mask" @pointerdown.self="resolvePrompt(null)">
-    <div class="dialog" role="dialog" aria-modal="true">
+    <div class="dialog glass-popover" role="dialog" aria-modal="true">
       <div class="dialog-header">
         <span class="dialog-title">{{ promptState.title }}</span>
       </div>

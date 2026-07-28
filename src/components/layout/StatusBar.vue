@@ -31,7 +31,7 @@ const saveStatusClass = computed(() => doc.savedStatus)
 </script>
 
 <template>
-  <div class="status-bar">
+  <div class="status-bar glass-sidebar">
     <!-- 左侧 -->
     <div class="group">
       <div class="save-status" :class="saveStatusClass">

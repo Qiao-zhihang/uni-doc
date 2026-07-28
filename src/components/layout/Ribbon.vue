@@ -26,7 +26,7 @@ function goToReminders() {
 </script>
 
 <template>
-  <aside class="ribbon">
+  <aside class="ribbon glass-sidebar">
     <!-- 顶部功能 -->
     <div class="top">
       <button

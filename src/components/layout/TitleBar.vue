@@ -42,7 +42,7 @@ function commitEdit() {
 </script>
 
 <template>
-  <div class="title-bar">
+  <div class="title-bar glass-sidebar">
     <!-- 面包屑路径 -->
     <div class="breadcrumb">
       <span class="crumb vault">{{ vaultName }}</span>

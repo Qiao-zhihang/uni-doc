@@ -106,7 +106,7 @@ function onSelect(item: MenuItem) {
 <template>
   <div
     ref="rootRef"
-    class="context-menu"
+    class="context-menu glass-popover"
     :style="{ left: adjustedPos.x + 'px', top: adjustedPos.y + 'px' }"
     @pointerdown.stop
     @click.stop

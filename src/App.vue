@@ -6,11 +6,13 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { useSettingsStore } from '@/stores/settings'
+import { useLiquidGlass } from '@/composables/useLiquidGlass'
 import DialogHost from '@/components/common/DialogHost.vue'
 import { interceptExternalLink, openExternalUrl } from '@/core/serializer/markdownFile'
 
 const theme = useThemeStore()
 const settings = useSettingsStore()
+const liquidGlass = useLiquidGlass()
 
 /** 全局捕获阶段监听外链点击，绕开所有 .stop 事件拦截 */
 function onGlobalClickCapture(e: MouseEvent) {
@@ -23,6 +25,7 @@ function onGlobalClickCapture(e: MouseEvent) {
 onMounted(() => {
   theme.init()
   void settings.load()
+  liquidGlass.init()
   document.addEventListener('click', onGlobalClickCapture, true)
 })
 
