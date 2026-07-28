@@ -16,6 +16,8 @@ const emit = defineEmits<{
   (e: 'enter', afterText: string): void
   (e: 'backspace-merge'): void
   (e: 'select'): void
+  (e: 'convert', targetType: string): void
+  (e: 'navigate', direction: 'prev' | 'next'): void
 }>()
 
 const el = ref<HTMLElement | null>(null)
@@ -135,8 +137,28 @@ function getCursorOffset(): number {
   return preRange.toString().length
 }
 
+function isCursorAtEnd(): boolean {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0 || !el.value) return false
+  const range = sel.getRangeAt(0)
+  if (!range.collapsed) return false
+  return getCursorOffset() === el.value.innerText.length
+}
+
 function onKeydown(e: KeyboardEvent) {
   if (autocomplete.onKeyDown(e)) return
+
+  if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && isCursorAtStart()) {
+    e.preventDefault()
+    emit('navigate', 'prev')
+    return
+  }
+  if ((e.key === 'ArrowRight' || e.key === 'ArrowDown') && isCursorAtEnd()) {
+    e.preventDefault()
+    emit('navigate', 'next')
+    return
+  }
+
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     if (el.value) {
@@ -153,10 +175,9 @@ function onKeydown(e: KeyboardEvent) {
     }
   } else if (e.key === 'Backspace' && isCursorAtStart()) {
     e.preventDefault()
-    // 合并前先保存当前块的最新内容,防止拼接时使用旧内容
     commitWithMarks(el.value?.innerText || '')
     skipNextBlur.value = true
-    emit('backspace-merge')
+    emit('convert', 'paragraph')
   }
 }
 

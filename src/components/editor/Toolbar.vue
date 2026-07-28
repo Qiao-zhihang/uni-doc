@@ -521,7 +521,6 @@ function handleEnterReplay() {
 }
 .tool-btn:hover:not(.disabled):not(:disabled) {
   background: var(--secondary);
-  transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 .tool-btn:active:not(.disabled):not(:disabled) {
@@ -560,7 +559,6 @@ function handleEnterReplay() {
 }
 .select-btn:hover:not(:disabled) {
   background: var(--muted);
-  transform: translateY(-1px);
 }
 .select-btn:active:not(:disabled) {
   transform: scale(0.96);
@@ -599,7 +597,6 @@ function handleEnterReplay() {
 }
 .menu-item:hover:not(.disabled):not(:disabled) {
   background: var(--accent);
-  transform: translateX(2px);
 }
 .menu-item.disabled,
 .menu-item:disabled {
@@ -624,7 +621,6 @@ function handleEnterReplay() {
 }
 .mode-btn:hover:not(:disabled) {
   filter: brightness(1.05);
-  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 122, 255, 0.35);
 }
 .mode-btn:active:not(:disabled) {

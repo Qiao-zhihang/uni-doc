@@ -341,7 +341,6 @@ function closeMenu() {
 }
 .outline-item:hover {
   background: var(--sidebar-accent);
-  transform: translateX(2px);
 }
 .outline-item.active {
   background: var(--sidebar-accent);

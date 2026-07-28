@@ -116,17 +116,11 @@ async function onEnter(id: string, afterText: string = '') {
     }
   }
 
-  // 创建新段落块,如果光标后有剩余文本则带入
+  // 引用块的 Enter 已改为块内换行,只有 Shift+Enter 才触发 onEnter,此时跳出引用
   const newId = doc.insertBlockAfter(id, 'paragraph', '新建区块')
   if (afterText) {
     const parsed = parseInlineMarkdown(afterText)
-    doc.updateBlock(
-      newId,
-      {
-        content: { text: parsed.text, marks: parsed.marks },
-      },
-      '设置分割文本',
-    )
+    doc.updateBlock(newId, { content: { text: parsed.text, marks: parsed.marks } }, '设置分割文本')
   }
   editor.selectBlock(newId)
   await nextTick()
@@ -138,6 +132,13 @@ const TEXT_BASED_TYPES = new Set(['paragraph', 'heading', 'quote'])
 
 function findEditableBlockIndex(fromIdx: number): number {
   for (let i = fromIdx; i >= 0; i--) {
+    if (TEXT_BASED_TYPES.has(doc.blocks[i].type)) return i
+  }
+  return -1
+}
+
+function findEditableBlockIndexForward(fromIdx: number): number {
+  for (let i = fromIdx; i < doc.blocks.length; i++) {
     if (TEXT_BASED_TYPES.has(doc.blocks[i].type)) return i
   }
   return -1
@@ -220,6 +221,72 @@ async function onBackspaceMerge(id: string) {
   await nextTick()
   await nextTick()
   focusBlockAt(prev.id, domMergePoint)
+}
+
+async function onConvert(id: string, targetType: string) {
+  const block = doc.blocks.find((b) => b.id === id)
+  if (!block) return
+  const textBaseProps = targetType === 'heading'
+    ? { level: (block.props as { level?: number }).level ?? 2 }
+    : { align: (block.props as { align?: string }).align ?? 'left' }
+  doc.updateBlock(id, { type: targetType, props: textBaseProps }, '转换区块类型')
+  editor.selectBlock(id)
+  await nextTick()
+  await nextTick()
+  focusBlockAt(id, 'start')
+}
+
+async function onListOutdent(id: string, payload: { idx: number; text: string; marks: Mark[] }) {
+  const blockIdx = doc.blocks.findIndex((b) => b.id === id)
+  if (blockIdx === -1) return
+  const block = doc.blocks[blockIdx]
+  if (block.type !== 'list') return
+  const items = (block.content as { items: Array<{ id: string; text: string; marks: Mark[]; checked: boolean }> }).items
+  const before = items.slice(0, payload.idx)
+  const after = items.slice(payload.idx + 1)
+  const listType = (block.props as { listType?: string }).listType ?? 'bullet'
+
+  let anchorId: string | null = null
+
+  if (before.length > 0) {
+    doc.updateBlock(id, { content: { items: before } }, '更新列表')
+    anchorId = id
+  } else {
+    doc.removeBlock(id, '删除空列表')
+    anchorId = blockIdx > 0 ? doc.blocks[blockIdx - 1].id : null
+  }
+
+  const paraId = doc.insertBlockAfter(anchorId, 'paragraph', '列表项转段落')
+  doc.updateBlock(paraId, { content: { text: payload.text, marks: payload.marks } })
+
+  if (after.length > 0) {
+    const newListId = doc.insertBlockAfter(paraId, 'list', '拆分列表', listType as any)
+    doc.updateBlock(newListId, { content: { items: after } })
+  }
+
+  editor.selectBlock(paraId)
+  await nextTick()
+  await nextTick()
+  focusBlockAt(paraId, 'start')
+}
+
+function onNavigate(id: string, direction: 'prev' | 'next') {
+  const idx = doc.blocks.findIndex((b) => b.id === id)
+  if (idx === -1) return
+  let targetIdx = -1
+  let targetPos: 'start' | 'end' = 'end'
+  if (direction === 'prev') {
+    targetIdx = findEditableBlockIndex(idx - 1)
+    targetPos = 'end'
+  } else {
+    targetIdx = findEditableBlockIndexForward(idx + 1)
+    targetPos = 'start'
+  }
+  if (targetIdx >= 0) {
+    const target = doc.blocks[targetIdx]
+    editor.selectBlock(target.id)
+    nextTick(() => focusBlockAt(target.id, targetPos))
+  }
 }
 
 function focusBlockAt(id: string, at: 'start' | 'end' | number) {
@@ -339,19 +406,34 @@ watch(
 /* ===== 全局快捷键 ===== */
 function onKeydown(e: KeyboardEvent) {
   const ctrl = e.ctrlKey || e.metaKey
-  if (!ctrl) return
-
-  if (e.key === 'z' || e.key === 'Z') {
-    e.preventDefault()
-    e.shiftKey ? doc.redo() : doc.undo()
-  } else if (e.key === 'y' || e.key === 'Y') {
-    e.preventDefault()
-    doc.redo()
-  } else if (e.key === 's' || e.key === 'S') {
-    e.preventDefault()
-    doc.saveToFile()
+  if (ctrl) {
+    if (e.key === 'z' || e.key === 'Z') {
+      e.preventDefault()
+      e.shiftKey ? doc.redo() : doc.undo()
+    } else if (e.key === 'y' || e.key === 'Y') {
+      e.preventDefault()
+      doc.redo()
+    } else if (e.key === 's' || e.key === 'S') {
+      e.preventDefault()
+      doc.saveToFile()
+    }
+    return
   }
-  // Ctrl+K 改由 EditorView 统一处理(唤起 AI 浮窗)
+
+  if ((e.key === 'Backspace' || e.key === 'Delete') && selectedId.value) {
+    const ae = document.activeElement as HTMLElement | null
+    const inEditable = ae?.closest('[contenteditable="true"]')
+    if (!inEditable) {
+      e.preventDefault()
+      const idx = doc.blocks.findIndex((b) => b.id === selectedId.value)
+      doc.removeBlock(selectedId.value, '删除区块')
+      const focusTarget = doc.blocks[Math.max(0, idx - 1)]
+      if (focusTarget) {
+        editor.selectBlock(focusTarget.id)
+        nextTick(() => focusBlockAt(focusTarget.id, 'end'))
+      }
+    }
+  }
 }
 
 onMounted(() => {
@@ -439,6 +521,9 @@ watch(
               @update="(p) => updateBlock(block.id, p)"
               @enter="(afterText: string) => onEnter(block.id, afterText)"
               @backspace-merge="onBackspaceMerge(block.id)"
+              @convert="(t: string) => onConvert(block.id, t)"
+              @outdent="(p) => onListOutdent(block.id, p)"
+              @navigate="(d) => onNavigate(block.id, d)"
               @select="selectBlock(block.id)"
             />
           </div>

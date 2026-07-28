@@ -7,10 +7,15 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import type { Block } from '@/core/blocks/types'
 import { useDocumentStore } from '@/stores/document'
+import { useEditorStore } from '@/stores/editor'
 import { createPageBreakBlock } from '@/core/blocks/factory'
 
 const props = defineProps<{ block: Block }>()
 const doc = useDocumentStore()
+const editor = useEditorStore()
+const emit = defineEmits<{ (e: 'select'): void }>()
+
+const isSelected = () => editor.selectedBlockId === props.block.id
 
 const contextMenu = ref<{ visible: boolean; x: number; y: number }>({
   visible: false,
@@ -92,7 +97,13 @@ function handleEsc(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="divider-block" @contextmenu="onContextmenu">
+  <div
+    class="divider-block"
+    :class="{ selected: isSelected() }"
+    :tabindex="isSelected() ? 0 : -1"
+    @click="emit('select')"
+    @contextmenu="onContextmenu"
+  >
     <hr />
 
     <!-- 右键上下文菜单 -->
@@ -116,6 +127,12 @@ function handleEsc(e: KeyboardEvent) {
   padding: 12px 0;
   cursor: context-menu;
   position: relative;
+  outline: none;
+  border-radius: 4px;
+  transition: background 0.12s ease;
+}
+.divider-block.selected {
+  background: rgba(var(--brand-500-rgb, 59, 130, 246), 0.05);
 }
 hr {
   border: none;

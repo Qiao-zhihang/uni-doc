@@ -54,6 +54,9 @@ const tabInitialLefts = ref<Map<string, number>>(new Map())
 const tabBarRef = ref<HTMLElement | null>(null)
 const tabRefs = ref<Map<string, HTMLElement>>(new Map())
 
+let settleTimer: ReturnType<typeof setTimeout> | null = null
+let justDraggedTimer: ReturnType<typeof setTimeout> | null = null
+
 const tabs = computed(() => doc.openTabs)
 const activeTabId = computed(() => doc.activeTabId)
 
@@ -267,25 +270,30 @@ function onMouseUp() {
   document.removeEventListener('mouseup', onMouseUp)
 
   const ds = dragState.value
+  const draggingTabStillExists = ds.draggingId
+    ? tabs.value.some((t) => t.id === ds.draggingId)
+    : false
+
   if (
     ds.isDragging &&
-    ds.draggingId &&
+    draggingTabStillExists &&
     ds.overIndex !== null &&
     ds.overIndex !== ds.draggingIndex
   ) {
     const from = ds.draggingIndex
     const to = ds.overIndex
+    const tabCount = tabs.value.length
 
     let targetOffset = 0
     if (from < to) {
-      for (let i = from + 1; i <= to; i++) {
-        const tabId = tabs.value[i].id
-        targetOffset += tabWidths.value.get(tabId) ?? 0
+      for (let i = from + 1; i <= to && i < tabCount; i++) {
+        const tab = tabs.value[i]
+        if (tab) targetOffset += tabWidths.value.get(tab.id) ?? 0
       }
     } else if (from > to) {
-      for (let i = to; i < from; i++) {
-        const tabId = tabs.value[i].id
-        targetOffset -= tabWidths.value.get(tabId) ?? 0
+      for (let i = to; i < from && i < tabCount; i++) {
+        const tab = tabs.value[i]
+        if (tab) targetOffset -= tabWidths.value.get(tab.id) ?? 0
       }
     }
 
@@ -295,12 +303,15 @@ function onMouseUp() {
 
     const movedId = ds.draggingId
     const movedTo = to
-    setTimeout(() => {
-      doc.moveTab(movedId, movedTo)
-      dragState.value.justDragged = true
-      setTimeout(() => {
-        dragState.value.justDragged = false
-      }, 0)
+    settleTimer = setTimeout(() => {
+      const stillExists = movedId ? tabs.value.some((t) => t.id === movedId) : false
+      if (stillExists) {
+        doc.moveTab(movedId, movedTo)
+        dragState.value.justDragged = true
+        justDraggedTimer = setTimeout(() => {
+          dragState.value.justDragged = false
+        }, 0)
+      }
       dragState.value.isSettling = false
       dragState.value.draggingId = null
       dragState.value.draggingIndex = -1
@@ -308,6 +319,7 @@ function onMouseUp() {
       dragState.value.settleTargetOffset = 0
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      settleTimer = null
     }, 200)
     return
   }
@@ -323,6 +335,16 @@ function onMouseUp() {
 onBeforeUnmount(() => {
   document.removeEventListener('mousemove', onMouseMove)
   document.removeEventListener('mouseup', onMouseUp)
+  if (settleTimer) {
+    clearTimeout(settleTimer)
+    settleTimer = null
+  }
+  if (justDraggedTimer) {
+    clearTimeout(justDraggedTimer)
+    justDraggedTimer = null
+  }
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
 })
 </script>
 

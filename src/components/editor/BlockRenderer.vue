@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Component } from 'vue'
-import type { Block } from '@/core/blocks/types'
+import type { Block, Mark } from '@/core/blocks/types'
 import HeadingBlock from '@/components/blocks/HeadingBlock.vue'
 import ParagraphBlock from '@/components/blocks/ParagraphBlock.vue'
 import ListBlock from '@/components/blocks/ListBlock.vue'
@@ -21,6 +21,9 @@ const emit = defineEmits<{
   (e: 'enter', afterText: string): void
   (e: 'backspace-merge'): void
   (e: 'select'): void
+  (e: 'convert', targetType: string): void
+  (e: 'outdent', payload: { idx: number; text: string; marks: Mark[] }): void
+  (e: 'navigate', direction: 'prev' | 'next'): void
 }>()
 
 const builtinComponents: Record<string, Component> = {
@@ -54,6 +57,9 @@ const componentMap = computed(() => {
       @enter="(afterText: string) => emit('enter', afterText)"
       @backspace-merge="emit('backspace-merge')"
       @select="emit('select')"
+      @convert="(t: string) => emit('convert', t)"
+      @outdent="emit('outdent', $event)"
+      @navigate="emit('navigate', $event)"
     />
   </ErrorBoundary>
 </template>

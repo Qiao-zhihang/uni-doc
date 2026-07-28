@@ -20,6 +20,8 @@ const emit = defineEmits<{
   (e: 'enter', afterText: string): void
   (e: 'backspace-merge'): void
   (e: 'select'): void
+  (e: 'convert', targetType: string): void
+  (e: 'navigate', direction: 'prev' | 'next'): void
 }>()
 
 const el = ref<HTMLElement | null>(null)
@@ -36,7 +38,7 @@ function renderSource() {
   if (!el.value) return
   const c = content()
   const source = marksToSource(c.text, c.marks)
-  el.value.innerText = source
+  el.value.innerText = source.split('\n').map((line) => '> ' + line).join('\n')
 }
 
 function renderHtml() {
@@ -89,8 +91,8 @@ watch(
 
 function commitWithMarks(text: string) {
   if (!el.value) return
-  // 引用块编辑态显示源码时含 > 前缀,提交前需剥离
-  const stripped = text.replace(/^>\s?/, '')
+  // 引用块编辑态显示源码时每行含 > 前缀,提交前逐行剥离
+  const stripped = text.split('\n').map((line) => line.replace(/^>\s?/, '')).join('\n')
   const parsed = parseInlineMarkdown(stripped)
   selfUpdate.value = true
   emit('update', { content: { text: parsed.text, marks: parsed.marks } })
@@ -118,28 +120,64 @@ function getCursorOffset(): number {
   return preRange.toString().length
 }
 
+function isCursorAtEnd(): boolean {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0 || !el.value) return false
+  const range = sel.getRangeAt(0)
+  if (!range.collapsed) return false
+  return getCursorOffset() === el.value.innerText.length
+}
+
 function onKeydown(e: KeyboardEvent) {
   if (autocomplete.onKeyDown(e)) return
-  if (e.key === 'Enter' && !e.shiftKey) {
+
+  if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && isCursorAtStart()) {
     e.preventDefault()
-    if (el.value) {
-      const fullText = el.value.innerText
-      const offset = getCursorOffset()
-      const beforeText = fullText.slice(0, offset)
-      const afterText = fullText.slice(offset)
-      commitWithMarks(beforeText)
-      selfUpdate.value = false
-      skipNextBlur.value = true
-      emit('enter', afterText)
+    emit('navigate', 'prev')
+    return
+  }
+  if ((e.key === 'ArrowRight' || e.key === 'ArrowDown') && isCursorAtEnd()) {
+    e.preventDefault()
+    emit('navigate', 'next')
+    return
+  }
+
+  if (e.key === 'Enter') {
+    if (e.shiftKey) {
+      e.preventDefault()
+      if (el.value) {
+        const fullText = el.value.innerText
+        const offset = getCursorOffset()
+        const beforeText = fullText.slice(0, offset)
+        const afterText = fullText.slice(offset).replace(/^>\s?/, '')
+        commitWithMarks(beforeText)
+        selfUpdate.value = false
+        skipNextBlur.value = true
+        emit('enter', afterText)
+      } else {
+        emit('enter', '')
+      }
     } else {
-      emit('enter', '')
+      e.preventDefault()
+      const sel = window.getSelection()
+      if (sel && sel.rangeCount > 0 && el.value) {
+        const range = sel.getRangeAt(0)
+        range.deleteContents()
+        const textNode = document.createTextNode('\n> ')
+        range.insertNode(textNode)
+        range.setStartAfter(textNode)
+        range.setEndAfter(textNode)
+        sel.removeAllRanges()
+        sel.addRange(range)
+        selfUpdate.value = true
+        commitWithMarks(el.value.innerText)
+      }
     }
   } else if (e.key === 'Backspace' && isCursorAtStart()) {
     e.preventDefault()
-    // 合并前先保存当前块的最新内容,防止拼接时使用旧内容
     commitWithMarks(el.value?.innerText || '')
     skipNextBlur.value = true
-    emit('backspace-merge')
+    emit('convert', 'paragraph')
   }
 }
 
@@ -225,6 +263,13 @@ function onMousedown(e: MouseEvent) {
   outline: none;
   min-height: 1.7em;
   word-break: break-word;
+  white-space: pre-wrap;
+  transition: border-color 0.12s ease, color 0.12s ease, padding 0.12s ease;
+}
+.quote-block[contenteditable="true"] {
+  border-left: none;
+  padding-left: 0;
+  color: var(--foreground);
 }
 :deep(.md-link) {
   color: var(--brand-500);

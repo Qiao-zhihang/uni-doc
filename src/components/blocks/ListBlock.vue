@@ -6,7 +6,7 @@
  * 列表项内的行内 Markdown 语法(粗体/斜体等)在回车时渲染
  */
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import type { Block, ListContent, ListProps, ListItem } from '@/core/blocks/types'
+import type { Block, ListContent, ListProps, ListItem, Mark } from '@/core/blocks/types'
 import { uuid } from '@/core/blocks/factory'
 import { marksToHtml, marksToSource } from './marks'
 import { parseInlineMarkdown } from '@/core/parser/inlineMarkdown'
@@ -23,6 +23,8 @@ const emit = defineEmits<{
   (e: 'enter'): void
   (e: 'backspace-merge'): void
   (e: 'select'): void
+  (e: 'outdent', payload: { idx: number; text: string; marks: Mark[] }): void
+  (e: 'navigate', direction: 'prev' | 'next'): void
 }>()
 
 const itemRefs = ref<HTMLElement[]>([])
@@ -134,11 +136,69 @@ function isCursorAtStart(el: HTMLElement): boolean {
   return testRange.toString().length === 0
 }
 
+function isCursorAtEnd(el: HTMLElement): boolean {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0) return false
+  const range = sel.getRangeAt(0)
+  if (!range.collapsed) return false
+  const testRange = document.createRange()
+  testRange.selectNodeContents(el)
+  testRange.setStart(range.endContainer, range.endOffset)
+  return testRange.toString().length === 0
+}
+
+function focusItemAtEnd(idx: number) {
+  const el = itemRefs.value[idx]
+  if (!el) return
+  el.focus()
+  const range = document.createRange()
+  range.selectNodeContents(el)
+  range.collapse(false)
+  const sel = window.getSelection()
+  sel?.removeAllRanges()
+  sel?.addRange(range)
+}
+
+function focusItemAtStart(idx: number) {
+  const el = itemRefs.value[idx]
+  if (!el) return
+  el.focus()
+  const range = document.createRange()
+  range.selectNodeContents(el)
+  range.collapse(true)
+  const sel = window.getSelection()
+  sel?.removeAllRanges()
+  sel?.addRange(range)
+}
+
 function onItemKeydown(e: KeyboardEvent, idx: number) {
   // 优先处理 wikilink 自动补全的键盘导航
   if (autocomplete.onKeyDown(e)) return
   const items = content().items
   const el = itemRefs.value[idx]
+
+  // 箭头键导航
+  if (el) {
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && isCursorAtStart(el)) {
+      e.preventDefault()
+      if (idx === 0) {
+        emit('navigate', 'prev')
+      } else {
+        focusItemAtEnd(idx - 1)
+      }
+      return
+    }
+    if ((e.key === 'ArrowRight' || e.key === 'ArrowDown') && isCursorAtEnd(el)) {
+      e.preventDefault()
+      if (idx === items.length - 1) {
+        emit('navigate', 'next')
+      } else {
+        focusItemAtStart(idx + 1)
+      }
+      return
+    }
+  }
+
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     if (el) {
@@ -154,28 +214,34 @@ function onItemKeydown(e: KeyboardEvent, idx: number) {
     nextTick(() => {
       itemRefs.value[idx + 1]?.focus()
     })
-  } else if (e.key === 'Backspace' && el && isCursorAtStart(el) && el.innerText.trim() === '') {
+  } else if (e.key === 'Backspace' && el && isCursorAtStart(el)) {
     e.preventDefault()
-    // 跳过即将触发的 onBlur:Backspace 会切到 prev item,当前 item blur 时 DOM 仍显示旧文本
-    skipNextBlur.value = true
-    if (items.length <= 1) {
-      emit('backspace-merge')
+    if (el.innerText.trim() === '') {
+      skipNextBlur.value = true
+      if (items.length <= 1) {
+        emit('backspace-merge')
+      } else {
+        const newItems = items.filter((_, i) => i !== idx)
+        selfUpdate.value = true
+        emit('update', { content: { items: newItems } })
+        nextTick(() => {
+          const prev = itemRefs.value[Math.max(0, idx - 1)]
+          prev?.focus()
+          if (prev) {
+            const range = document.createRange()
+            range.selectNodeContents(prev)
+            range.collapse(false)
+            const sel = window.getSelection()
+            sel?.removeAllRanges()
+            sel?.addRange(range)
+          }
+        })
+      }
     } else {
-      const newItems = items.filter((_, i) => i !== idx)
-      selfUpdate.value = true
-      emit('update', { content: { items: newItems } })
-      nextTick(() => {
-        const prev = itemRefs.value[Math.max(0, idx - 1)]
-        prev?.focus()
-        if (prev) {
-          const range = document.createRange()
-          range.selectNodeContents(prev)
-          range.collapse(false)
-          const sel = window.getSelection()
-          sel?.removeAllRanges()
-          sel?.addRange(range)
-        }
-      })
+      commitItemWithMarks(idx, el.innerText)
+      skipNextBlur.value = true
+      const parsed = parseInlineMarkdown(el.innerText)
+      emit('outdent', { idx, text: parsed.text, marks: parsed.marks })
     }
   }
 }

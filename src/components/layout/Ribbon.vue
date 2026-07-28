@@ -116,7 +116,6 @@ function goToReminders() {
 .ribbon-btn:hover {
   background: var(--sidebar-accent);
   color: var(--sidebar-foreground);
-  transform: translateY(-1px);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 }
 .ribbon-btn:active {

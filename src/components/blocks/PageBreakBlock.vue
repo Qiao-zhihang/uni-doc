@@ -8,10 +8,15 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import type { Block } from '@/core/blocks/types'
 import { useDocumentStore } from '@/stores/document'
+import { useEditorStore } from '@/stores/editor'
 import { createDividerBlock } from '@/core/blocks/factory'
 
 const props = defineProps<{ block: Block }>()
 const doc = useDocumentStore()
+const editor = useEditorStore()
+const emit = defineEmits<{ (e: 'select'): void }>()
+
+const isSelected = () => editor.selectedBlockId === props.block.id
 
 const contextMenu = ref<{ visible: boolean; x: number; y: number }>({
   visible: false,
@@ -87,7 +92,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="page-break" @contextmenu="onContextmenu">
+  <div
+    class="page-break"
+    :class="{ selected: isSelected() }"
+    :tabindex="isSelected() ? 0 : -1"
+    @click="emit('select')"
+    @contextmenu="onContextmenu"
+  >
     <div class="line"></div>
     <span class="label">--- 分页 ---</span>
     <div class="line"></div>
@@ -117,6 +128,12 @@ onUnmounted(() => {
   padding: 12px 0;
   cursor: context-menu;
   position: relative;
+  outline: none;
+  border-radius: 4px;
+  transition: background 0.12s ease;
+}
+.page-break.selected {
+  background: rgba(var(--brand-500-rgb, 59, 130, 246), 0.05);
 }
 .line {
   flex: 1;

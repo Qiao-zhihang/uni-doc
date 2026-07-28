@@ -1047,7 +1047,6 @@ async function reloadPlugins() {
 }
 .nav-item:hover {
   background: var(--muted);
-  transform: translateX(2px);
 }
 .nav-item.active {
   background: var(--accent);

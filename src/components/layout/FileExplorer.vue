@@ -459,7 +459,6 @@ function closeMenu() {
 .icon-btn:hover {
   background: var(--sidebar-accent);
   color: var(--sidebar-foreground);
-  transform: translateY(-1px);
 }
 .icon-btn:active {
   transform: scale(0.94);
@@ -488,7 +487,6 @@ function closeMenu() {
 }
 .node:hover {
   background: var(--sidebar-accent);
-  transform: translateX(2px);
 }
 .node.active {
   background: var(--sidebar-accent);
@@ -569,7 +567,6 @@ function closeMenu() {
 }
 .empty-btn:hover:not(:disabled) {
   filter: brightness(1.05);
-  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 122, 255, 0.35);
 }
 .empty-btn:active:not(:disabled) {
@@ -597,7 +594,6 @@ function closeMenu() {
 .vault-manager-bar:hover {
   background: var(--sidebar-accent);
   color: var(--sidebar-foreground);
-  transform: translateY(-1px);
 }
 .vault-manager-text {
   font-weight: 500;

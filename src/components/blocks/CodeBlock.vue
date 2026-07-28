@@ -20,6 +20,7 @@ const emit = defineEmits<{
   (e: 'enter', afterText: string): void
   (e: 'backspace-merge'): void
   (e: 'select'): void
+  (e: 'navigate', direction: 'prev' | 'next'): void
 }>()
 
 const el = ref<HTMLElement | null>(null)
@@ -159,18 +160,60 @@ function isCursorAtStart(): boolean {
   return testRange.toString().length === 0
 }
 
+function isCursorAtEnd(): boolean {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0 || !el.value) return false
+  const range = sel.getRangeAt(0)
+  if (!range.collapsed) return false
+  const testRange = document.createRange()
+  testRange.selectNodeContents(el.value)
+  testRange.setStart(range.endContainer, range.endOffset)
+  return testRange.toString().length === 0
+}
+
+function insertTextAtCursor(text: string) {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0 || !el.value) return
+  const range = sel.getRangeAt(0)
+  range.deleteContents()
+  const textNode = document.createTextNode(text)
+  range.insertNode(textNode)
+  range.setStartAfter(textNode)
+  range.setEndAfter(textNode)
+  sel.removeAllRanges()
+  sel.addRange(range)
+}
+
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && isCursorAtStart()) {
     e.preventDefault()
-    if (el.value) {
-      // 设 selfUpdate=true 跳过 watch 内的 syncText,避免 emit 后 innerText 被重置导致光标异常
-      selfUpdate.value = true
-      emit('update', { content: { code: el.value.innerText } })
+    emit('navigate', 'prev')
+    return
+  }
+  if ((e.key === 'ArrowRight' || e.key === 'ArrowDown') && isCursorAtEnd()) {
+    e.preventDefault()
+    emit('navigate', 'next')
+    return
+  }
+
+  if (e.key === 'Enter') {
+    if (e.shiftKey) {
+      e.preventDefault()
+      if (el.value) {
+        selfUpdate.value = true
+        emit('update', { content: { code: el.value.innerText } })
+      }
+      emit('enter', '')
+    } else {
+      e.preventDefault()
+      insertTextAtCursor('\n')
+      if (el.value) {
+        selfUpdate.value = true
+        emit('update', { content: { code: el.value.innerText } })
+      }
     }
-    emit('enter', '')
   } else if (e.key === 'Backspace' && isCursorAtStart()) {
     e.preventDefault()
-    // 合并前先保存当前块的最新内容,防止拼接时使用旧内容
     if (el.value) {
       selfUpdate.value = true
       emit('update', { content: { code: el.value.innerText } })

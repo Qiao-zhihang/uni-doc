@@ -154,7 +154,6 @@ const saveStatusClass = computed(() => doc.savedStatus)
 .zoom-btn:hover {
   background: var(--secondary);
   color: var(--foreground);
-  transform: translateY(-1px);
 }
 .zoom-value {
   min-width: 46px;
@@ -176,7 +175,6 @@ const saveStatusClass = computed(() => doc.savedStatus)
 .present-btn:hover:not(:disabled) {
   background: var(--secondary);
   color: var(--foreground);
-  transform: translateY(-1px);
 }
 .present-btn:disabled {
   opacity: 0.4;

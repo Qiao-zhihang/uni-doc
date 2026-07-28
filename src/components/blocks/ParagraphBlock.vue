@@ -17,6 +17,7 @@ const emit = defineEmits<{
   (e: 'enter', afterText: string): void
   (e: 'backspace-merge'): void
   (e: 'select'): void
+  (e: 'navigate', direction: 'prev' | 'next'): void
 }>()
 
 const el = ref<HTMLElement | null>(null)
@@ -137,9 +138,29 @@ function getCursorOffset(): number {
   return preRange.toString().length
 }
 
+function isCursorAtEnd(): boolean {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0 || !el.value) return false
+  const range = sel.getRangeAt(0)
+  if (!range.collapsed) return false
+  return getCursorOffset() === el.value.innerText.length
+}
+
 function onKeydown(e: KeyboardEvent) {
   // 优先处理 wikilink 自动补全的键盘导航
   if (autocomplete.onKeyDown(e)) return
+
+  if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && isCursorAtStart()) {
+    e.preventDefault()
+    emit('navigate', 'prev')
+    return
+  }
+  if ((e.key === 'ArrowRight' || e.key === 'ArrowDown') && isCursorAtEnd()) {
+    e.preventDefault()
+    emit('navigate', 'next')
+    return
+  }
+
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     if (el.value) {

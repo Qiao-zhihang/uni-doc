@@ -264,7 +264,7 @@ const emit = defineEmits<{
   background: var(--accent);
 }
 .vault-item.active {
-  background: var(--brand-50, var(--accent));
+  background: var(--conversation-active-bg, var(--accent));
 }
 .vault-icon {
   color: var(--muted-foreground);
@@ -322,6 +322,6 @@ const emit = defineEmits<{
 }
 .remove-btn:hover {
   background: var(--destructive);
-  color: white;
+  color: var(--destructive-foreground);
 }
 </style>
