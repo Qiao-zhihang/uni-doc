@@ -91,6 +91,8 @@ unidoc is currently in its early stages, and we warmly welcome all forms of cont
 
 This project is open-sourced under the [MIT License](LICENSE).
 
+For the list of open source software used by this project and their licenses, please see the [Open Source Software Usage Declaration](ACKNOWLEDGEMENTS.md).
+
 <p align="center">
   Made with ❤️ by Qiao-zhihang 2026
 </p>
@@ -181,6 +183,8 @@ unidoc 目前处于早期阶段，我们热忱欢迎各种形式的贡献：
 ### 📜 开源协议
 
 本项目基于 [MIT License](LICENSE) 开源。
+
+本项目所使用的开源软件及其协议清单，请参阅[开源软件使用声明](ACKNOWLEDGEMENTS.md)。
 
 <p align="center">
   Made with ❤️ by Qiao-zhihang 2026
