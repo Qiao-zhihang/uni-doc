@@ -469,8 +469,10 @@ function convertList(source: string, node: any): Block {
   // 回填 children(createListBlock 会生成新 id,需对齐)
   const createdItems = (block.content as ListContent).items
   for (let i = 0; i < createdItems.length && i < items.length; i++) {
-    if (items[i].children && items[i].children.length > 0) {
-      createdItems[i].children = items[i].children
+    const item = items[i]
+    const createdItem = createdItems[i]
+    if (item && createdItem && item.children && item.children.length > 0) {
+      createdItem.children = item.children
     }
   }
   return block
@@ -554,8 +556,8 @@ export function deserializeMarkdown(markdown: string): Block[] {
   // 预处理中文标点(必须在 mdast 解析前,position offset 基于预处理后文本)
   const preprocessed = preprocessChineseList(markdown)
 
-  // mdast 解析（开启 position 以便从源文本切取行内原始 markdown）
-  const tree = fromMarkdown(preprocessed, { positions: true })
+  // mdast 解析（position 默认开启,便于从源文本切取行内原始 markdown）
+  const tree = fromMarkdown(preprocessed)
 
   // 递归转换
   return convertNodes(preprocessed, tree.children as any[])
