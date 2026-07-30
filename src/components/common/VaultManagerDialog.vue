@@ -77,7 +77,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="dialog-mask" @pointerdown.self="emit('close')">
-    <div class="dialog" role="dialog" aria-modal="true">
+    <div class="dialog glass-popover" role="dialog" aria-modal="true">
       <div class="dialog-header">
         <span class="dialog-title">管理仓库</span>
         <button class="close-btn" @click="emit('close')">×</button>

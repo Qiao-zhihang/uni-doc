@@ -35,6 +35,7 @@ import { usePluginStore } from '@/stores/plugin'
 import { PERMISSION_LABELS, type PluginPermission } from '@/core/plugin/types'
 import { useRouter } from 'vue-router'
 import type { ModelConfig } from '@/ai/types'
+import { useLiquidGlass, type LiquidGlassMode } from '@/composables/useLiquidGlass'
 
 import deepseekIcon from '@/assets/settings-icons/deepseek.svg'
 import openaiIcon from '@/assets/settings-icons/openai.svg'
@@ -48,6 +49,24 @@ const theme = useThemeStore()
 const settings = useSettingsStore()
 const plugins = usePluginStore()
 const router = useRouter()
+const liquidGlass = useLiquidGlass()
+
+/** 液态玻璃分段选项 */
+const lgOptions: { value: LiquidGlassMode; label: string }[] = [
+  { value: 'auto', label: '自动' },
+  { value: 'on', label: '开启' },
+  { value: 'off', label: '关闭' },
+]
+/** 描述当前液态玻璃生效状态,用于在 UI 上提示 */
+const lgStatusText = computed(() => {
+  if (!liquidGlass.supported.value) {
+    return '当前 WebView 不支持 backdrop-filter,已自动回退到纯色玻璃。'
+  }
+  if (liquidGlass.enabled.value) {
+    return '液态玻璃已启用 — 仅作用于标题栏、侧边栏、状态栏、AI 浮窗等 chrome 表面,编辑器正文不受影响以保持性能。'
+  }
+  return '液态玻璃已关闭 — 使用纯色玻璃风格,性能占用最低。'
+})
 
 function backToEditor() {
   router.push('/editor')
@@ -393,7 +412,7 @@ async function reloadPlugins() {
         <!-- 外观 -->
         <section v-show="activeSection === 'appearance'" class="section">
           <h2 class="section-title-plain">外观</h2>
-          <p class="section-desc">切换深色或浅色主题，偏好将保存到本地。</p>
+          <p class="section-desc">切换深色或浅色主题,以及液态玻璃质感。所有偏好均保存到本地。</p>
 
           <div class="card-wrap">
             <label class="card-label">主题模式</label>
@@ -413,6 +432,23 @@ async function reloadPlugins() {
               >
                 <Moon :size="14" />
                 <span>深色</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 液态玻璃质感(性能考虑:仅作用于 chrome 表面) -->
+          <div class="card-wrap">
+            <label class="card-label">液态玻璃质感</label>
+            <p class="card-hint">{{ lgStatusText }}</p>
+            <div class="segmented-control">
+              <button
+                v-for="opt in lgOptions"
+                :key="opt.value"
+                class="seg-btn"
+                :class="{ active: liquidGlass.preference.value === opt.value }"
+                @click="liquidGlass.setPreference(opt.value)"
+              >
+                <span>{{ opt.label }}</span>
               </button>
             </div>
           </div>
@@ -1106,6 +1142,12 @@ async function reloadPlugins() {
   color: var(--foreground);
   display: block;
   margin-bottom: 12px;
+}
+.card-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  margin: 0 0 12px 0;
 }
 
 /* ===== 分段控件（主题切换） ===== */

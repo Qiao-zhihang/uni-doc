@@ -325,7 +325,7 @@ function closeMenu() {
 </script>
 
 <template>
-  <aside class="file-explorer">
+  <aside class="file-explorer glass-sidebar">
     <!-- 标题栏 -->
     <div class="header">
       <span class="title">

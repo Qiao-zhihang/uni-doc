@@ -224,7 +224,7 @@ function handleEnterReplay() {
 </script>
 
 <template>
-  <div class="toolbar no-scrollbar" @click="closeMenus">
+  <div class="toolbar no-scrollbar glass-sidebar" @click="closeMenus">
     <!-- 格式化组 -->
     <div class="group" @click.stop>
       <button class="tool-btn" title="加粗" :disabled="!hasActiveTab" @click="toggleMark('bold')">

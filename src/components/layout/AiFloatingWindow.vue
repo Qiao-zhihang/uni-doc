@@ -775,7 +775,7 @@ onUnmounted(() => {
   <!-- 展开态浮窗 -->
   <div
     v-if="isOpen"
-    class="ai-floating"
+    class="ai-floating glass-popover"
     :class="{
       'floating-animating': sidebarAnimating,
       'split-mode': isSplitMode,
