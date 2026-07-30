@@ -13,6 +13,8 @@ import { createTools, getToolDefinitions, executeTool, TOOL_LABELS } from './too
 import { buildContext, buildSystemPrompt } from './context'
 import { useAiMemoryStore } from '@/stores/aiMemory'
 import { extractProfileFromConversation, parseAndSaveFact } from './memory'
+import { estimateTokens, estimateMessageTokens } from './tokenEstimate'
+import { inferContextWindow } from './contextWindow'
 import type { useDocumentStore } from '@/stores/document'
 import type { useEditorStore } from '@/stores/editor'
 
@@ -92,6 +94,20 @@ function formatToolResultForAI(
     case 'switch_tab': {
       const d = result.data as { activeTabId: string }
       return `【切换成功】${label} TabID=${d.activeTabId}`
+    }
+    case 'get_tab_content': {
+      const d = result.data as {
+        title: string
+        path: string | null
+        blockCount: number
+        outline: Array<{ level: number; text: string }>
+        blocks: Array<{ index: number; id: string; type: string; preview: string }>
+      }
+      const outlineStr = d.outline.map((o) => `${'#'.repeat(o.level)} ${o.text}`).join('\n')
+      const blocksStr = d.blocks
+        .map((b) => `${b.index}. id=${b.id} [${b.type}] ${b.preview}`)
+        .join('\n')
+      return `【标签内容】"${d.title}" (${d.blockCount}块, 路径=${d.path ?? '未保存'})\n大纲:\n${outlineStr}\n前${d.blocks.length}块:\n${blocksStr}`
     }
     case 'get_vault_tree': {
       const items = (result.data ?? []) as Array<{ name: string; path: string; isDir: boolean }>
@@ -274,8 +290,6 @@ const DOC_MODIFYING_TOOLS = new Set([
 export function createAgent(deps: AgentDeps): Agent {
   const { doc, editor, getConfig, canvasEl, enableWebSearch, memory, getConversationId } = deps
 
-  const MAX_CONTEXT_ROUNDS = 30
-
   function chat(
     messages: ChatMessage[],
     userInput: string | MessageContent[],
@@ -314,19 +328,44 @@ export function createAgent(deps: AgentDeps): Agent {
 
         // 保留 tool 角色消息，确保 tool_calls 序列完整
         const historyMessages = messages.filter((m) => m.role !== 'system')
-        // 截断时不能从 tool 消息中间切断，回退到最近的 user 消息边界
-        let truncatedHistory = historyMessages
-        if (historyMessages.length > MAX_CONTEXT_ROUNDS * 2) {
-          const sliced = historyMessages.slice(-MAX_CONTEXT_ROUNDS * 2)
-          // 如果截断后第一条是 tool/assistant(with tool_calls) 消息，向前找到 user 消息边界
-          let startIdx = 0
-          for (let i = 0; i < sliced.length; i++) {
-            if (sliced[i].role === 'user') {
-              startIdx = i
-              break
-            }
+
+        // ===== Token 预算管理:动态截断历史 =====
+        // 计算可用预算: 模型上下文窗口 - system prompt - 用户输入 - 输出预留(maxTokens)
+        const contextWindow = config.contextWindow ?? inferContextWindow(config.provider, config.model)
+        const systemTokens = estimateTokens(systemPrompt)
+        const userInputTokens = typeof userInput === 'string'
+          ? estimateTokens(userInput)
+          : estimateMessageTokens({ role: 'user', content: userInput })
+        const outputReserve = config.maxTokens
+        // 安全系数 0.9:估算有误差,留 10% 余量
+        const historyBudget = Math.floor(
+          (contextWindow - systemTokens - userInputTokens - outputReserve) * 0.9,
+        )
+
+        // 从最新消息往前累加,直到耗尽预算
+        let truncatedHistory: ChatMessage[] = []
+        if (historyBudget > 0 && historyMessages.length > 0) {
+          let usedTokens = 0
+          let cutIdx = historyMessages.length
+          for (let i = historyMessages.length - 1; i >= 0; i--) {
+            const t = estimateMessageTokens(historyMessages[i])
+            if (usedTokens + t > historyBudget) break
+            usedTokens += t
+            cutIdx = i
           }
-          truncatedHistory = sliced.slice(startIdx)
+          // 截断后第一条不能是 tool/assistant(with tool_calls),回退到 user 边界
+          while (
+            cutIdx < historyMessages.length &&
+            historyMessages[cutIdx].role !== 'user'
+          ) {
+            cutIdx++
+          }
+          truncatedHistory = cutIdx < historyMessages.length
+            ? historyMessages.slice(cutIdx)
+            : []
+        } else {
+          // 预算不足或无历史,保留空
+          truncatedHistory = []
         }
 
         // 存入对话历史的消息：始终保留完整多模态内容（让 UI 能渲染图片）

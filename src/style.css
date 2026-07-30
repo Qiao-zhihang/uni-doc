@@ -167,6 +167,46 @@
   --conversation-active-bar: var(--brand-500);
   --conversation-active-bg: var(--brand-50);
   --code-bg: rgba(0, 0, 0, 0.06);
+
+  /* ===== BUTTON TOKENS (可被插件覆盖) ===== */
+  --btn-primary-bg: var(--primary);
+  --btn-primary-hover-bg: var(--brand-600);
+  --btn-primary-foreground: var(--primary-foreground);
+  --btn-primary-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --btn-primary-hover-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+
+  --btn-secondary-bg: var(--secondary);
+  --btn-secondary-hover-bg: var(--muted);
+  --btn-secondary-foreground: var(--secondary-foreground);
+
+  --btn-tool-bg: transparent;
+  --btn-tool-hover-bg: var(--secondary);
+  --btn-tool-shadow: none;
+  --btn-tool-hover-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  /* 气泡/卡片阴影 */
+  --bubble-user-bg: var(--primary);
+  --bubble-user-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(0, 0, 0, 0.06);
+  --bubble-ai-bg: var(--card);
+  --bubble-ai-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 2px 6px rgba(0, 0, 0, 0.04);
+
+  /* 命令面板/菜单高亮 */
+  --menu-item-active-bg: var(--primary);
+  --menu-item-active-foreground: var(--primary-foreground);
+  --menu-item-active-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+
+  /* 品牌色透明层(供插件覆盖) */
+  --brand-alpha-03: rgba(0, 122, 255, 0.03);
+  --brand-alpha-06: rgba(0, 122, 255, 0.06);
+  --brand-alpha-08: rgba(0, 122, 255, 0.08);
+  --brand-alpha-10: rgba(0, 122, 255, 0.10);
+  --brand-alpha-12: rgba(0, 122, 255, 0.12);
+  --brand-alpha-15: rgba(0, 122, 255, 0.15);
+  --brand-alpha-18: rgba(0, 122, 255, 0.18);
+  --brand-alpha-20: rgba(0, 122, 255, 0.20);
+  --brand-alpha-25: rgba(0, 122, 255, 0.25);
+  --brand-alpha-28: rgba(0, 122, 255, 0.28);
+  --brand-alpha-35: rgba(0, 122, 255, 0.35);
 }
 
 /* ===== SEMANTIC ROLES - dark (Apple style) ===== */
@@ -245,6 +285,30 @@
   --glass-bg-card: rgba(35, 36, 42, 0.82);
   --glass-bg-popover: rgba(42, 43, 49, 0.88);
   --glass-border: rgba(255, 255, 255, 0.07);
+
+  /* 深色模式按钮 token 覆盖 */
+  --btn-primary-hover-bg: #409cff;
+  --btn-primary-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --btn-primary-hover-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+
+  --btn-tool-hover-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+
+  --bubble-user-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.35);
+  --bubble-ai-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 2px 6px rgba(0, 0, 0, 0.3);
+
+  --menu-item-active-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+
+  --brand-alpha-03: rgba(10, 132, 255, 0.03);
+  --brand-alpha-06: rgba(10, 132, 255, 0.06);
+  --brand-alpha-08: rgba(10, 132, 255, 0.08);
+  --brand-alpha-10: rgba(10, 132, 255, 0.10);
+  --brand-alpha-12: rgba(10, 132, 255, 0.12);
+  --brand-alpha-15: rgba(10, 132, 255, 0.15);
+  --brand-alpha-18: rgba(10, 132, 255, 0.18);
+  --brand-alpha-20: rgba(10, 132, 255, 0.20);
+  --brand-alpha-25: rgba(10, 132, 255, 0.25);
+  --brand-alpha-28: rgba(10, 132, 255, 0.28);
+  --brand-alpha-35: rgba(10, 132, 255, 0.35);
 }
 
 /* ===== 全局基础样式 ===== */

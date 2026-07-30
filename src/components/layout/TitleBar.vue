@@ -121,7 +121,7 @@ function commitEdit() {
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 .title-input:focus {
-  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+  box-shadow: 0 0 0 3px var(--brand-alpha-15);
 }
 .spacer {
   flex: 1;

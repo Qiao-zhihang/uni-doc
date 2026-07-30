@@ -51,6 +51,7 @@ export const TOOL_LABELS: Record<string, string> = {
   create_file: '创建文件',
   list_dir: '列出目录',
   switch_tab: '切换标签',
+  get_tab_content: '读取标签内容',
   web_search: '联网搜索',
   save_memory: '保存记忆',
   list_memory: '查看记忆',
@@ -504,6 +505,49 @@ export function createTools(
       execute: (args) => {
         doc.switchTab(args.tabId as string)
         return { ok: true, data: { activeTabId: doc.activeTabId } }
+      },
+    },
+    {
+      name: 'get_tab_content',
+      description:
+        '读取指定 tab 的文档内容(不切换活动 tab)。返回标题、区块数、大纲和前 15 个区块预览。用于查看其他已打开文档的内容。',
+      parameters: {
+        type: 'object',
+        properties: { tabId: { type: 'string', description: '目标 tab id' } },
+        required: ['tabId'],
+      },
+      execute: (args) => {
+        const tabId = args.tabId as string
+        const tab = doc.openTabs.find((t) => t.id === tabId)
+        if (!tab) return { ok: false, error: `tab ${tabId} 不存在` }
+        // 生成大纲
+        const outline = tab.blocks
+          .filter((b) => b.type === 'heading')
+          .map((b) => {
+            const level = (b.props as { level?: number }).level ?? 1
+            const text = (b.content as { text?: string }).text ?? ''
+            return { level, text }
+          })
+        // 前 15 个区块预览
+        const blockPreviews = tab.blocks.slice(0, 15).map((b, i) => {
+          let preview = ''
+          const c = b.content as { text?: string; code?: string; items?: { text?: string }[] }
+          if (c.text) preview = c.text.slice(0, 100)
+          else if (c.code) preview = '```' + c.code.slice(0, 80)
+          else if (c.items) preview = c.items.map((it) => it.text).join(', ').slice(0, 100)
+          return { index: i, id: b.id, type: b.type, preview }
+        })
+        return {
+          ok: true,
+          data: {
+            tabId,
+            title: tab.meta.title || '未命名',
+            path: tab.path,
+            blockCount: tab.blocks.length,
+            outline,
+            blocks: blockPreviews,
+          },
+        }
       },
     },
     {

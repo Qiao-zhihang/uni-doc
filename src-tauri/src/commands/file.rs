@@ -69,3 +69,48 @@ pub fn open_md_dialog(
         None => Ok(None),
     }
 }
+
+#[tauri::command]
+pub fn save_file(
+    file_path: String,
+    content: String,
+) -> Result<(), String> {
+    let path = Path::new(&file_path);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("创建父目录失败: {}", e))?;
+    }
+    let mut file = File::create(&file_path)
+        .map_err(|e| format!("创建文件失败: {}", e))?;
+    file.write_all(content.as_bytes())
+        .map_err(|e| format!("写入文件失败: {}", e))?;
+    Ok(())
+}
+
+#[derive(serde::Deserialize)]
+pub struct FileFilter {
+    name: String,
+    extensions: Vec<String>,
+}
+
+#[tauri::command]
+pub fn save_file_dialog(
+    app: tauri::AppHandle,
+    title: String,
+    default_name: String,
+    filters: Vec<FileFilter>,
+) -> Result<Option<String>, String> {
+    let mut dialog = app.dialog().file();
+    dialog = dialog.set_title(&title).set_file_name(&default_name);
+    for f in filters {
+        let exts: Vec<&str> = f.extensions.iter().map(|s| s.as_str()).collect();
+        dialog = dialog.add_filter(&f.name, &exts);
+    }
+    let file_path = dialog.blocking_save_file();
+    match file_path {
+        Some(fp) => {
+            let path = fp.simplified();
+            Ok(Some(path.to_string()))
+        }
+        None => Ok(None),
+    }
+}

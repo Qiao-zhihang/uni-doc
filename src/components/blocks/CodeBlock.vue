@@ -9,6 +9,7 @@ import type { Block, CodeBlockContent, CodeBlockProps } from '@/core/blocks/type
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { useThemeStore } from '@/stores/theme'
+import { useContentEditable } from '@/composables/useContentEditable'
 import mermaid from 'mermaid'
 
 const props = defineProps<{ block: Block }>()
@@ -24,6 +25,8 @@ const emit = defineEmits<{
 }>()
 
 const el = ref<HTMLElement | null>(null)
+const { isComposing, onCompositionStart, onCompositionEnd, onPasteClean, onTabKey } =
+  useContentEditable(el)
 const selfUpdate = ref(false)
 /** Mermaid 渲染输出 */
 const mermaidSvg = ref<string>('')
@@ -143,6 +146,7 @@ watch(
 )
 
 function onInput() {
+  if (isComposing.value) return
   if (!el.value) return
   const code = el.value.innerText
   selfUpdate.value = true
@@ -185,6 +189,10 @@ function insertTextAtCursor(text: string) {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Tab') {
+    onTabKey(e)
+    return
+  }
   if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && isCursorAtStart()) {
     e.preventDefault()
     emit('navigate', 'prev')
@@ -250,6 +258,9 @@ function onKeydown(e: KeyboardEvent) {
       @keydown="onKeydown"
       @focus="emit('select')"
       @click="emit('select')"
+      @compositionstart="onCompositionStart"
+      @compositionend="onCompositionEnd"
+      @paste="onPasteClean"
     ></pre>
   </div>
 </template>

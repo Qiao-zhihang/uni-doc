@@ -8,6 +8,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { isTauri } from '@/core/serializer/markdownFile'
 import type { ModelConfig } from '@/ai/types'
+import { getEffectiveContextWindow } from '@/ai/contextWindow'
 
 /** AI 提供商预设类型 */
 export type ProviderPreset = 'openai' | 'deepseek' | 'qwen' | 'zhipu' | 'ollama' | 'custom'
@@ -28,6 +29,8 @@ export interface ApiProfile {
   vision?: boolean
   webSearch?: boolean
   nativeSearch?: boolean
+  /** 模型上下文窗口大小(token)；undefined 时自动推断 */
+  contextWindow?: number
 }
 
 /** 各预设的默认 apiUrl / model / 显示名 */
@@ -230,6 +233,8 @@ export const useSettingsStore = defineStore('settings', () => {
       nativeSearch: !!p.nativeSearch,
       vision: !!p.vision,
       stream: p.stream !== false,
+      // 用户填写则用,否则按 provider+model 自动推断
+      contextWindow: getEffectiveContextWindow(p.contextWindow, p.provider, p.model),
     }
   }
 

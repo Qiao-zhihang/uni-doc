@@ -13,7 +13,9 @@ import { parseInlineMarkdown } from '@/core/parser/inlineMarkdown'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { useWikilinkAutocomplete } from '@/composables/useWikilinkAutocomplete'
+import { useContentEditable } from '@/composables/useContentEditable'
 import WikilinkPopup from '@/components/common/WikilinkPopup.vue'
+import BlockRenderer from '@/components/editor/BlockRenderer.vue'
 
 const props = defineProps<{ block: Block }>()
 const doc = useDocumentStore()
@@ -33,10 +35,13 @@ const selfUpdate = ref(false)
 const skipNextBlur = ref(false)
 // 当前编辑中的 item 元素(用于 wikilink 自动补全)
 const activeItemEl = ref<HTMLElement | null>(null)
+const { isComposing, onCompositionStart, onCompositionEnd, onPasteClean, onTabKey } =
+  useContentEditable(activeItemEl)
 const autocomplete = useWikilinkAutocomplete({ el: activeItemEl })
 
 const content = () => props.block.content as ListContent
 const listType = () => (props.block.props as ListProps).listType
+const listStart = () => (props.block.props as ListProps).start ?? 1
 
 const isSelected = computed(() => editor.selectedBlockId === props.block.id)
 
@@ -147,6 +152,23 @@ function isCursorAtEnd(el: HTMLElement): boolean {
   return testRange.toString().length === 0
 }
 
+/** 获取选区在元素内的起止偏移量（无选区时 start===end） */
+function getSelectionOffsets(el: HTMLElement): { start: number; end: number } {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0) return { start: 0, end: 0 }
+  const range = sel.getRangeAt(0)
+  const preStart = document.createRange()
+  preStart.selectNodeContents(el)
+  preStart.setEnd(range.startContainer, range.startOffset)
+  const start = preStart.toString().length
+  if (range.collapsed) return { start, end: start }
+  const preEnd = document.createRange()
+  preEnd.selectNodeContents(el)
+  preEnd.setEnd(range.endContainer, range.endOffset)
+  const end = preEnd.toString().length
+  return { start, end }
+}
+
 function focusItemAtEnd(idx: number) {
   const el = itemRefs.value[idx]
   if (!el) return
@@ -172,6 +194,10 @@ function focusItemAtStart(idx: number) {
 }
 
 function onItemKeydown(e: KeyboardEvent, idx: number) {
+  if (e.key === 'Tab') {
+    onTabKey(e)
+    return
+  }
   // 优先处理 wikilink 自动补全的键盘导航
   if (autocomplete.onKeyDown(e)) return
   const items = content().items
@@ -202,18 +228,31 @@ function onItemKeydown(e: KeyboardEvent, idx: number) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     if (el) {
-      commitItemWithMarks(idx, el.innerText)
-      selfUpdate.value = false
-      // 跳过即将触发的 onBlur:Enter 会切到新 item,旧 item blur 时 DOM 仍显示旧文本
+      const fullText = el.innerText
+      const { start, end } = getSelectionOffsets(el)
+      const beforeText = fullText.slice(0, start)
+      const afterText = fullText.slice(end)
+      // 光标前内容留在当前项
+      const parsedBefore = parseInlineMarkdown(beforeText)
+      const itemsBefore = content().items.map((it, i) =>
+        i === idx ? { ...it, text: parsedBefore.text, marks: parsedBefore.marks } : it,
+      )
+      // 光标后内容移到新项
+      const parsedAfter = parseInlineMarkdown(afterText)
+      const newItem: ListItem = {
+        id: uuid(),
+        text: parsedAfter.text,
+        marks: parsedAfter.marks,
+        checked: false,
+      }
+      const newItems = [...itemsBefore.slice(0, idx + 1), newItem, ...itemsBefore.slice(idx + 1)]
+      selfUpdate.value = true
       skipNextBlur.value = true
+      emit('update', { content: { items: newItems } })
+      nextTick(() => {
+        focusItemAtStart(idx + 1)
+      })
     }
-    const newItem: ListItem = { id: uuid(), text: '', marks: [], checked: false }
-    const newItems = [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)]
-    selfUpdate.value = true
-    emit('update', { content: { items: newItems } })
-    nextTick(() => {
-      itemRefs.value[idx + 1]?.focus()
-    })
   } else if (e.key === 'Backspace' && el && isCursorAtStart(el)) {
     e.preventDefault()
     if (el.innerText.trim() === '') {
@@ -248,6 +287,7 @@ function onItemKeydown(e: KeyboardEvent, idx: number) {
 
 /** 列表项输入时检测 [[ 触发自动补全 */
 function onItemInput(e: Event) {
+  if (isComposing.value) return
   activeItemEl.value = e.target as HTMLElement
   autocomplete.checkTrigger()
 }
@@ -261,6 +301,7 @@ function isTask() {
 
 /** 列表项失焦时提交 */
 function onBlurItem(idx: number, text: string) {
+  if (isComposing.value) return
   autocomplete.close()
   // Enter/Backspace 切换 item 时已显式提交,跳过(此时 DOM 可能还显示旧文本)
   if (skipNextBlur.value) {
@@ -268,6 +309,14 @@ function onBlurItem(idx: number, text: string) {
     return
   }
   commitItemWithMarks(idx, text)
+}
+
+function onCompositionEndLocal() {
+  onCompositionEnd()
+  const active = document.activeElement as HTMLElement | null
+  if (active && !itemRefs.value.includes(active) && active.innerText !== undefined) {
+    // 如果组合结束时焦点已不在列表项中,不做额外提交(由 onBlur 处理)
+  }
 }
 
 /** 点击事件:阅读态下点链接跳转,点其他地方进入编辑态 */
@@ -311,38 +360,54 @@ function onMousedown(e: MouseEvent) {
   >
     <ol v-if="isOrdered()" class="ordered">
       <li v-for="(item, idx) in content().items" :key="item.id" class="item">
-        <span class="marker">{{ idx + 1 }}.</span>
-        <div
-          :ref="(el) => setItemRef(el as HTMLElement, idx)"
-          class="item-text"
-          :contenteditable="isSelected ? 'true' : 'false'"
-          spellcheck="false"
-          @keydown="(e: KeyboardEvent) => onItemKeydown(e, idx)"
-          @input="onItemInput"
-          @blur="(e: Event) => onBlurItem(idx, (e.target as HTMLElement).innerText)"
-        ></div>
+        <div class="item-main">
+          <span class="marker">{{ listStart() + idx }}.</span>
+          <div
+            :ref="(el) => setItemRef(el as HTMLElement, idx)"
+            class="item-text"
+            :contenteditable="isSelected ? 'true' : 'false'"
+            spellcheck="false"
+            @keydown="(e: KeyboardEvent) => onItemKeydown(e, idx)"
+            @input="onItemInput"
+            @blur="(e: Event) => onBlurItem(idx, (e.target as HTMLElement).innerText)"
+            @compositionstart="onCompositionStart"
+            @compositionend="onCompositionEndLocal"
+            @paste="onPasteClean"
+          ></div>
+        </div>
+        <div v-if="item.children && item.children.length" class="item-children">
+          <BlockRenderer v-for="child in item.children" :key="child.id" :block="child" />
+        </div>
       </li>
     </ol>
     <ul v-else class="bullet">
       <li v-for="(item, idx) in content().items" :key="item.id" class="item">
-        <input
-          v-if="isTask()"
-          type="checkbox"
-          class="checkbox"
-          :checked="item.checked"
-          @change="toggleCheck(idx)"
-        />
-        <span v-else class="marker">•</span>
-        <div
-          :ref="(el) => setItemRef(el as HTMLElement, idx)"
-          class="item-text"
-          :class="{ checked: isTask() && item.checked }"
-          :contenteditable="isSelected ? 'true' : 'false'"
-          spellcheck="false"
-          @keydown="(e: KeyboardEvent) => onItemKeydown(e, idx)"
-          @input="onItemInput"
-          @blur="(e: Event) => onBlurItem(idx, (e.target as HTMLElement).innerText)"
-        ></div>
+        <div class="item-main">
+          <input
+            v-if="isTask()"
+            type="checkbox"
+            class="checkbox"
+            :checked="item.checked"
+            @change="toggleCheck(idx)"
+          />
+          <span v-else class="marker">•</span>
+          <div
+            :ref="(el) => setItemRef(el as HTMLElement, idx)"
+            class="item-text"
+            :class="{ checked: isTask() && item.checked }"
+            :contenteditable="isSelected ? 'true' : 'false'"
+            spellcheck="false"
+            @keydown="(e: KeyboardEvent) => onItemKeydown(e, idx)"
+            @input="onItemInput"
+            @blur="(e: Event) => onBlurItem(idx, (e.target as HTMLElement).innerText)"
+            @compositionstart="onCompositionStart"
+            @compositionend="onCompositionEndLocal"
+            @paste="onPasteClean"
+          ></div>
+        </div>
+        <div v-if="item.children && item.children.length" class="item-children">
+          <BlockRenderer v-for="child in item.children" :key="child.id" :block="child" />
+        </div>
       </li>
     </ul>
   </div>
@@ -380,8 +445,16 @@ function onMousedown(e: MouseEvent) {
 }
 .item {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.item-main {
+  display: flex;
   align-items: flex-start;
   gap: 8px;
+}
+.item-children {
+  margin-left: 24px;
 }
 .marker {
   flex-shrink: 0;

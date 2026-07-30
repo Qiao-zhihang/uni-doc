@@ -6,6 +6,7 @@ import { parseInlineMarkdown } from '@/core/parser/inlineMarkdown'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { useWikilinkAutocomplete } from '@/composables/useWikilinkAutocomplete'
+import { useContentEditable } from '@/composables/useContentEditable'
 import WikilinkPopup from '@/components/common/WikilinkPopup.vue'
 
 const props = defineProps<{ block: Block }>()
@@ -25,6 +26,8 @@ const selfUpdate = ref(false)
 /** Enter 换块时跳过 onBlur 提交(此时 DOM 还显示旧文本,会覆盖已提交的截断内容) */
 const skipNextBlur = ref(false)
 const autocomplete = useWikilinkAutocomplete({ el })
+const { isComposing, onCompositionStart, onCompositionEnd, onPasteClean, onTabKey } =
+  useContentEditable(el)
 
 const content = () => props.block.content as HeadingContent
 const level = () => (props.block.props as HeadingProps).level
@@ -123,7 +126,10 @@ function isCursorAtStart(): boolean {
   const testRange = document.createRange()
   testRange.selectNodeContents(el.value)
   testRange.setEnd(range.startContainer, range.startOffset)
-  return testRange.toString().length === 0
+  const offset = testRange.toString().length
+  // 编辑态显示 # 前缀,找到文本内容的起始位置
+  const prefix = '#'.repeat(level()) + ' '
+  return offset < prefix.length
 }
 
 /** 获取光标在元素内的字符偏移量 */
@@ -137,6 +143,23 @@ function getCursorOffset(): number {
   return preRange.toString().length
 }
 
+/** 获取选区在元素内的起止偏移量（无选区时 start===end） */
+function getSelectionOffsets(): { start: number; end: number } {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0 || !el.value) return { start: 0, end: 0 }
+  const range = sel.getRangeAt(0)
+  const preStart = document.createRange()
+  preStart.selectNodeContents(el.value)
+  preStart.setEnd(range.startContainer, range.startOffset)
+  const start = preStart.toString().length
+  if (range.collapsed) return { start, end: start }
+  const preEnd = document.createRange()
+  preEnd.selectNodeContents(el.value)
+  preEnd.setEnd(range.endContainer, range.endOffset)
+  const end = preEnd.toString().length
+  return { start, end }
+}
+
 function isCursorAtEnd(): boolean {
   const sel = window.getSelection()
   if (!sel || sel.rangeCount === 0 || !el.value) return false
@@ -146,6 +169,10 @@ function isCursorAtEnd(): boolean {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Tab') {
+    onTabKey(e)
+    return
+  }
   if (autocomplete.onKeyDown(e)) return
 
   if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && isCursorAtStart()) {
@@ -163,9 +190,9 @@ function onKeydown(e: KeyboardEvent) {
     e.preventDefault()
     if (el.value) {
       const fullText = el.value.innerText
-      const offset = getCursorOffset()
-      const beforeText = fullText.slice(0, offset)
-      const afterText = fullText.slice(offset)
+      const { start, end } = getSelectionOffsets()
+      const beforeText = fullText.slice(0, start)
+      const afterText = fullText.slice(end)
       commitWithMarks(beforeText)
       selfUpdate.value = false
       skipNextBlur.value = true
@@ -182,6 +209,7 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 function onInput() {
+  if (isComposing.value) return
   autocomplete.checkTrigger()
 }
 
@@ -191,7 +219,15 @@ function onBlur() {
     skipNextBlur.value = false
     return
   }
+  if (isComposing.value) return
   if (el.value) {
+    commitWithMarks(el.value.innerText)
+  }
+}
+
+function onCompositionEndLocal() {
+  onCompositionEnd()
+  if (document.activeElement !== el.value && el.value) {
     commitWithMarks(el.value.innerText)
   }
 }
@@ -238,6 +274,9 @@ function onMousedown(e: MouseEvent) {
     @keydown="onKeydown"
     @input="onInput"
     @blur="onBlur"
+    @paste="onPasteClean"
+    @compositionstart="onCompositionStart"
+    @compositionend="onCompositionEndLocal"
     @click="onClick"
     @mousedown="onMousedown"
   ></component>

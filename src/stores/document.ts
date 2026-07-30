@@ -20,7 +20,14 @@ import {
   deserializeMarkdown,
   parseFrontmatter,
 } from '@/core/serializer/markdown'
-import { saveMarkdownFile, openMarkdownFile } from '@/core/serializer/markdownFile'
+import type { HtmlExportOptions } from '@/core/serializer/html'
+import { serializeHtml } from '@/core/serializer/html'
+import {
+  saveMarkdownFile,
+  openMarkdownFile,
+  saveFile,
+  type SaveFileFilter,
+} from '@/core/serializer/markdownFile'
 import {
   readVaultFile,
   writeVaultFile,
@@ -47,6 +54,12 @@ interface TabInstance {
   historyTick: number
   /** 独立的撤销重做栈 */
   history: UndoRedo
+  /** batch 嵌套深度(>0 时所有 commit 被挂起) */
+  batchDepth: number
+  /** batch 内第一次 commit 时的快照(所有 mutations 完成后才 push) */
+  batchSnapshot: Block[] | null
+  /** batch 内记录的操作标签 */
+  batchLabel: string | null
 }
 
 /** 默认文档元信息 */
@@ -77,6 +90,9 @@ function createBlankTab(title = '未命名文档'): TabInstance {
     renderTick: 0,
     historyTick: 0,
     history,
+    batchDepth: 0,
+    batchSnapshot: null,
+    batchLabel: null,
   }
 }
 
@@ -206,8 +222,17 @@ export const useDocumentStore = defineStore('document', () => {
   function commit(label = '编辑') {
     const tab = getActive()
     if (!tab) return
+    // batch 模式下:只记录第一次的快照,不重复 push
+    if (tab.batchDepth > 0) {
+      if (tab.batchSnapshot === null) {
+        tab.batchSnapshot = JSON.parse(JSON.stringify(tab.blocks))
+        tab.batchLabel = label
+      }
+      return
+    }
     tab.history.push(tab.blocks, label)
     tab.historyTick++
+    tab.renderTick++
     tab.savedStatus = 'unsaved'
     tab.meta.updated_at = new Date().toISOString()
     scheduleAutoSave(tab.id)
@@ -217,6 +242,42 @@ export const useDocumentStore = defineStore('document', () => {
       const replay = useReplayStore()
       replay.captureSnapshot(label, 'auto')
     })
+  }
+
+  /**
+   * 批量执行多个 mutation 并只产生一条历史记录
+   * fn 内部所有 action 的 commit 都会被挂起,fn 返回后一次性提交
+   */
+  function batch<T>(fn: () => T, label = '编辑'): T {
+    const tab = getActive()
+    if (!tab) return fn()
+    tab.batchDepth++
+    try {
+      const result = fn()
+      tab.batchDepth--
+      if (tab.batchDepth === 0 && tab.batchSnapshot !== null) {
+        const snapshot = tab.batchSnapshot
+        const usedLabel = tab.batchLabel || label
+        tab.batchSnapshot = null
+        tab.batchLabel = null
+        tab.history.push(snapshot, usedLabel)
+        tab.historyTick++
+        tab.renderTick++
+        tab.savedStatus = 'unsaved'
+        tab.meta.updated_at = new Date().toISOString()
+        scheduleAutoSave(tab.id)
+        void import('@/stores/replay').then(({ useReplayStore }) => {
+          const replay = useReplayStore()
+          replay.captureSnapshot(usedLabel, 'auto')
+        })
+      }
+      return result
+    } catch (e) {
+      tab.batchDepth = 0
+      tab.batchSnapshot = null
+      tab.batchLabel = null
+      throw e
+    }
   }
 
   function replaceBlocks(newBlocks: Block[], label: string) {
@@ -585,6 +646,31 @@ export const useDocumentStore = defineStore('document', () => {
     return serializeMarkdown(blocks.value)
   }
 
+  /** 导出 Markdown 文件(弹出保存对话框) */
+  async function exportMarkdownFile(): Promise<boolean> {
+    const tab = getActive()
+    if (!tab) return false
+    const content = serializeMarkdownWithMeta(tab.blocks, tab.meta)
+    const filters: SaveFileFilter[] = [
+      { name: 'Markdown 文件', extensions: ['md'] },
+      { name: '文本文件', extensions: ['txt'] },
+      { name: '所有文件', extensions: ['*'] },
+    ]
+    return saveFile(content, `${tab.meta.title}.md`, filters, 'text/markdown;charset=utf-8')
+  }
+
+  /** 导出 HTML 文件(弹出保存对话框) */
+  async function exportHtmlFile(options: HtmlExportOptions): Promise<boolean> {
+    const tab = getActive()
+    if (!tab) return false
+    const content = await serializeHtml(tab.blocks, tab.meta, options)
+    const filters: SaveFileFilter[] = [
+      { name: 'HTML 文件', extensions: ['html', 'htm'] },
+      { name: '所有文件', extensions: ['*'] },
+    ]
+    return saveFile(content, `${tab.meta.title}.html`, filters, 'text/html;charset=utf-8')
+  }
+
   function setTitle(title: string) {
     const tab = getActive()
     if (!tab) return
@@ -676,9 +762,12 @@ export const useDocumentStore = defineStore('document', () => {
     saveToFile,
     openFromFile,
     exportMarkdown,
+    exportMarkdownFile,
+    exportHtmlFile,
     setTitle,
     newDocument,
     replaceBlocks,
+    batch,
     // tab 管理
     openVaultFile,
     saveActiveToVault,

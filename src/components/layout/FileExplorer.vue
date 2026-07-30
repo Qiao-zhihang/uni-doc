@@ -560,14 +560,14 @@ function closeMenu() {
   padding: 0 14px;
   border-radius: var(--radius-button);
   font-size: 12.5px;
-  background: linear-gradient(135deg, var(--brand-500) 0%, var(--brand-600) 100%);
-  color: var(--primary-foreground);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-foreground);
   transition: all var(--transition-base), transform var(--transition-fast);
-  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);
+  box-shadow: var(--btn-primary-shadow);
 }
 .empty-btn:hover:not(:disabled) {
-  filter: brightness(1.05);
-  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.35);
+  background: var(--btn-primary-hover-bg);
+  box-shadow: var(--btn-primary-hover-shadow);
 }
 .empty-btn:active:not(:disabled) {
   transform: scale(0.96);

@@ -66,6 +66,8 @@ export interface ListItem {
   text: string
   marks?: Mark[] // 行内标记(粗体/斜体等)
   checked?: boolean // 仅 task 类型使用
+  /** 嵌套子块(嵌套列表、段落、代码块等) */
+  children?: Block[]
 }
 
 /** 表格单元格(支持行内标记) */
@@ -92,6 +94,8 @@ export interface ListContent {
 export interface QuoteContent {
   text: string
   marks?: Mark[]
+  /** 引用内的块级内容(标题、列表、代码块等)。存在时忽略 text/marks。 */
+  blocks?: Block[]
 }
 
 export interface CodeBlockContent {
@@ -133,6 +137,8 @@ export interface HeadingProps {
 
 export interface ListProps {
   listType: ListType
+  /** 有序列表起始号(默认 1) */
+  start?: number
 }
 
 export interface CodeBlockProps {

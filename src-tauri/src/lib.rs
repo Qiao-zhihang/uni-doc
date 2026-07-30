@@ -30,6 +30,8 @@ pub fn run() {
             commands::file::load_md_file,
             commands::file::save_md_dialog,
             commands::file::open_md_dialog,
+            commands::file::save_file,
+            commands::file::save_file_dialog,
             commands::vault::pick_vault_folder,
             commands::vault::read_vault_tree,
             commands::vault::rename_vault_entry,

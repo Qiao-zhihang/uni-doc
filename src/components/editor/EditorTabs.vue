@@ -305,7 +305,7 @@ function onMouseUp() {
     const movedTo = to
     settleTimer = setTimeout(() => {
       const stillExists = movedId ? tabs.value.some((t) => t.id === movedId) : false
-      if (stillExists) {
+      if (movedId && stillExists) {
         doc.moveTab(movedId, movedTo)
         dragState.value.justDragged = true
         justDraggedTimer = setTimeout(() => {

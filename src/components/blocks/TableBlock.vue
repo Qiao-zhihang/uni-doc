@@ -32,6 +32,13 @@ const content = () => props.block.content as TableContent
 
 const isSelected = computed(() => editor.selectedBlockId === props.block.id)
 
+/** 规范化 aligns 数组,确保其长度始终与 headers 一致,缺失时用 'left' 填充 */
+function normalizeAligns(aligns: string[] | undefined, colCount: number): string[] {
+  const result = [...(aligns ?? [])]
+  while (result.length < colCount) result.push('left')
+  return result.slice(0, colCount)
+}
+
 function cellKey(rowIdx: number, colIdx: number) {
   return `${rowIdx}:${colIdx}`
 }
@@ -69,6 +76,7 @@ function ensureCells() {
       content: {
         headers: [{ text: '', marks: [] }],
         rows: [[{ text: '', marks: [] }]],
+        aligns: ['left'],
       },
     })
   }
@@ -226,7 +234,7 @@ function insertColLeft() {
   const { colIdx } = contextMenu.value
   const headers = content().headers.map((c) => ({ ...c }))
   const rows = content().rows.map((r) => r.map((c) => ({ ...c })))
-  const aligns = [...(content().aligns ?? [])]
+  const aligns = normalizeAligns(content().aligns, headers.length)
   headers.splice(colIdx, 0, { text: '', marks: [] })
   rows.forEach((r) => r.splice(colIdx, 0, { text: '', marks: [] }))
   aligns.splice(colIdx, 0, 'left')
@@ -241,7 +249,7 @@ function insertColRight() {
   const { colIdx } = contextMenu.value
   const headers = content().headers.map((c) => ({ ...c }))
   const rows = content().rows.map((r) => r.map((c) => ({ ...c })))
-  const aligns = [...(content().aligns ?? [])]
+  const aligns = normalizeAligns(content().aligns, headers.length)
   headers.splice(colIdx + 1, 0, { text: '', marks: [] })
   rows.forEach((r) => r.splice(colIdx + 1, 0, { text: '', marks: [] }))
   aligns.splice(colIdx + 1, 0, 'left')
@@ -276,7 +284,7 @@ function deleteCol() {
   const { colIdx } = contextMenu.value
   const headers = content().headers.map((c) => ({ ...c }))
   const rows = content().rows.map((r) => r.map((c) => ({ ...c })))
-  const aligns = [...(content().aligns ?? [])]
+  const aligns = normalizeAligns(content().aligns, headers.length)
   if (headers.length <= 1) {
     closeContextMenu()
     return // 至少保留 1 列

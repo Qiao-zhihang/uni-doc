@@ -10,7 +10,9 @@ import { parseInlineMarkdown } from '@/core/parser/inlineMarkdown'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { useWikilinkAutocomplete } from '@/composables/useWikilinkAutocomplete'
+import { useContentEditable } from '@/composables/useContentEditable'
 import WikilinkPopup from '@/components/common/WikilinkPopup.vue'
+import BlockRenderer from '@/components/editor/BlockRenderer.vue'
 
 const props = defineProps<{ block: Block }>()
 const doc = useDocumentStore()
@@ -29,16 +31,24 @@ const selfUpdate = ref(false)
 /** Enter 换块时跳过 onBlur 提交(此时 DOM 还显示旧文本,会覆盖已提交的截断内容) */
 const skipNextBlur = ref(false)
 const autocomplete = useWikilinkAutocomplete({ el })
+const { isComposing, onCompositionStart, onCompositionEnd, onPasteClean, onTabKey } =
+  useContentEditable(el)
 
 const content = () => props.block.content as QuoteContent
 
 const isSelected = computed(() => editor.selectedBlockId === props.block.id)
 
+/** 是否有块级内部内容（而非纯文本） */
+const hasBlocks = computed(() => (content().blocks?.length ?? 0) > 0)
+
 function renderSource() {
   if (!el.value) return
   const c = content()
   const source = marksToSource(c.text, c.marks)
-  el.value.innerText = source.split('\n').map((line) => '> ' + line).join('\n')
+  el.value.innerText = source
+    .split('\n')
+    .map((line) => '> ' + line)
+    .join('\n')
 }
 
 function renderHtml() {
@@ -92,7 +102,10 @@ watch(
 function commitWithMarks(text: string) {
   if (!el.value) return
   // 引用块编辑态显示源码时每行含 > 前缀,提交前逐行剥离
-  const stripped = text.split('\n').map((line) => line.replace(/^>\s?/, '')).join('\n')
+  const stripped = text
+    .split('\n')
+    .map((line) => line.replace(/^>\s?/, ''))
+    .join('\n')
   const parsed = parseInlineMarkdown(stripped)
   selfUpdate.value = true
   emit('update', { content: { text: parsed.text, marks: parsed.marks } })
@@ -106,7 +119,12 @@ function isCursorAtStart(): boolean {
   const testRange = document.createRange()
   testRange.selectNodeContents(el.value)
   testRange.setEnd(range.startContainer, range.startOffset)
-  return testRange.toString().length === 0
+  const offset = testRange.toString().length
+  // 编辑态每行有 > 前缀,找到第一行文本内容的起始位置
+  const firstLine = el.value.innerText.split('\n')[0] ?? ''
+  const prefixMatch = firstLine.match(/^>\s?/)
+  const contentStart = prefixMatch ? prefixMatch[0].length : 0
+  return offset < contentStart
 }
 
 /** 获取光标在元素内的字符偏移量 */
@@ -120,6 +138,23 @@ function getCursorOffset(): number {
   return preRange.toString().length
 }
 
+/** 获取选区在元素内的起止偏移量（无选区时 start===end） */
+function getSelectionOffsets(): { start: number; end: number } {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0 || !el.value) return { start: 0, end: 0 }
+  const range = sel.getRangeAt(0)
+  const preStart = document.createRange()
+  preStart.selectNodeContents(el.value)
+  preStart.setEnd(range.startContainer, range.startOffset)
+  const start = preStart.toString().length
+  if (range.collapsed) return { start, end: start }
+  const preEnd = document.createRange()
+  preEnd.selectNodeContents(el.value)
+  preEnd.setEnd(range.endContainer, range.endOffset)
+  const end = preEnd.toString().length
+  return { start, end }
+}
+
 function isCursorAtEnd(): boolean {
   const sel = window.getSelection()
   if (!sel || sel.rangeCount === 0 || !el.value) return false
@@ -129,6 +164,10 @@ function isCursorAtEnd(): boolean {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Tab') {
+    onTabKey(e)
+    return
+  }
   if (autocomplete.onKeyDown(e)) return
 
   if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && isCursorAtStart()) {
@@ -147,9 +186,13 @@ function onKeydown(e: KeyboardEvent) {
       e.preventDefault()
       if (el.value) {
         const fullText = el.value.innerText
-        const offset = getCursorOffset()
-        const beforeText = fullText.slice(0, offset)
-        const afterText = fullText.slice(offset).replace(/^>\s?/, '')
+        const { start, end } = getSelectionOffsets()
+        const beforeText = fullText.slice(0, start)
+        const afterText = fullText
+          .slice(end)
+          .split('\n')
+          .map((line) => line.replace(/^>\s?/, ''))
+          .join('\n')
         commitWithMarks(beforeText)
         selfUpdate.value = false
         skipNextBlur.value = true
@@ -182,6 +225,7 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 function onInput() {
+  if (isComposing.value) return
   autocomplete.checkTrigger()
 }
 
@@ -191,7 +235,15 @@ function onBlur() {
     skipNextBlur.value = false
     return
   }
+  if (isComposing.value) return
   if (el.value) {
+    commitWithMarks(el.value.innerText)
+  }
+}
+
+function onCompositionEndLocal() {
+  onCompositionEnd()
+  if (document.activeElement !== el.value && el.value) {
     commitWithMarks(el.value.innerText)
   }
 }
@@ -229,17 +281,26 @@ function onMousedown(e: MouseEvent) {
 </script>
 
 <template>
-  <blockquote
-    ref="el"
-    class="quote-block"
-    :contenteditable="isSelected ? 'true' : 'false'"
-    spellcheck="false"
-    @keydown="onKeydown"
-    @input="onInput"
-    @blur="onBlur"
-    @click="onClick"
-    @mousedown="onMousedown"
-  ></blockquote>
+  <div class="quote-wrapper">
+    <blockquote
+      v-if="!hasBlocks"
+      ref="el"
+      class="quote-block"
+      :contenteditable="isSelected ? 'true' : 'false'"
+      spellcheck="false"
+      @keydown="onKeydown"
+      @input="onInput"
+      @blur="onBlur"
+      @paste="onPasteClean"
+      @compositionstart="onCompositionStart"
+      @compositionend="onCompositionEndLocal"
+      @click="onClick"
+      @mousedown="onMousedown"
+    ></blockquote>
+    <div v-else class="quote-block quote-block-rich">
+      <BlockRenderer v-for="child in content().blocks" :key="child.id" :block="child" />
+    </div>
+  </div>
   <WikilinkPopup
     :visible="autocomplete.visible.value"
     :items="autocomplete.items.value"
@@ -264,9 +325,12 @@ function onMousedown(e: MouseEvent) {
   min-height: 1.7em;
   word-break: break-word;
   white-space: pre-wrap;
-  transition: border-color 0.12s ease, color 0.12s ease, padding 0.12s ease;
+  transition:
+    border-color 0.12s ease,
+    color 0.12s ease,
+    padding 0.12s ease;
 }
-.quote-block[contenteditable="true"] {
+.quote-block[contenteditable='true'] {
   border-left: none;
   padding-left: 0;
   color: var(--foreground);

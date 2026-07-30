@@ -71,6 +71,15 @@ export interface ModelConfig {
   vision?: boolean
   /** 是否启用流式输出（默认 true） */
   stream?: boolean
+  /** 模型上下文窗口大小(token)，undefined 时自动推断 */
+  contextWindow?: number
+}
+
+export interface OpenTabInfo {
+  id: string
+  title: string
+  path: string | null
+  blockCount: number
 }
 
 export interface AgentContextBlock {
@@ -86,6 +95,8 @@ export interface AgentContext {
   visibleBlocks: AgentContextBlock[]
   selectedBlock: AgentContextBlock | null
   selectedText: string
+  /** 所有已打开的 tab 列表(供 AI 感知多文档) */
+  openTabs: OpenTabInfo[]
 }
 
 export interface StreamCallbacks {

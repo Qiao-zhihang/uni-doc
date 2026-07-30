@@ -35,6 +35,7 @@ import { usePluginStore } from '@/stores/plugin'
 import { PERMISSION_LABELS, type PluginPermission } from '@/core/plugin/types'
 import { useRouter } from 'vue-router'
 import type { ModelConfig } from '@/ai/types'
+import { inferContextWindow } from '@/ai/contextWindow'
 
 import deepseekIcon from '@/assets/settings-icons/deepseek.svg'
 import openaiIcon from '@/assets/settings-icons/openai.svg'
@@ -95,12 +96,23 @@ const draft = reactive<ApiProfile>({
   vision: false,
   webSearch: false,
   nativeSearch: false,
+  contextWindow: undefined,
 })
 
 const deleteTargetId = ref<string | null>(null)
 const deleteTargetName = computed(
   () => settings.profiles.find((p) => p.id === deleteTargetId.value)?.name ?? '',
 )
+
+/** 自动推断的上下文窗口(基于当前 draft 的 provider+model) */
+const inferredWindow = computed(() =>
+  inferContextWindow(draft.provider, draft.model),
+)
+/** 格式化为 k 显示 */
+function formatK(tokens: number): string {
+  if (tokens >= 1000) return `${(tokens / 1000).toFixed(tokens % 1000 === 0 ? 0 : 1)}k`
+  return String(tokens)
+}
 
 function capsFor(p: ApiProfile) {
   return {
@@ -122,6 +134,7 @@ function startAddProfile() {
     temperature: 0.7,
     maxTokens: 4096,
     stream: true,
+    contextWindow: undefined,
   })
   showApiKey.value = false
   editing.value = true
@@ -155,6 +168,11 @@ function saveDraft() {
     vision: draft.vision,
     webSearch: draft.webSearch,
     nativeSearch: draft.nativeSearch,
+    // 空值/0 都视为未设置,走自动推断
+    contextWindow:
+      typeof draft.contextWindow === 'number' && draft.contextWindow > 0
+        ? draft.contextWindow
+        : undefined,
   }
   if (editingId.value) {
     settings.updateProfile(editingId.value, profile)
@@ -229,6 +247,7 @@ async function testConnection() {
       temperature: draft.temperature,
       maxTokens: draft.maxTokens,
       provider: draft.provider,
+      contextWindow: draft.contextWindow,
     }
     const messages = [{ role: 'user' as const, content: 'ping' }]
     await chat(messages, [], config)
@@ -585,6 +604,26 @@ async function reloadPlugins() {
                   max="32768"
                   class="form-input"
                 />
+              </div>
+
+              <div class="form-field">
+                <label class="form-label">
+                  上下文窗口
+                  <span class="field-hint-inline">
+                    {{ draft.contextWindow ? formatK(draft.contextWindow) : `自动 ${formatK(inferredWindow)}` }}
+                  </span>
+                </label>
+                <input
+                  v-model.number="draft.contextWindow"
+                  type="number"
+                  min="0"
+                  step="1000"
+                  class="form-input"
+                  :placeholder="`留空自动推断 (${formatK(inferredWindow)})`"
+                />
+                <div class="field-hint">
+                  模型上下文窗口大小(token)。留空按服务商+模型名自动推断,手动填写可覆盖
+                </div>
               </div>
 
               <div class="form-field">
@@ -1299,6 +1338,22 @@ async function reloadPlugins() {
   font-weight: 500;
   color: var(--foreground);
   margin-bottom: 6px;
+}
+.field-hint-inline {
+  float: right;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--primary);
+  font-family: var(--font-mono);
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+.field-hint {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
 }
 .temp-val {
   color: var(--primary);

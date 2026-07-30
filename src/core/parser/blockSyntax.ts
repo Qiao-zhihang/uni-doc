@@ -80,18 +80,11 @@ export function detectBlockSyntax(text: string): BlockSyntaxMatch | null {
     }
   }
 
-  // 表格: | a | b | 或 | a | b | \n |---|---|
-  const tableMatch = text.match(/^\|(.+)\|$/)
-  if (tableMatch) {
-    const cells = tableMatch[1].split('|').map((c) => c.trim())
-    if (cells.length >= 1) {
-      return {
-        type: 'table',
-        strippedText: '',
-        extra: { headers: cells },
-      }
-    }
-  }
+  // 表格:需要两行(表头行+分隔线行)才能确定是表格。
+  // 由于本函数是单行检测,无法预知下一行内容,为避免误判(如 | just text | 被转换为表格),
+  // 此处暂时禁用表格的自动转换。用户可通过命令面板或工具栏显式创建表格。
+  // 若未来需要支持,可改为:检测到 |...| 后,不立即转换,等待下一次输入
+  // 如果下一行是分隔线 |---|---|,再整体转换为表格。
 
   return null
 }

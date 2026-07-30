@@ -201,10 +201,17 @@ function filterAttrs(attrStr: string): string {
     const name = m[1].toLowerCase()
     const value = m[2] ?? m[3] ?? m[4] ?? ''
     if (!HTML_ATTR_WHITELIST.has(name)) continue
-    // 阻止 javascript: 协议
-    if ((name === 'href' || name === 'src') && /^\s*javascript:/i.test(value)) continue
-    // 阻止 data: 协议在 href(防 XSS)
-    if (name === 'href' && /^\s*data:/i.test(value)) continue
+    // URL 类属性:使用协议白名单检查
+    if (name === 'href' || name === 'src' || name === 'cite' || name === 'background') {
+      if (!isSafeUrl(value)) continue
+    }
+    // style 属性:CSS 净化
+    if (name === 'style') {
+      const sanitized = sanitizeStyle(value)
+      if (!sanitized) continue
+      safeAttrs.push(`style="${escapeAttr(sanitized)}"`)
+      continue
+    }
     if (value === '') {
       safeAttrs.push(name)
     } else {
@@ -221,6 +228,69 @@ function escapeAttr(value: string): string {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+}
+
+/** 解码 HTML 实体,用于在协议检查前还原被编码的字符 */
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&amp;/gi, '&')
+    .replace(/&#38;/gi, '&')
+    .replace(/&#x26;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#34;/gi, '"')
+    .replace(/&#x22;/gi, '"')
+    .replace(/&lt;/gi, '<')
+    .replace(/&#60;/gi, '<')
+    .replace(/&#x3C;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#62;/gi, '>')
+    .replace(/&#x3E;/gi, '>')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+}
+
+/** 安全的 URL 协议白名单检查 */
+function isSafeUrl(url: string): boolean {
+  const decoded = decodeHtmlEntities(url).trim().toLowerCase()
+  // 相对路径(以 / ./ ../ 开头)或无协议的纯路径:安全
+  if (/^(\.\/|\.\.\/|\/|#|[a-zA-Z0-9_\-])/.test(decoded) && !decoded.includes(':')) {
+    return true
+  }
+  // 显式的协议白名单
+  if (/^(https?|ftp|mailto|tel|file):/i.test(decoded)) {
+    return true
+  }
+  return false
+}
+
+/** 净化 CSS style 字符串,移除危险属性 */
+function sanitizeStyle(style: string): string {
+  // 移除所有可能执行代码或造成危害的 CSS 属性
+  const dangerousProperties = [
+    'expression',
+    'behavior',
+    'url\\(',
+    '@import',
+    'javascript:',
+    'vbscript:',
+    'data:',
+    '-moz-binding',
+    'position:\\s*fixed',
+  ]
+  const dangerRegex = new RegExp(dangerousProperties.join('|'), 'gi')
+  if (dangerRegex.test(style)) {
+    return ''
+  }
+  // 对每个声明做二次检查
+  const declarations = style.split(';')
+  const safeDeclarations: string[] = []
+  for (const decl of declarations) {
+    const trimmed = decl.trim()
+    if (!trimmed) continue
+    if (dangerRegex.test(trimmed)) continue
+    safeDeclarations.push(trimmed)
+  }
+  return safeDeclarations.join('; ')
 }
 
 /**
@@ -269,8 +339,19 @@ export interface PendingSyntax {
 /**
  * 从文本中解析出所有 Markdown 行内语法
  * 返回: { plainText, marks }
+ * @param depth 递归深度,超过阈值停止解析(防栈溢出)
  */
-export function parseInlineMarkdown(text: string): { text: string; marks: Mark[] } {
+const MAX_PARSE_LENGTH = 20000
+const MAX_RECURSION_DEPTH = 50
+export function parseInlineMarkdown(text: string, depth = 0): { text: string; marks: Mark[] } {
+  // 超长文本:跳过行内解析,只返回纯文本(防止主线程阻塞)
+  if (text.length > MAX_PARSE_LENGTH) {
+    return { text, marks: [] }
+  }
+  // 递归深度超过阈值:停止解析,返回纯文本
+  if (depth > MAX_RECURSION_DEPTH) {
+    return { text, marks: [] }
+  }
   const marks: Mark[] = []
   let plain = ''
   let i = 0
@@ -300,7 +381,7 @@ export function parseInlineMarkdown(text: string): { text: string; marks: Mark[]
             const closePos = findCloseTag(text, tag, i + openMatch[0].length)
             if (closePos !== -1) {
               const content = text.slice(i + openMatch[0].length, closePos)
-              const parsed = parseInlineMarkdown(content)
+              const parsed = parseInlineMarkdown(content, depth + 1)
               const start = plain.length
               plain += parsed.text
               marks.push({ type: 'html', start, end: plain.length, tag, attrs })
@@ -393,7 +474,7 @@ export function parseInlineMarkdown(text: string): { text: string; marks: Mark[]
         const url = linkMatch[2]
         const start = plain.length
         // 递归处理链接文本中的行内语法
-        const parsed = parseInlineMarkdown(label)
+        const parsed = parseInlineMarkdown(label, depth + 1)
         plain += parsed.text
         marks.push({ type: 'link', start, end: plain.length, href: url })
         for (const nested of parsed.marks) {
@@ -414,7 +495,7 @@ export function parseInlineMarkdown(text: string): { text: string; marks: Mark[]
       const endPos = text.indexOf('==', i + 2)
       if (endPos !== -1) {
         const content = text.slice(i + 2, endPos)
-        const parsed = parseInlineMarkdown(content)
+        const parsed = parseInlineMarkdown(content, depth + 1)
         const start = plain.length
         plain += parsed.text
         marks.push({ type: 'highlight', start, end: plain.length })
@@ -431,7 +512,7 @@ export function parseInlineMarkdown(text: string): { text: string; marks: Mark[]
       const endPos = text.indexOf('^', i + 1)
       if (endPos !== -1 && endPos > i + 1) {
         const content = text.slice(i + 1, endPos)
-        const parsed = parseInlineMarkdown(content)
+        const parsed = parseInlineMarkdown(content, depth + 1)
         const start = plain.length
         plain += parsed.text
         marks.push({ type: 'superscript', start, end: plain.length })
@@ -448,7 +529,7 @@ export function parseInlineMarkdown(text: string): { text: string; marks: Mark[]
       const endPos = text.indexOf('~', i + 1)
       if (endPos !== -1 && endPos > i + 1) {
         const content = text.slice(i + 1, endPos)
-        const parsed = parseInlineMarkdown(content)
+        const parsed = parseInlineMarkdown(content, depth + 1)
         const start = plain.length
         plain += parsed.text
         marks.push({ type: 'subscript', start, end: plain.length })
@@ -534,7 +615,7 @@ export function parseInlineMarkdown(text: string): { text: string; marks: Mark[]
               }
             }
             const content = text.slice(contentStart, endPos)
-            const parsed = parseInlineMarkdown(content)
+            const parsed = parseInlineMarkdown(content, depth + 1)
             plain += parsed.text
             marks.push({ type, start: startPos, end: plain.length })
             for (const nested of parsed.marks) {

@@ -23,6 +23,20 @@ function safeJoin(...parts: string[]): string {
   return parts.join('/').replace(/\/+/g, '/')
 }
 
+/**
+ * 检查路径是否安全地位于 vault 内(防止路径遍历攻击)
+ * 规范化路径后检查是否以 vaultRoot 开头
+ */
+function isPathInVault(vaultRoot: string, path: string): boolean {
+  const normalized = safeJoin(vaultRoot, path)
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter((p) => p !== '.' && p !== '..')
+    .join('/')
+  const root = vaultRoot.replace(/\\/g, '/')
+  return normalized.startsWith(root.endsWith('/') ? root : root + '/') || normalized === root
+}
+
 export class PluginManager {
   private static _instance: PluginManager | null = null
   private instances: Map<string, PluginInstance> = new Map()
@@ -60,7 +74,10 @@ export class PluginManager {
   }
 
   private matchHotkey(e: KeyboardEvent, hotkey: string): boolean {
-    const parts = hotkey.toLowerCase().split('+').map((s) => s.trim())
+    const parts = hotkey
+      .toLowerCase()
+      .split('+')
+      .map((s) => s.trim())
     const needCtrl = parts.includes('ctrl') || parts.includes('cmd') || parts.includes('control')
     const needShift = parts.includes('shift')
     const needAlt = parts.includes('alt') || parts.includes('option')
@@ -116,7 +133,8 @@ export class PluginManager {
 
   async init(vaultRoot: string | null): Promise<void> {
     this.vaultRoot = vaultRoot
-    ;(window as any).__unidoc = { Plugin, Vue }
+    // 仅暴露最小化 API,移除对 Vue 的直接访问(减少攻击面)
+    ;(window as any).__unidoc = { Plugin }
     this.injectToastStyles()
     this.bindHotkeys()
     await this.scanAndLoad()
@@ -182,7 +200,9 @@ export class PluginManager {
   private async listPluginDirs(pluginsPath: string): Promise<string[]> {
     try {
       if (isTauri()) {
-        const dirExists = await invoke('plugin_dir_exists', { path: pluginsPath }).catch(() => false)
+        const dirExists = await invoke('plugin_dir_exists', { path: pluginsPath }).catch(
+          () => false,
+        )
         if (!dirExists) return []
         const entries = await invoke<{ name: string; is_dir: boolean }[]>('list_plugin_dirs', {
           path: pluginsPath,
@@ -290,7 +310,9 @@ export class PluginManager {
         }
       }
 
-      this.customSettingsPanels = this.customSettingsPanels.filter((p) => !p.title.startsWith(`${id}:`))
+      this.customSettingsPanels = this.customSettingsPanels.filter(
+        (p) => !p.title.startsWith(`${id}:`),
+      )
 
       inst.loaded = false
       return true
@@ -416,7 +438,10 @@ export class PluginManager {
         },
         insertBlock: (type, afterBlockId) => {
           const doc = useDocumentStore()
-          doc.insertBlockAfter(afterBlockId ?? doc.blocks[doc.blocks.length - 1]?.id ?? null, type as any)
+          doc.insertBlockAfter(
+            afterBlockId ?? doc.blocks[doc.blocks.length - 1]?.id ?? null,
+            type as any,
+          )
         },
         updateBlock: (blockId, updates) => {
           const doc = useDocumentStore()
@@ -433,16 +458,28 @@ export class PluginManager {
       vault: {
         readFile: async (path) => {
           if (!self.vaultRoot) return ''
+          if (!isPathInVault(self.vaultRoot, path)) {
+            console.error(`插件试图读取 vault 外的文件: ${path}`)
+            return ''
+          }
           const { readVaultFile } = await import('@/core/vault/vault')
           return await readVaultFile(self.vaultRoot, path)
         },
         writeFile: async (path, content) => {
           if (!self.vaultRoot) return
+          if (!isPathInVault(self.vaultRoot, path)) {
+            console.error(`插件试图写入 vault 外的文件: ${path}`)
+            return
+          }
           const { writeVaultFile } = await import('@/core/vault/vault')
           await writeVaultFile(self.vaultRoot, path, content)
         },
         listDir: async (path) => {
           if (!self.vaultRoot) return []
+          if (!isPathInVault(self.vaultRoot, path)) {
+            console.error(`插件试图列出 vault 外的目录: ${path}`)
+            return []
+          }
           const { readVaultTree } = await import('@/core/vault/vault')
           const tree = await readVaultTree(self.vaultRoot)
           const result: { name: string; isDir: boolean }[] = []
@@ -457,6 +494,10 @@ export class PluginManager {
         },
         exists: async (path) => {
           if (!self.vaultRoot) return false
+          if (!isPathInVault(self.vaultRoot, path)) {
+            console.error(`插件试图检查 vault 外的文件: ${path}`)
+            return false
+          }
           try {
             if (isTauri()) {
               const fullPath = safeJoin(self.vaultRoot, path)

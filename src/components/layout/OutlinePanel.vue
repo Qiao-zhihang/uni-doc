@@ -419,7 +419,7 @@ function closeMenu() {
 }
 @keyframes outline-flash {
   0% {
-    background: var(--brand-50, rgba(0, 122, 255, 0.12));
+    background: var(--conversation-active-bg, var(--brand-alpha-10));
   }
   100% {
     background: transparent;

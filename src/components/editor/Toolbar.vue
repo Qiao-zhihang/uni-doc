@@ -22,7 +22,7 @@ import {
   List,
   ListOrdered,
   ListChecks,
-  Save,
+  Download,
   Plus,
   Presentation,
   Film,
@@ -34,9 +34,13 @@ import {
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { useReplayStore } from '@/stores/replay'
+import { useThemeStore } from '@/stores/theme'
+import { openExportDialog } from '@/composables/useExportDialog'
 import type { BlockType, ListType } from '@/core/blocks/types'
 
 const emit = defineEmits<{ (e: 'presentation'): void; (e: 'replay'): void }>()
+
+const theme = useThemeStore()
 
 const replay = useReplayStore()
 
@@ -221,6 +225,21 @@ function handleEnterReplay() {
   closeMenus()
   emit('replay')
 }
+
+async function handleExport() {
+  if (!hasActiveTab.value) return
+  const result = await openExportDialog({ theme: theme.mode })
+  if (!result) return
+  if (result.format === 'md') {
+    await doc.exportMarkdownFile()
+  } else {
+    await doc.exportHtmlFile({
+      styleMode: result.styleMode,
+      imageMode: result.imageMode,
+      theme: result.theme,
+    })
+  }
+}
 </script>
 
 <template>
@@ -364,15 +383,15 @@ function handleEnterReplay() {
 
     <div class="divider"></div>
 
-    <!-- 文件操作 -->
+    <!-- 导出 -->
     <div class="group" @click.stop>
       <button
         class="tool-btn"
-        title="保存为 .md(Ctrl+S)"
+        title="导出文档(Ctrl+S)"
         :disabled="!hasActiveTab"
-        @click="doc.saveToFile()"
+        @click="handleExport"
       >
-        <Save :size="16" />
+        <Download :size="16" />
       </button>
     </div>
 
@@ -517,11 +536,13 @@ function handleEnterReplay() {
   height: 34px;
   border-radius: var(--radius-button);
   color: var(--foreground);
-  transition: all var(--transition-base), transform var(--transition-fast);
+  transition:
+    all var(--transition-base),
+    transform var(--transition-fast);
 }
 .tool-btn:hover:not(.disabled):not(:disabled) {
-  background: var(--secondary);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: var(--btn-tool-hover-bg);
+  box-shadow: var(--btn-tool-hover-shadow);
 }
 .tool-btn:active:not(.disabled):not(:disabled) {
   transform: scale(0.94);
@@ -555,7 +576,9 @@ function handleEnterReplay() {
   white-space: nowrap;
   background: var(--secondary);
   color: var(--foreground);
-  transition: all var(--transition-base), transform var(--transition-fast);
+  transition:
+    all var(--transition-base),
+    transform var(--transition-fast);
 }
 .select-btn:hover:not(:disabled) {
   background: var(--muted);
@@ -613,15 +636,17 @@ function handleEnterReplay() {
   font-size: 12.5px;
   font-weight: 500;
   white-space: nowrap;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--brand-600) 100%);
-  color: var(--primary-foreground);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-foreground);
   flex-shrink: 0;
-  transition: all var(--transition-base), transform var(--transition-fast);
-  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);
+  transition:
+    all var(--transition-base),
+    transform var(--transition-fast);
+  box-shadow: var(--btn-primary-shadow);
 }
 .mode-btn:hover:not(:disabled) {
-  filter: brightness(1.05);
-  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.35);
+  background: var(--btn-primary-hover-bg);
+  box-shadow: var(--btn-primary-hover-shadow);
 }
 .mode-btn:active:not(:disabled) {
   transform: scale(0.96);

@@ -21,6 +21,7 @@ import BlockEditor from '@/components/editor/BlockEditor.vue'
 import PresentationMode from '@/components/editor/PresentationMode.vue'
 import ReplayPlayer from '@/components/editor/ReplayPlayer.vue'
 import CommandPalette from '@/components/common/CommandPalette.vue'
+import ExportDialog from '@/components/common/ExportDialog.vue'
 import { useEditorStore } from '@/stores/editor'
 import { useDocumentStore } from '@/stores/document'
 import { useSettingsStore } from '@/stores/settings'
@@ -334,6 +335,11 @@ onUnmounted(() => {
     <!-- 命令面板 -->
     <Teleport to="body">
       <CommandPalette :visible="commandPaletteVisible" @close="commandPaletteVisible = false" />
+    </Teleport>
+
+    <!-- 导出对话框(自管理可见性) -->
+    <Teleport to="body">
+      <ExportDialog />
     </Teleport>
   </main>
 </template>

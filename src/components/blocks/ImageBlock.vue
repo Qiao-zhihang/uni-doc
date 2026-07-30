@@ -5,7 +5,7 @@
  * 存储:图片复制到 vault/assets/,src 存相对路径
  * 属性:对齐(align) + 宽度百分比(width)
  */
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import type { Block, ImageContent, ImageProps } from '@/core/blocks/types'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
@@ -71,9 +71,9 @@ async function resolveSrc() {
 
 watch(() => content().src, resolveSrc, { immediate: true })
 
-/** 宽度样式:width 存像素值,渲染时用 px */
+/** 宽度样式:width 存像素值,渲染时用 px;拖拽过程中优先使用预览值 */
 const widthStyle = computed(() => {
-  const w = imgProps().width
+  const w = previewWidth.value ?? imgProps().width
   if (w && w > 0) return { width: `${w}px`, height: 'auto' }
   return { maxWidth: '100%', height: 'auto' }
 })
@@ -87,6 +87,11 @@ function update(patch: Partial<Block>) {
 /** 右下角拖拽调整大小(Obsidian 风格) */
 const resizing = ref(false)
 const imgWrapRef = ref<HTMLElement | null>(null)
+/** 拖拽过程中的预览宽度(本地 ref,不触发 store 更新) */
+const previewWidth = ref<number | null>(null)
+let resizeOnMove: ((ev: MouseEvent) => void) | null = null
+let resizeOnUp: (() => void) | null = null
+let resizeRafId: number | null = null
 
 function onResizeStart(e: MouseEvent) {
   e.preventDefault()
@@ -94,22 +99,46 @@ function onResizeStart(e: MouseEvent) {
   resizing.value = true
   const startX = e.clientX
   const startWidth = imgProps().width ?? imgWrapRef.value?.offsetWidth ?? 300
+  let pendingWidth = startWidth
 
-  const onMove = (ev: MouseEvent) => {
+  resizeOnMove = (ev: MouseEvent) => {
     if (!resizing.value) return
-    // 鼠标水平位移即宽度变化(直观)
     const dx = ev.clientX - startX
-    const newWidth = Math.max(40, Math.min(1200, startWidth + dx))
-    update({ props: { ...props.block.props, width: newWidth } })
+    pendingWidth = Math.max(40, Math.min(1200, startWidth + dx))
+    // rAF 节流:只更新本地预览 ref,不触发 store 更新
+    if (resizeRafId === null) {
+      resizeRafId = requestAnimationFrame(() => {
+        previewWidth.value = pendingWidth
+        resizeRafId = null
+      })
+    }
   }
-  const onUp = () => {
+  resizeOnUp = () => {
     resizing.value = false
-    window.removeEventListener('mousemove', onMove)
-    window.removeEventListener('mouseup', onUp)
+    // 最终值一次性提交到 store
+    if (previewWidth.value !== null) {
+      update({ props: { ...props.block.props, width: previewWidth.value } })
+    }
+    previewWidth.value = null
+    if (resizeRafId !== null) {
+      cancelAnimationFrame(resizeRafId)
+      resizeRafId = null
+    }
+    window.removeEventListener('mousemove', resizeOnMove!)
+    window.removeEventListener('mouseup', resizeOnUp!)
+    resizeOnMove = null
+    resizeOnUp = null
   }
-  window.addEventListener('mousemove', onMove)
-  window.addEventListener('mouseup', onUp)
+  window.addEventListener('mousemove', resizeOnMove)
+  window.addEventListener('mouseup', resizeOnUp)
 }
+
+// 组件卸载时清理拖拽监听器(防止内存泄漏)
+onUnmounted(() => {
+  if (resizeOnMove) window.removeEventListener('mousemove', resizeOnMove)
+  if (resizeOnUp) window.removeEventListener('mouseup', resizeOnUp)
+  if (resizeRafId !== null) cancelAnimationFrame(resizeRafId)
+})
 
 /** 选择本地图片 */
 async function pickLocal() {
@@ -184,11 +213,37 @@ function onDragLeave() {
   dragOver.value = false
 }
 
+/** 验证 URL 是否安全(用于图片 src) */
+function isImageUrlSafe(url: string): boolean {
+  const trimmed = url.trim()
+  const lower = trimmed.toLowerCase()
+  // 相对路径(./ ../ / 开头)或无协议的纯路径:安全
+  if (/^(\.\/|\.\.\/|\/)/.test(trimmed) && !lower.includes(':')) {
+    return true
+  }
+  // 无协议的相对文件名:安全
+  if (!lower.includes(':') && !lower.startsWith('//')) {
+    return true
+  }
+  // 协议白名单
+  if (/^(https?|file|data:image\/):/i.test(trimmed)) {
+    return true
+  }
+  return false
+}
+
 /** URL 输入确认 */
 async function confirmUrl() {
   const url = urlInput.value.trim()
   if (!url) {
     urlInputMode.value = false
+    return
+  }
+  // 安全校验:拒绝危险协议
+  if (!isImageUrlSafe(url)) {
+    console.error('不安全的图片 URL:', url)
+    urlInputMode.value = false
+    urlInput.value = ''
     return
   }
   loading.value = true

@@ -13,7 +13,12 @@ function escapeHtml(text: string): string {
 }
 
 /** 用 KaTeX 渲染数学公式为 HTML 字符串 */
+const MAX_MATH_LENGTH = 2000
 function renderMath(tex: string, displayMode: boolean): string {
+  // 超长公式:直接显示纯文本,防止 KaTeX 长时间渲染导致卡顿(DoS 防护)
+  if (tex.length > MAX_MATH_LENGTH) {
+    return `<code class="inline-code">${escapeHtml(tex)}</code>`
+  }
   try {
     return katex.renderToString(tex, {
       displayMode,

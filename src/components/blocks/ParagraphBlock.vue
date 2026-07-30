@@ -7,6 +7,7 @@ import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { writeImageToVault } from '@/core/vault/vault'
 import { useWikilinkAutocomplete } from '@/composables/useWikilinkAutocomplete'
+import { useContentEditable } from '@/composables/useContentEditable'
 import WikilinkPopup from '@/components/common/WikilinkPopup.vue'
 
 const props = defineProps<{ block: Block }>()
@@ -27,6 +28,8 @@ const skipNextBlur = ref(false)
 
 // wikilink 自动补全
 const autocomplete = useWikilinkAutocomplete({ el })
+// contenteditable 通用增强(IME/Tab,粘贴由自己处理图片上传)
+const { isComposing, onCompositionStart, onCompositionEnd, onTabKey } = useContentEditable(el)
 
 const content = () => props.block.content as ParagraphContent
 const align = () => (props.block.props as ParagraphProps).align ?? 'left'
@@ -138,6 +141,23 @@ function getCursorOffset(): number {
   return preRange.toString().length
 }
 
+/** 获取选区在元素内的起止偏移量（无选区时 start===end） */
+function getSelectionOffsets(): { start: number; end: number } {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0 || !el.value) return { start: 0, end: 0 }
+  const range = sel.getRangeAt(0)
+  const preStart = document.createRange()
+  preStart.selectNodeContents(el.value)
+  preStart.setEnd(range.startContainer, range.startOffset)
+  const start = preStart.toString().length
+  if (range.collapsed) return { start, end: start }
+  const preEnd = document.createRange()
+  preEnd.selectNodeContents(el.value)
+  preEnd.setEnd(range.endContainer, range.endOffset)
+  const end = preEnd.toString().length
+  return { start, end }
+}
+
 function isCursorAtEnd(): boolean {
   const sel = window.getSelection()
   if (!sel || sel.rangeCount === 0 || !el.value) return false
@@ -147,6 +167,11 @@ function isCursorAtEnd(): boolean {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  // Tab 键:插入空格(防止焦点跳出编辑器)
+  if (e.key === 'Tab') {
+    onTabKey(e)
+    return
+  }
   // 优先处理 wikilink 自动补全的键盘导航
   if (autocomplete.onKeyDown(e)) return
 
@@ -165,9 +190,9 @@ function onKeydown(e: KeyboardEvent) {
     e.preventDefault()
     if (el.value) {
       const fullText = el.value.innerText
-      const offset = getCursorOffset()
-      const beforeText = fullText.slice(0, offset)
-      const afterText = fullText.slice(offset)
+      const { start, end } = getSelectionOffsets()
+      const beforeText = fullText.slice(0, start)
+      const afterText = fullText.slice(end)
       commitWithMarks(beforeText)
       selfUpdate.value = false
       // 跳过即将触发的 onBlur:selectBlock 会导致本块失焦,
@@ -189,6 +214,8 @@ function onKeydown(e: KeyboardEvent) {
 
 /** 输入时检测 [[ 触发自动补全 */
 function onInput() {
+  // IME 组合输入中不触发自动补全
+  if (isComposing.value) return
   autocomplete.checkTrigger()
 }
 
@@ -200,7 +227,18 @@ function onBlur() {
     skipNextBlur.value = false
     return
   }
+  // IME 组合输入中不提交(等 compositionend)
+  if (isComposing.value) return
   if (el.value) {
+    commitWithMarks(el.value.innerText)
+  }
+}
+
+/** compositionend:IME 组合结束时,如果已经失焦则提交 */
+function onCompositionEndLocal() {
+  onCompositionEnd()
+  // 若组合输入期间失焦,补提交
+  if (document.activeElement !== el.value && el.value) {
     commitWithMarks(el.value.innerText)
   }
 }
@@ -289,6 +327,8 @@ async function onPaste(e: ClipboardEvent) {
     @input="onInput"
     @blur="onBlur"
     @paste="onPaste"
+    @compositionstart="onCompositionStart"
+    @compositionend="onCompositionEndLocal"
     @click="onClick"
     @mousedown="onMousedown"
   ></p>

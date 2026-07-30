@@ -1690,12 +1690,12 @@ onUnmounted(() => {
   gap: 10px;
   user-select: text;
   background:
-    radial-gradient(ellipse at 50% 0%, rgba(0, 122, 255, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 0%, var(--brand-alpha-03) 0%, transparent 50%),
     var(--popover);
 }
 .dark .chat-messages {
   background:
-    radial-gradient(ellipse at 50% 0%, rgba(79, 157, 255, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 0%, var(--brand-alpha-06) 0%, transparent 50%),
     var(--popover);
 }
 .empty-state {
@@ -1714,7 +1714,7 @@ onUnmounted(() => {
   object-fit: contain;
   opacity: 0.7;
   margin-bottom: 4px;
-  filter: drop-shadow(0 2px 8px rgba(0, 122, 255, 0.15));
+  filter: drop-shadow(0 2px 8px var(--brand-alpha-15));
 }
 .empty-title {
   font-size: 14px;
@@ -1752,20 +1752,16 @@ onUnmounted(() => {
   transition: box-shadow 0.2s ease;
 }
 .message-row-user .bubble {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--brand-600) 100%);
+  background: var(--bubble-user-bg);
   color: var(--primary-foreground);
   border-radius: 16px 16px 4px 16px;
-  box-shadow:
-    0 1px 2px rgba(0, 122, 255, 0.15),
-    0 4px 12px rgba(0, 122, 255, 0.2);
+  box-shadow: var(--bubble-user-shadow);
 }
 .message-row-ai .bubble {
-  background: var(--card);
+  background: var(--bubble-ai-bg);
   color: var(--popover-foreground);
   border-radius: 16px 16px 16px 4px;
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    0 2px 8px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--bubble-ai-shadow);
   border: 1px solid var(--border);
 }
 .bubble-images {
@@ -1846,9 +1842,9 @@ onUnmounted(() => {
 .input-composer.composer-focused {
   border-color: var(--ring);
   box-shadow:
-    0 0 0 4px rgba(0, 122, 255, 0.1),
+    0 0 0 4px var(--brand-alpha-10),
     0 1px 2px rgba(0, 0, 0, 0.04),
-    0 4px 16px rgba(0, 122, 255, 0.08);
+    0 4px 16px var(--brand-alpha-10);
   background: var(--popover);
 }
 .composer-main {
@@ -1940,14 +1936,12 @@ onUnmounted(() => {
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--brand-600) 100%);
-  color: var(--primary-foreground);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-foreground);
   border: none;
   flex-shrink: 0;
   cursor: pointer;
-  box-shadow:
-    0 1px 2px rgba(0, 122, 255, 0.15),
-    0 4px 10px rgba(0, 122, 255, 0.2);
+  box-shadow: var(--btn-primary-shadow);
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .send-btn:disabled {
@@ -1958,9 +1952,8 @@ onUnmounted(() => {
 }
 .send-btn:not(:disabled):hover {
   transform: scale(1.05);
-  box-shadow:
-    0 2px 4px rgba(0, 122, 255, 0.18),
-    0 6px 16px rgba(0, 122, 255, 0.28);
+  background: var(--btn-primary-hover-bg);
+  box-shadow: var(--btn-primary-hover-shadow);
 }
 .send-btn:not(:disabled):active {
   transform: scale(0.97);

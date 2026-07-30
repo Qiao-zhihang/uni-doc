@@ -7,6 +7,7 @@
  * 支持行内样式:粗体 / 斜体 / 删除线 / 代码 / 下划线 / 链接 / 图片 / 高亮
  */
 
+import { fromMarkdown } from 'mdast-util-from-markdown'
 import type {
   Block,
   CodeBlockContent,
@@ -19,6 +20,8 @@ import type {
   ListContent,
   ListItem,
   ListProps,
+  ListType,
+  Mark,
   ParagraphContent,
   QuoteContent,
   TableContent,
@@ -33,18 +36,12 @@ import {
   createCodeBlockBlock,
   createTableBlock,
   createImageBlock,
+  uuid,
 } from '../blocks/factory'
 import { parseInlineMarkdown } from '../parser/inlineMarkdown'
 import { marksToSource } from '@/components/blocks/marks'
 
-/** 列表项前缀标记 */
-const BULLET_RE = /^[-*+]\s+(.*)$/
-const ORDERED_RE = /^\d+\.\s+(.*)$/
-const TASK_RE = /^[-*+]\s+\[([ xX])\]\s+(.*)$/
-const HEADING_RE = /^(#{1,6})\s+(.*)$/
 const PAGE_BREAK = '---page---'
-// 分隔线(CommonMark thematic break):由 - * _ 任一字符重复 3 次以上,字符必须相同
-const DIVIDER_RE = /^([-*_])\1{2,}$/
 const FRONTMATTER_DELIM = '---'
 
 /* ============== 行内标记(Mark)处理 ============== */
@@ -65,8 +62,26 @@ function serializeBlock(block: Block): string {
       return marksToSource(text, marks)
     }
     case 'quote': {
-      const { text = '', marks = [] } = block.content as QuoteContent
-      return `> ${marksToSource(text, marks)}`
+      const q = block.content as QuoteContent
+      // 如果有内部块级内容,递归序列化并加 > 前缀
+      if (q.blocks && q.blocks.length > 0) {
+        return q.blocks
+          .map((b) => serializeBlock(b))
+          .filter((s) => s !== '')
+          .map((s) =>
+            s
+              .split('\n')
+              .map((line) => `> ${line}`)
+              .join('\n'),
+          )
+          .join('\n')
+      }
+      const { text = '', marks = [] } = q
+      const source = marksToSource(text, marks)
+      return source
+        .split('\n')
+        .map((line) => `> ${line}`)
+        .join('\n')
     }
     case 'code_block': {
       const { code = '' } = block.content as CodeBlockContent
@@ -93,17 +108,41 @@ function serializeBlock(block: Block): string {
     }
     case 'list': {
       const { items = [] } = block.content as ListContent
-      const { listType } = block.props as ListProps
+      const props = block.props as ListProps
+      const listType = props.listType
+      const start = props.start ?? 1
       return items
         .map((item, idx) => {
           const body = marksToSource(item.text, item.marks)
+          let line: string
+          let prefixLen: number
           if (listType === 'ordered') {
-            return `${idx + 1}. ${body}`
+            const num = start + idx
+            line = `${num}. ${body}`
+            prefixLen = `${num}. `.length
+          } else if (listType === 'task') {
+            line = `- [${item.checked ? 'x' : ' '}] ${body}`
+            prefixLen = 6
+          } else {
+            line = `- ${body}`
+            prefixLen = 2
           }
-          if (listType === 'task') {
-            return `- [${item.checked ? 'x' : ' '}] ${body}`
+          // 嵌套子块:缩进到列表内容起始列(CommonMark 要求)
+          if (item.children && item.children.length > 0) {
+            const indent = ' '.repeat(prefixLen)
+            const childMd = item.children
+              .map((c) => serializeBlock(c))
+              .filter((s) => s !== '')
+              .map((s) =>
+                s
+                  .split('\n')
+                  .map((l) => `${indent}${l}`)
+                  .join('\n'),
+              )
+              .join('\n')
+            return `${line}\n${childMd}`
           }
-          return `- ${body}`
+          return line
         })
         .join('\n')
     }
@@ -234,343 +273,290 @@ export function parseFrontmatter(markdown: string): {
 
 /* ============== 反序列化:markdown → blocks ============== */
 
-/** 反序列化 Markdown 字符串为 blocks 数组 */
-export function deserializeMarkdown(markdown: string): Block[] {
-  const lines = markdown.split(/\r?\n/)
-  const blocks: Block[] = []
-  let i = 0
+/** 从 mdast 节点的 position 信息切取源文本片段 */
+function sliceSource(
+  source: string,
+  pos: { start: { offset: number }; end: { offset: number } } | undefined,
+): string {
+  if (!pos) return ''
+  return source.slice(pos.start.offset, pos.end.offset)
+}
 
-  while (i < lines.length) {
-    const line = lines[i]
+/** 从 paragraph/heading 的 phrasing 内容中提取纯文本 + marks
+ *  策略:用 position 切源文本,再交给 parseInlineMarkdown 处理
+ */
+function extractInline(
+  source: string,
+  node: { position?: { start: { offset: number }; end: { offset: number } } },
+  stripPrefix = 0,
+): { text: string; marks: Mark[] } {
+  let raw = sliceSource(source, node.position)
+  if (stripPrefix > 0) raw = raw.slice(stripPrefix)
+  return parseInlineMarkdown(raw)
+}
 
-    // 跳过空行
-    if (line.trim() === '') {
-      i++
-      continue
+/** 检测一段文本是否全是表格行（用于 mdast→表格 的回退处理） */
+function isTableText(text: string): boolean {
+  const lines = text.split('\n').filter((l) => l.trim() !== '')
+  return lines.length >= 2 && lines.every((l) => /^\|.+\|$/.test(l.trim()))
+}
+
+/** 从文本中解析表格（复用原有逻辑） */
+function parseTableFromText(text: string): Block | null {
+  const lines = text.split('\n').filter((l) => l.trim() !== '')
+  if (lines.length < 2) return null
+  const dividerLine = lines[1]
+  const dividerCells = dividerLine
+    .split('|')
+    .slice(1, -1)
+    .map((c) => c.trim())
+  const isDivider = dividerCells.every((c) => /^:?-{3,}:?$/.test(c))
+  if (!isDivider) return null
+  const aligns = dividerCells.map((c): ColumnAlign => {
+    const left = c.startsWith(':')
+    const right = c.endsWith(':')
+    if (left && right) return 'center'
+    if (right) return 'right'
+    return 'left'
+  })
+  const headers = lines[0]
+    .split('|')
+    .slice(1, -1)
+    .map((c) => parseInlineMarkdown(c.trim()))
+  const rows = lines.slice(2).map((row) =>
+    row
+      .split('|')
+      .slice(1, -1)
+      .map((c) => parseInlineMarkdown(c.trim())),
+  )
+  return createTableBlock(headers, rows, aligns)
+}
+
+/** 检测单个 paragraph 是否为单独一行的 Obsidian 图片 */
+function parseObsidianImage(text: string): Block | null {
+  const m = text.trim().match(/^!\[\[([^\]|]+)(?:\|(\d+)(?:x\d+)?)?(?:\|([^\]]*))?\]\]\s*$/)
+  if (!m) return null
+  const src = m[1]
+  const width = m[2] ? Number(m[2]) : undefined
+  const alt = m[3] ?? ''
+  return createImageBlock(src, alt, width ? { width } : {})
+}
+
+/** 将 mdast 节点数组转换为 unidoc blocks（核心递归函数） */
+function convertNodes(source: string, nodes: any[]): Block[] {
+  const result: Block[] = []
+  for (const node of nodes) {
+    const converted = convertNode(source, node)
+    if (Array.isArray(converted)) {
+      result.push(...converted)
+    } else if (converted) {
+      result.push(converted)
     }
+  }
+  return result
+}
 
-    // HTML 块级标签:多行 HTML(<details>/<table>/<div> 等)
-    // 匹配 <tag> 或 <tag attrs> 或 <tag>同行内容</tag>
-    const htmlBlockStart = line.match(/^<([a-zA-Z][a-zA-Z0-9]*)(\s[^>]*)?>(.*)$/)
-    if (htmlBlockStart) {
-      const tag = htmlBlockStart[1].toLowerCase()
-      const restLine = htmlBlockStart[3] || ''
-      // 只处理块级标签(行内标签走普通段落解析)
-      const blockTags = new Set([
-        'div',
-        'details',
-        'summary',
-        'table',
-        'thead',
-        'tbody',
-        'tfoot',
-        'tr',
-        'td',
-        'th',
-        'caption',
-        'colgroup',
-        'figure',
-        'figcaption',
-        'blockquote',
-        'pre',
-        'ul',
-        'ol',
-        'li',
-        'dl',
-        'dt',
-        'dd',
-        'section',
-        'article',
-        'header',
-        'footer',
-        'nav',
-        'aside',
-        'main',
-        'p',
-        'center',
-        'form',
-        'fieldset',
-      ])
-      if (blockTags.has(tag)) {
-        const closeTag = `</${tag}>`
-        // 检查同行是否已闭合(单行 HTML 块)
-        const sameLineClose = restLine.includes(closeTag)
-        if (sameLineClose) {
-          // 单行 HTML 块:<tag>...</tag>
-          const parsed = parseInlineMarkdown(line)
-          const block = createParagraphBlock(parsed.text)
-          block.content = { text: parsed.text, marks: parsed.marks }
-          blocks.push(block)
-          i++
-          continue
-        }
-        // 多行 HTML 块:收集到闭合标签
-        const collected: string[] = [line]
-        let depth = 1
-        let j = i + 1
-        while (j < lines.length) {
-          const l = lines[j]
-          const openRegex = new RegExp(`<${tag}(\\s[^>]*)?>`, 'gi')
-          const closeRegex = new RegExp(`</${tag}>`, 'gi')
-          const opens = (l.match(openRegex) || []).length
-          const closes = (l.match(closeRegex) || []).length
-          depth += opens - closes
-          collected.push(l)
-          j++
-          if (depth <= 0) break
-        }
-        const htmlContent = collected.join('\n')
-        const parsed = parseInlineMarkdown(htmlContent)
-        const block = createParagraphBlock(parsed.text)
-        block.content = { text: parsed.text, marks: parsed.marks }
-        blocks.push(block)
-        i = j
-        continue
-      }
-    }
+/** 转换单个 mdast 节点 → 0 个或多个 unidoc blocks */
+function convertNode(source: string, node: any): Block | Block[] | null {
+  switch (node.type) {
+    case 'thematicBreak':
+      return createDividerBlock()
 
-    // 分页标记
-    if (line.trim() === PAGE_BREAK) {
-      blocks.push(createPageBreakBlock())
-      i++
-      continue
-    }
-
-    // 代码块: ```lang ... ```
-    const codeFenceStart = line.match(/^```(\w*)/)
-    if (codeFenceStart) {
-      const lang = codeFenceStart[1] || 'plaintext'
-      i++
-      const codeLines: string[] = []
-      while (i < lines.length && !lines[i].startsWith('```')) {
-        codeLines.push(lines[i])
-        i++
-      }
-      i++ // 跳过结束 ```
-      blocks.push(createCodeBlockBlock(codeLines.join('\n'), lang))
-      continue
-    }
-
-    // 缩进代码块: 4 空格或 1 tab 缩进(CommonMark)
-    // 注意: 需前有一空行或文档开头,且不是列表项
-    if (/^( {4}|\t)/.test(line) && line.trim() !== '') {
-      // 简单起见,连续的缩进行都算代码块
-      const codeLines: string[] = []
-      while (i < lines.length && /^( {4}|\t)/.test(lines[i])) {
-        codeLines.push(lines[i].replace(/^( {4}|\t)/, ''))
-        i++
-      }
-      if (codeLines.length > 0) {
-        blocks.push(createCodeBlockBlock(codeLines.join('\n'), 'plaintext'))
-      }
-      continue
-    }
-
-    // 表格: | a | b | \n |---|---| \n | 1 | 2 |
-    if (line.match(/^\|.+\|$/)) {
-      const tableLines: string[] = []
-      while (i < lines.length && lines[i].match(/^\|.+\|$/)) {
-        tableLines.push(lines[i])
-        i++
-      }
-      if (tableLines.length >= 2) {
-        const dividerLine = tableLines[1]
-        const dividerCells = dividerLine
-          .split('|')
-          .slice(1, -1)
-          .map((c) => c.trim())
-        // 判断分隔行是否为有效的表格分隔符(包含 ---)
-        const isDivider = dividerCells.every((c) => /^:?-{3,}:?$/.test(c))
-        if (isDivider) {
-          const aligns = dividerCells.map((c): ColumnAlign => {
-            const left = c.startsWith(':')
-            const right = c.endsWith(':')
-            if (left && right) return 'center'
-            if (right) return 'right'
-            return 'left'
-          })
-          const headers = tableLines[0]
-            .split('|')
-            .slice(1, -1)
-            .map((c) => parseInlineMarkdown(c.trim()))
-          const rows = tableLines.slice(2).map((row) =>
-            row
-              .split('|')
-              .slice(1, -1)
-              .map((c) => parseInlineMarkdown(c.trim())),
-          )
-          blocks.push(createTableBlock(headers, rows, aligns))
-        }
-      }
-      continue
-    }
-
-    // Setext 标题: 上一行是文本 + 下一行 === 或 ---
-    // 注意: 必须在分隔线判断之前处理,因为 --- 既是分隔线也是 Setext H2
-    const setextMatch = line.match(/^(={3,}|-{3,})\s*$/)
-    if (setextMatch && blocks.length > 0) {
-      const lastBlock = blocks[blocks.length - 1]
-      if (
-        lastBlock.type === 'paragraph' &&
-        (lastBlock.content as ParagraphContent).text.trim() !== ''
-      ) {
-        const level = setextMatch[1].startsWith('=') ? 1 : 2
-        const text = (lastBlock.content as ParagraphContent).text
-        const marks = (lastBlock.content as ParagraphContent).marks ?? []
-        blocks.pop()
-        const heading = createHeadingBlock(text, level as 1 | 2)
-        heading.content.marks = marks
-        blocks.push(heading)
-        i++
-        continue
-      }
-    }
-
-    // 分隔线(三个或更多连字符,但不是 ---page---)
-    if (DIVIDER_RE.test(line.trim())) {
-      blocks.push(createDividerBlock())
-      i++
-      continue
-    }
-
-    // 图片(Obsidian 嵌入语法): ![[src]] / ![[src|width]] / ![[src|widthxheight]] / ![[src|width|alt]]
-    const obsidianImageMatch = line.match(
-      /^!\[\[([^\]|]+)(?:\|(\d+)(?:x\d+)?)?(?:\|([^\]]*))?\]\]\s*$/,
-    )
-    if (obsidianImageMatch) {
-      const src = obsidianImageMatch[1]
-      const width = obsidianImageMatch[2] ? Number(obsidianImageMatch[2]) : undefined
-      const alt = obsidianImageMatch[3] ?? ''
-      blocks.push(createImageBlock(src, alt, width ? { width } : {}))
-      i++
-      continue
-    }
-
-    // 图片(标准 md): ![alt](src)
-    const imageMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)\s*$/)
-    if (imageMatch) {
-      blocks.push(createImageBlock(imageMatch[2], imageMatch[1]))
-      i++
-      continue
-    }
-
-    // 标题
-    const headingMatch = line.match(HEADING_RE)
-    if (headingMatch) {
-      const level = headingMatch[1].length as HeadingProps['level']
-      const { text, marks } = parseInlineMarkdown(headingMatch[2])
+    case 'heading': {
+      const level = node.depth as HeadingProps['level']
+      // 去掉 "# " 前缀:level + 1(空格)
+      const prefixLen = level + 1
+      const { text, marks } = extractInline(source, node, prefixLen)
       const block = createHeadingBlock(text, level)
       block.content.marks = marks
-      blocks.push(block)
-      i++
-      continue
+      return block
     }
 
-    // 引用: > text（支持多层嵌套,如 > > text,扁平化处理）
-    const quoteMatch = line.match(/^(?:>\s+)+/)
-    if (quoteMatch) {
-      const quoteLines: string[] = []
-      while (i < lines.length && lines[i].match(/^(?:>\s+)+/)) {
-        quoteLines.push(lines[i].replace(/^(?:>\s+)+/, ''))
-        i++
+    case 'code': {
+      const lang = node.lang || 'plaintext'
+      return createCodeBlockBlock(node.value || '', lang)
+    }
+
+    case 'image': {
+      return createImageBlock(node.url || '', node.alt || '')
+    }
+
+    case 'list': {
+      return convertList(source, node)
+    }
+
+    case 'blockquote': {
+      const innerBlocks = convertNodes(source, node.children || [])
+      if (innerBlocks.length === 0) return null
+      // 如果只有一个 paragraph,沿用旧格式(text+marks),否则用 blocks
+      if (innerBlocks.length === 1 && innerBlocks[0].type === 'paragraph') {
+        const para = innerBlocks[0].content as ParagraphContent
+        const block = createQuoteBlock(para.text)
+        block.content.marks = para.marks
+        return block
       }
-      const { text, marks } = parseInlineMarkdown(quoteLines.join(' '))
-      const block = createQuoteBlock(text)
-      ;(block.content as QuoteContent).marks = marks
-      blocks.push(block)
-      continue
+      const block = createQuoteBlock('')
+      block.content = { text: '', marks: [], blocks: innerBlocks }
+      return block
     }
 
-    // 任务列表项
-    const taskMatch = line.match(TASK_RE)
-    if (taskMatch) {
-      const items: ListItem[] = []
-      while (i < lines.length) {
-        const tm = lines[i].match(TASK_RE)
-        if (!tm) break
-        const parsed = parseInlineMarkdown(tm[2])
-        items.push({
-          id: crypto.randomUUID(),
-          text: parsed.text,
-          marks: parsed.marks,
-          checked: tm[1].toLowerCase() === 'x',
-        })
-        i++
+    case 'paragraph': {
+      const raw = sliceSource(source, node.position).trim()
+
+      // ---page--- 分页标记
+      if (raw === PAGE_BREAK) {
+        return createPageBreakBlock()
       }
-      blocks.push(
-        createListBlock(
-          items.map((it) => ({ text: it.text, marks: it.marks, checked: it.checked })),
-          'task',
-        ),
-      )
-      continue
-    }
 
-    // 无序列表项
-    const bulletMatch = line.match(BULLET_RE)
-    if (bulletMatch) {
-      const items: ListItem[] = []
-      while (i < lines.length) {
-        const bm = lines[i].match(BULLET_RE)
-        if (!bm) break
-        const parsed = parseInlineMarkdown(bm[1])
-        items.push({ id: crypto.randomUUID(), text: parsed.text, marks: parsed.marks })
-        i++
+      // Obsidian 图片（单独一行）
+      const img = parseObsidianImage(raw)
+      if (img) return img
+
+      // 标准 md 图片（单独一行）: ![alt](src)
+      const stdImgMatch = raw.match(/^!\[([^\]]*)\]\(([^)]+)\)\s*$/)
+      if (stdImgMatch) {
+        return createImageBlock(stdImgMatch[2], stdImgMatch[1])
       }
-      blocks.push(
-        createListBlock(
-          items.map((it) => ({ text: it.text, marks: it.marks })),
-          'bullet',
-        ),
-      )
-      continue
-    }
 
-    // 有序列表项
-    const orderedMatch = line.match(ORDERED_RE)
-    if (orderedMatch) {
-      const items: ListItem[] = []
-      while (i < lines.length) {
-        const om = lines[i].match(ORDERED_RE)
-        if (!om) break
-        const parsed = parseInlineMarkdown(om[1])
-        items.push({ id: crypto.randomUUID(), text: parsed.text, marks: parsed.marks })
-        i++
+      // 表格:段落文本是多行的管道表格
+      if (isTableText(raw)) {
+        const table = parseTableFromText(raw)
+        if (table) return table
       }
-      blocks.push(
-        createListBlock(
-          items.map((it) => ({ text: it.text, marks: it.marks })),
-          'ordered',
-        ),
-      )
-      continue
-    }
 
-    // 段落:连续非空、非特殊语法的行合并为一段
-    const paraLines: string[] = []
-    while (
-      i < lines.length &&
-      lines[i].trim() !== '' &&
-      lines[i].trim() !== PAGE_BREAK &&
-      !lines[i].startsWith('```') &&
-      !lines[i].match(/^\|.+\|$/) &&
-      !DIVIDER_RE.test(lines[i].trim()) &&
-      !HEADING_RE.test(lines[i]) &&
-      !lines[i].match(/^>\s+/) &&
-      !BULLET_RE.test(lines[i]) &&
-      !ORDERED_RE.test(lines[i]) &&
-      !TASK_RE.test(lines[i])
-    ) {
-      paraLines.push(lines[i])
-      i++
-    }
-    if (paraLines.length) {
-      const { text, marks } = parseInlineMarkdown(paraLines.join(' '))
+      // 普通段落：CommonMark 规定段落内换行合并为空格
+      const { text, marks } = parseInlineMarkdown(raw.replace(/\n/g, ' '))
       const block = createParagraphBlock(text)
-      ;(block.content as ParagraphContent).marks = marks
-      blocks.push(block)
+      block.content.marks = marks
+      return block
+    }
+
+    case 'html': {
+      // HTML 块:作为段落处理（交给 parseInlineMarkdown 解析其中的 HTML 标签）
+      const { text, marks } = parseInlineMarkdown(node.value || '')
+      const block = createParagraphBlock(text)
+      block.content.marks = marks
+      return block
+    }
+
+    default:
+      return null
+  }
+}
+
+/** 转换 mdast list 节点 → unidoc list block（支持嵌套） */
+function convertList(source: string, node: any): Block {
+  const listType: ListType = node.ordered ? 'ordered' : 'bullet'
+  const items: ListItem[] = []
+
+  for (const li of node.children || []) {
+    items.push(convertListItem(source, li, listType))
+  }
+
+  // 检测是否为任务列表:任一 item 有 checked 属性即为任务列表
+  const isTask = items.some((it) => it.checked !== undefined)
+  const finalListType: ListType = isTask ? 'task' : listType
+
+  // 直接构建 block,避免 createListBlock 丢弃 children/start
+  const block = createListBlock(
+    items.map((it) => ({ text: it.text, marks: it.marks, checked: it.checked })),
+    finalListType,
+  )
+  // 始终保留有序列表起始号(即使为 1,确保往返一致)
+  if (finalListType === 'ordered' && typeof node.start === 'number') {
+    ;(block.props as ListProps).start = node.start
+  }
+  // 回填 children(createListBlock 会生成新 id,需对齐)
+  const createdItems = (block.content as ListContent).items
+  for (let i = 0; i < createdItems.length && i < items.length; i++) {
+    if (items[i].children && items[i].children.length > 0) {
+      createdItems[i].children = items[i].children
+    }
+  }
+  return block
+}
+
+/** 转换单个 mdast listItem → unidoc ListItem */
+function convertListItem(source: string, node: any, _parentListType: ListType): ListItem {
+  const children = node.children || []
+  let text = ''
+  let marks: Mark[] = []
+  let checked: boolean | undefined = undefined
+  const nestedBlocks: Block[] = []
+
+  for (const child of children) {
+    if (child.type === 'paragraph') {
+      // 列表项的第一个段落就是项文本
+      if (text === '') {
+        const raw = sliceSource(source, child.position).trim()
+        // mdast 默认不支持 GFM 任务列表，paragraph raw 会残留 [x]/[ ] 前缀
+        const taskMatch = raw.match(/^\[([ xX])\]\s*(.*)/)
+        if (taskMatch) {
+          const parsed = parseInlineMarkdown(taskMatch[2].replace(/\n/g, ' '))
+          text = parsed.text
+          marks = parsed.marks
+          checked = taskMatch[1].toLowerCase() === 'x'
+        } else {
+          const parsed = parseInlineMarkdown(raw.replace(/\n/g, ' '))
+          text = parsed.text
+          marks = parsed.marks
+        }
+      } else {
+        // 后续段落作为嵌套块
+        const { text: t, marks: m } = parseInlineMarkdown(
+          sliceSource(source, child.position).trim().replace(/\n/g, ' '),
+        )
+        const p = createParagraphBlock(t)
+        p.content.marks = m
+        nestedBlocks.push(p)
+      }
+    } else if (child.type === 'list') {
+      nestedBlocks.push(convertList(source, child))
+    } else {
+      // 其他块级内容（代码块、引用等）也作为嵌套块
+      const converted = convertNode(source, child)
+      if (converted) {
+        if (Array.isArray(converted)) nestedBlocks.push(...converted)
+        else nestedBlocks.push(converted)
+      }
     }
   }
 
-  return blocks
+  // mdast 的 checked 属性（如果有 GFM 插件支持）
+  if (checked === undefined && node.checked !== null && node.checked !== undefined) {
+    checked = node.checked
+  }
+
+  const item: ListItem = {
+    id: uuid(),
+    text,
+    marks,
+  }
+  if (checked !== undefined) item.checked = checked
+  if (nestedBlocks.length > 0) item.children = nestedBlocks
+  return item
+}
+
+/** 预处理中文标点有序列表:将 "1、A" "1）A" 转为 "1. A"
+ *  CommonMark 只认 "." 和 ")" 作为有序列表标记,中文顿号/全角右括号不被识别
+ */
+function preprocessChineseList(md: string): string {
+  return md.replace(/^(\d+)[、）]\s*/gm, '$1. ')
+}
+
+/** 反序列化 Markdown 字符串为 blocks 数组
+ *  使用 mdast-util-from-markdown 做块级 AST 解析,行内样式复用 parseInlineMarkdown
+ */
+export function deserializeMarkdown(markdown: string): Block[] {
+  // 空文档直接返回
+  if (!markdown || markdown.trim() === '') return []
+
+  // 预处理中文标点(必须在 mdast 解析前,position offset 基于预处理后文本)
+  const preprocessed = preprocessChineseList(markdown)
+
+  // mdast 解析（开启 position 以便从源文本切取行内原始 markdown）
+  const tree = fromMarkdown(preprocessed, { positions: true })
+
+  // 递归转换
+  return convertNodes(preprocessed, tree.children as any[])
 }

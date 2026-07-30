@@ -19,6 +19,8 @@ const canvasRef = ref<HTMLElement | null>(null)
 const sourceText = ref('')
 /** 源码模式下用户正在输入时阻止 syncSource 覆盖 textarea */
 const isSourceInputting = ref(false)
+/** 源码模式提交防抖定时器 */
+let sourceCommitTimer: ReturnType<typeof setTimeout> | null = null
 
 const selectedId = computed(() => editor.selectedBlockId)
 
@@ -50,7 +52,6 @@ async function onEnter(id: string, afterText: string = '') {
 
   if (syntaxMatch && syntaxMatch.type !== 'paragraph') {
     if (syntaxMatch.type === 'code_block') {
-      // 代码块：特殊处理，内容清空
       doc.updateBlock(
         id,
         {
@@ -60,8 +61,9 @@ async function onEnter(id: string, afterText: string = '') {
         },
         '转换为代码块',
       )
-    } else if (syntaxMatch.type === 'table' && syntaxMatch.extra?.headers) {
-      // 表格：用 headers 初始化,解析每个单元格的行内 marks
+      return
+    }
+    if (syntaxMatch.type === 'table' && syntaxMatch.extra?.headers) {
       const headers = (syntaxMatch.extra.headers as string[]).map((h) => {
         const parsed = parseInlineMarkdown(h)
         return { text: parsed.text, marks: parsed.marks }
@@ -75,8 +77,9 @@ async function onEnter(id: string, afterText: string = '') {
         },
         '转换为表格',
       )
-    } else if (syntaxMatch.type === 'list') {
-      // 列表：创建单元素 items 数组,解析行内 marks
+      return
+    }
+    if (syntaxMatch.type === 'list') {
       const parsed = parseInlineMarkdown(syntaxMatch.strippedText)
       const checked = syntaxMatch.extra?.checked as boolean | undefined
       doc.updateBlock(
@@ -90,8 +93,10 @@ async function onEnter(id: string, afterText: string = '') {
         },
         '转换为列表',
       )
-    } else if (syntaxMatch.type === 'divider') {
-      // 分隔线：无内容
+      editor.selectBlock(id)
+      return
+    }
+    if (syntaxMatch.type === 'divider') {
       doc.updateBlock(
         id,
         {
@@ -101,27 +106,41 @@ async function onEnter(id: string, afterText: string = '') {
         },
         '转换为分隔线',
       )
-    } else {
-      // 标题/引用：解析行内语法
-      const parsed = parseInlineMarkdown(syntaxMatch.strippedText)
-      doc.updateBlock(
-        id,
-        {
-          type: syntaxMatch.type,
-          content: { text: parsed.text, marks: parsed.marks },
-          props: syntaxMatch.props ?? {},
-        },
-        '转换区块类型',
-      )
+      // 分隔线后自动加一个段落以便继续编辑
+      const nextId = doc.insertBlockAfter(id, 'paragraph', '新建区块')
+      editor.selectBlock(nextId)
+      await nextTick()
+      await nextTick()
+      focusBlockAt(nextId, 'start')
+      return
     }
+    // 标题/引用：解析行内语法
+    const parsed = parseInlineMarkdown(syntaxMatch.strippedText)
+    doc.updateBlock(
+      id,
+      {
+        type: syntaxMatch.type,
+        content: { text: parsed.text, marks: parsed.marks },
+        props: syntaxMatch.props ?? {},
+      },
+      '转换区块类型',
+    )
+    editor.selectBlock(id)
+    await nextTick()
+    await nextTick()
+    focusBlockAt(id, 'start')
+    return
   }
 
-  // 引用块的 Enter 已改为块内换行,只有 Shift+Enter 才触发 onEnter,此时跳出引用
-  const newId = doc.insertBlockAfter(id, 'paragraph', '新建区块')
-  if (afterText) {
-    const parsed = parseInlineMarkdown(afterText)
-    doc.updateBlock(newId, { content: { text: parsed.text, marks: parsed.marks } }, '设置分割文本')
-  }
+  // 普通 Enter：在当前块后插入新段落(批处理,只产生一条历史记录)
+  const newId = doc.batch(() => {
+    const nid = doc.insertBlockAfter(id, 'paragraph', '新建区块')
+    if (afterText) {
+      const parsed = parseInlineMarkdown(afterText)
+      doc.updateBlock(nid, { content: { text: parsed.text, marks: parsed.marks } }, '设置分割文本')
+    }
+    return nid
+  }, '新建区块')
   editor.selectBlock(newId)
   await nextTick()
   await nextTick()
@@ -144,14 +163,19 @@ function findEditableBlockIndexForward(fromIdx: number): number {
   return -1
 }
 
-/** 计算合并点在 DOM 源码文本中的偏移量(含语法标记和标题前缀) */
+/** 计算合并点在 DOM 源码文本中的偏移量(含语法标记和标题/引用前缀) */
 function getDomMergePoint(block: Block): number {
   const text = (block.content.text as string) || ''
   const marks: Mark[] = (block.content.marks as Mark[]) || []
-  const sourceLen = marksToSource(text, marks).length
+  const source = marksToSource(text, marks)
+  const sourceLen = source.length
   if (block.type === 'heading') {
     const level = (block.props as { level?: number }).level ?? 1
     return level + 1 + sourceLen
+  }
+  if (block.type === 'quote') {
+    const lineCount = source.split('\n').length
+    return sourceLen + lineCount * 2
   }
   return sourceLen
 }
@@ -202,20 +226,21 @@ async function onBackspaceMerge(id: string) {
   // 合并点在 DOM 源码文本中的偏移量(updateBlock 之前计算,避免 prev 被替换)
   const domMergePoint = getDomMergePoint(prev)
 
-  // 合并文本 + marks，更新上一行
-  doc.updateBlock(
-    prev.id,
-    {
-      content: {
-        text: prevText + currentText,
-        marks: [...prevMarks, ...offsetMarks],
+  // 合并文本 + marks, 删除当前行(批处理,只产生一条历史记录)
+  doc.batch(() => {
+    doc.updateBlock(
+      prev.id,
+      {
+        content: {
+          text: prevText + currentText,
+          marks: [...prevMarks, ...offsetMarks],
+        },
       },
-    },
-    '合并区块',
-  )
-
-  // 删除当前行
-  doc.removeBlock(id, '删除空区块')
+      '合并区块',
+    )
+    // 删除当前行
+    doc.removeBlock(id, '删除空区块')
+  }, '合并区块')
   editor.selectBlock(prev.id)
 
   await nextTick()
@@ -226,9 +251,10 @@ async function onBackspaceMerge(id: string) {
 async function onConvert(id: string, targetType: string) {
   const block = doc.blocks.find((b) => b.id === id)
   if (!block) return
-  const textBaseProps = targetType === 'heading'
-    ? { level: (block.props as { level?: number }).level ?? 2 }
-    : { align: (block.props as { align?: string }).align ?? 'left' }
+  const textBaseProps =
+    targetType === 'heading'
+      ? { level: (block.props as { level?: number }).level ?? 2 }
+      : { align: (block.props as { align?: string }).align ?? 'left' }
   doc.updateBlock(id, { type: targetType, props: textBaseProps }, '转换区块类型')
   editor.selectBlock(id)
   await nextTick()
@@ -241,28 +267,32 @@ async function onListOutdent(id: string, payload: { idx: number; text: string; m
   if (blockIdx === -1) return
   const block = doc.blocks[blockIdx]
   if (block.type !== 'list') return
-  const items = (block.content as { items: Array<{ id: string; text: string; marks: Mark[]; checked: boolean }> }).items
+  const items = (
+    block.content as { items: Array<{ id: string; text: string; marks: Mark[]; checked: boolean }> }
+  ).items
   const before = items.slice(0, payload.idx)
   const after = items.slice(payload.idx + 1)
   const listType = (block.props as { listType?: string }).listType ?? 'bullet'
 
-  let anchorId: string | null = null
+  const paraId = doc.batch(() => {
+    let anchorId: string | null = null
+    if (before.length > 0) {
+      doc.updateBlock(id, { content: { items: before } }, '更新列表')
+      anchorId = id
+    } else {
+      doc.removeBlock(id, '删除空列表')
+      anchorId = blockIdx > 0 ? doc.blocks[blockIdx - 1].id : null
+    }
 
-  if (before.length > 0) {
-    doc.updateBlock(id, { content: { items: before } }, '更新列表')
-    anchorId = id
-  } else {
-    doc.removeBlock(id, '删除空列表')
-    anchorId = blockIdx > 0 ? doc.blocks[blockIdx - 1].id : null
-  }
+    const pid = doc.insertBlockAfter(anchorId, 'paragraph', '列表项转段落')
+    doc.updateBlock(pid, { content: { text: payload.text, marks: payload.marks } })
 
-  const paraId = doc.insertBlockAfter(anchorId, 'paragraph', '列表项转段落')
-  doc.updateBlock(paraId, { content: { text: payload.text, marks: payload.marks } })
-
-  if (after.length > 0) {
-    const newListId = doc.insertBlockAfter(paraId, 'list', '拆分列表', listType as any)
-    doc.updateBlock(newListId, { content: { items: after } })
-  }
+    if (after.length > 0) {
+      const newListId = doc.insertBlockAfter(pid, 'list', '拆分列表', listType as any)
+      doc.updateBlock(newListId, { content: { items: after } })
+    }
+    return pid
+  }, '列表项转段落')
 
   editor.selectBlock(paraId)
   await nextTick()
@@ -381,16 +411,22 @@ function onEndAreaClick() {
 }
 
 function syncSource() {
+  if (isSourceInputting.value) return
   sourceText.value = doc.exportMarkdown()
 }
 
 function onSourceInput() {
   isSourceInputting.value = true
-  const parsed = deserializeMarkdown(sourceText.value)
-  doc.replaceBlocks(parsed, '编辑源码')
-  nextTick(() => {
-    isSourceInputting.value = false
-  })
+  // 防抖提交:连续输入时只产生一条历史记录
+  if (sourceCommitTimer) clearTimeout(sourceCommitTimer)
+  sourceCommitTimer = setTimeout(() => {
+    const parsed = deserializeMarkdown(sourceText.value)
+    doc.replaceBlocks(parsed, '编辑源码')
+    sourceCommitTimer = null
+    nextTick(() => {
+      isSourceInputting.value = false
+    })
+  }, 500)
 }
 
 // 源码模式:renderTick 变化时(撤销/重做/外部修改)自动同步 textarea
@@ -404,14 +440,40 @@ watch(
 )
 
 /* ===== 全局快捷键 ===== */
+/** 让当前正在编辑的 contenteditable 失焦以触发 onBlur 提交,避免未保存内容丢失 */
+function flushPendingEdit() {
+  const ae = document.activeElement as HTMLElement | null
+  if (ae && ae.closest('[contenteditable="true"]')) {
+    ae.blur()
+  }
+}
+
 function onKeydown(e: KeyboardEvent) {
   const ctrl = e.ctrlKey || e.metaKey
   if (ctrl) {
+    // 源码模式下:Ctrl+Z/Y 交给 textarea 处理(字符级撤销),Ctrl+S 保存前先 flush 未提交修改
+    if (editor.mode === 'source') {
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault()
+        if (sourceCommitTimer) {
+          clearTimeout(sourceCommitTimer)
+          sourceCommitTimer = null
+          const parsed = deserializeMarkdown(sourceText.value)
+          doc.replaceBlocks(parsed, '编辑源码')
+          isSourceInputting.value = false
+        }
+        doc.saveToFile()
+      }
+      return
+    }
     if (e.key === 'z' || e.key === 'Z') {
       e.preventDefault()
-      e.shiftKey ? doc.redo() : doc.undo()
+      flushPendingEdit()
+      if (e.shiftKey) doc.redo()
+      else doc.undo()
     } else if (e.key === 'y' || e.key === 'Y') {
       e.preventDefault()
+      flushPendingEdit()
       doc.redo()
     } else if (e.key === 's' || e.key === 'S') {
       e.preventDefault()
@@ -419,6 +481,9 @@ function onKeydown(e: KeyboardEvent) {
     }
     return
   }
+
+  // 源码模式:不响应 block 相关快捷键
+  if (editor.mode === 'source') return
 
   if ((e.key === 'Backspace' || e.key === 'Delete') && selectedId.value) {
     const ae = document.activeElement as HTMLElement | null
@@ -436,16 +501,39 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
+/** Flush 源码模式的未提交修改(防止防抖期间关闭导致内容丢失) */
+function flushSourceCommit() {
+  if (sourceCommitTimer) {
+    clearTimeout(sourceCommitTimer)
+    sourceCommitTimer = null
+    const parsed = deserializeMarkdown(sourceText.value)
+    doc.replaceBlocks(parsed, '编辑源码')
+    isSourceInputting.value = false
+  }
+}
+
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
+  window.addEventListener('beforeunload', flushSourceCommit)
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('beforeunload', flushSourceCommit)
+  flushSourceCommit()
 })
 
 watch(
   () => editor.mode,
   (mode, prevMode) => {
+    // 切出源码模式:若有未提交的防抖修改,立即提交
+    if (prevMode === 'source') {
+      flushSourceCommit()
+    }
+    // 从可视化切到源码模式:先让当前正在编辑的 contenteditable 提交内容(必须在 DOM 被卸载前)
+    if (mode === 'source' && prevMode !== 'source') {
+      flushPendingEdit()
+      editor.selectBlock(null)
+    }
     if (!canvasRef.value || !prevMode) return
     const canvas = canvasRef.value
     // 切换前:记录旧模式下视口中线在总内容中的比例

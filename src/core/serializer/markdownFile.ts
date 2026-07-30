@@ -183,6 +183,65 @@ export async function openMarkdownFile(): Promise<{
   return { blocks, fileName: file.name, meta }
 }
 
+// ===== 通用文件保存(支持任意内容/扩展名) =====
+
+export interface SaveFileFilter {
+  name: string
+  extensions: string[]
+}
+
+/** Tauri:弹出通用保存对话框并写入文件 */
+async function saveFileTauri(
+  content: string,
+  defaultName: string,
+  filters: SaveFileFilter[],
+  title = '保存文件',
+): Promise<boolean> {
+  const filePath = await tauriInvoke<string | null>('save_file_dialog', {
+    title,
+    defaultName,
+    filters,
+  })
+  if (!filePath) return false
+  await tauriInvoke('save_file', { filePath, content })
+  return true
+}
+
+/** Web:触发浏览器下载(Blob 方式) */
+function saveFileWeb(
+  content: string,
+  fileName: string,
+  mimeType = 'application/octet-stream',
+): void {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * 通用文件保存(自动选择 Tauri/Web 路径)
+ * - Tauri:弹出原生保存对话框,用户选择路径后写入
+ * - Web:通过 Blob 触发浏览器下载
+ */
+export async function saveFile(
+  content: string,
+  defaultName: string,
+  filters: SaveFileFilter[],
+  mimeType?: string,
+): Promise<boolean> {
+  if (isTauri()) {
+    return saveFileTauri(content, defaultName, filters)
+  }
+  saveFileWeb(content, defaultName, mimeType)
+  return true
+}
+
 // ===== 保留旧接口兼容 =====
 export { saveMarkdownFile as downloadMarkdownFile }
 export { openMdWeb as pickMarkdownFile }

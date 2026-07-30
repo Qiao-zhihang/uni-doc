@@ -185,10 +185,10 @@ function runCmd(cmd: Command) {
   background: var(--accent);
 }
 .cmd-item.active {
-  background: linear-gradient(135deg, var(--primary, #3b82f6) 0%, var(--brand-600, #2563eb) 100%);
-  color: var(--primary-foreground, #fff);
+  background: var(--menu-item-active-bg);
+  color: var(--menu-item-active-foreground);
   transform: translateX(2px);
-  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.25);
+  box-shadow: var(--menu-item-active-shadow);
 }
 .cmd-item.active .cmd-hotkey {
   color: rgba(255, 255, 255, 0.85);
