@@ -249,6 +249,14 @@ export function parseFrontmatter(markdown: string): {
   if (endIdx === -1) return { meta: null, body: markdown }
 
   const yamlLines = lines.slice(1, endIdx)
+  // 防误判:文档以 ---(分隔线)开头时不要把它当 frontmatter。
+  // 仅当块内包含本应用实际识别的字段(title/author/version/created_at/updated_at/tags)时才视为
+  // frontmatter,否则两个 --- 之间的正文会被当作元信息吞掉导致内容丢失。
+  const hasKnownField = yamlLines.some((line) =>
+    /^(?:title|author|version|created_at|updated_at|tags)\s*:/.test(line),
+  )
+  if (!hasKnownField) return { meta: null, body: markdown }
+
   const meta: Partial<DocumentMeta> = {}
   for (const line of yamlLines) {
     const match = line.match(/^(\w+):\s*(.*)$/)

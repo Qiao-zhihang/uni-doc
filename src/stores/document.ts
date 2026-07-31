@@ -11,9 +11,18 @@
 
 import { defineStore } from 'pinia'
 import { computed, markRaw, nextTick, ref } from 'vue'
-import type { Block, BlockType, DocumentMeta, ListType, OutlineEntry } from '@/core/blocks/types'
+import type {
+  Block,
+  BlockType,
+  DocumentMeta,
+  ListType,
+  Mark,
+  OutlineEntry,
+} from '@/core/blocks/types'
 import { createBlock, createHeadingBlock, uuid } from '@/core/blocks/factory'
 import { UndoRedo } from '@/core/history/UndoRedo'
+import { parseInlineMarkdown } from '@/core/parser/inlineMarkdown'
+import { marksToSource } from '@/components/blocks/marks'
 import {
   serializeMarkdown,
   serializeMarkdownWithMeta,
@@ -372,22 +381,136 @@ export const useDocumentStore = defineStore('document', () => {
     return clone.id
   }
 
+  /** 提取任意块的文本内容(还原行内 Markdown 语法),用于类型转换时保留内容 */
+  function extractBlockText(block: Block): string {
+    const content = block.content as {
+      text?: string
+      marks?: Mark[]
+      code?: string
+      items?: Array<{ text?: string; marks?: Mark[] }>
+      headers?: Array<{ text?: string; marks?: Mark[] }>
+      rows?: Array<Array<{ text?: string; marks?: Mark[] }>>
+      blocks?: Block[]
+      alt?: string
+    }
+    switch (block.type) {
+      case 'paragraph':
+      case 'heading':
+        return marksToSource(content.text ?? '', content.marks ?? [])
+      case 'quote': {
+        if (content.blocks && content.blocks.length > 0) {
+          return serializeMarkdown(content.blocks)
+        }
+        return marksToSource(content.text ?? '', content.marks ?? [])
+      }
+      case 'list':
+        return (content.items ?? [])
+          .map((item) => marksToSource(item.text ?? '', item.marks ?? []))
+          .join('\n')
+      case 'code_block':
+        return content.code ?? ''
+      case 'table': {
+        const cellToSource = (cell?: { text?: string; marks?: Mark[] }) =>
+          marksToSource(cell?.text ?? '', cell?.marks ?? [])
+        const header = (content.headers ?? []).map(cellToSource).join(' | ')
+        const rows = (content.rows ?? []).map((row) => row.map(cellToSource).join(' | '))
+        return [header, ...rows].filter((line) => line !== '').join('\n')
+      }
+      case 'image':
+        return content.alt ?? ''
+      default:
+        return ''
+    }
+  }
+
   function convertBlock(id: string, type: BlockType, label = '转换类型'): boolean {
     const idx = blocks.value.findIndex((b) => b.id === id)
     if (idx === -1) return false
     commit(label)
     const old = blocks.value[idx]
     const newBlock = createBlock(type)
-    if (old.type === 'paragraph' || old.type === 'heading') {
-      const text = (old.content as { text: string }).text
+    const textTypes: BlockType[] = ['paragraph', 'heading', 'quote']
+
+    if (old.type === type) {
+      // 同类型转换:整体保留内容与属性(避免清空 marks/align 等)
+      newBlock.content = JSON.parse(JSON.stringify(old.content))
+      newBlock.props = JSON.parse(JSON.stringify(old.props))
+    } else if (textTypes.includes(type)) {
+      // 目标为文本类块:保留内容与行内格式
+      const oldContent = old.content as { text?: string; marks?: Mark[]; blocks?: Block[] }
+      const canCopyInline =
+        old.type === 'paragraph' ||
+        old.type === 'heading' ||
+        (old.type === 'quote' && !(oldContent.blocks && oldContent.blocks.length > 0))
+      const { text, marks } = canCopyInline
+        ? {
+            text: oldContent.text ?? '',
+            marks: (oldContent.marks ?? []).map((m) => ({ ...m })),
+          }
+        : parseInlineMarkdown(extractBlockText(old))
+      newBlock.content = { text, marks }
+      const oldAlign =
+        old.type === 'paragraph' || old.type === 'heading'
+          ? (old.props as { align?: string }).align
+          : undefined
       if (type === 'heading') {
-        newBlock.content = { text, marks: [] }
-        newBlock.props = { level: 2, align: 'left' }
+        const oldLevel = old.type === 'heading' ? (old.props as { level?: number }).level : undefined
+        newBlock.props = {
+          level: oldLevel ?? 2,
+          ...(oldAlign ? { align: oldAlign } : {}),
+        }
       } else if (type === 'paragraph') {
-        newBlock.content = { text, marks: [] }
-        newBlock.props = { align: 'left' }
+        newBlock.props = oldAlign ? { align: oldAlign } : {}
       }
+    } else if (type === 'list') {
+      if (old.type === 'list') {
+        // 保留原列表结构(含子块/勾选状态)
+        newBlock.content = JSON.parse(JSON.stringify(old.content))
+        newBlock.props = JSON.parse(JSON.stringify(old.props))
+      } else {
+        // 非列表来源:按行拆分为列表项
+        const lines = extractBlockText(old)
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => line !== '')
+        const items = lines.map((line) => {
+          const parsed = parseInlineMarkdown(line)
+          return { id: uuid(), text: parsed.text, marks: parsed.marks }
+        })
+        newBlock.content = {
+          items: items.length > 0 ? items : [{ id: uuid(), text: '', marks: [] }],
+        }
+        newBlock.props = { listType: 'bullet' }
+      }
+    } else if (type === 'code_block') {
+      if (old.type === 'code_block') {
+        newBlock.content = JSON.parse(JSON.stringify(old.content))
+        newBlock.props = JSON.parse(JSON.stringify(old.props))
+      } else {
+        newBlock.content = { code: extractBlockText(old) }
+        newBlock.props = { language: 'plaintext' }
+      }
+    } else if (type === 'table') {
+      if (old.type === 'table') {
+        newBlock.content = JSON.parse(JSON.stringify(old.content))
+        newBlock.props = JSON.parse(JSON.stringify(old.props))
+      } else {
+        // 非表格来源:文本放入表头,保持可编辑结构
+        const parsed = parseInlineMarkdown(extractBlockText(old))
+        newBlock.content = {
+          headers: [{ text: parsed.text, marks: parsed.marks }],
+          rows: [],
+          aligns: ['left'],
+        }
+      }
+    } else if (type === 'image') {
+      if (old.type === 'image') {
+        newBlock.content = JSON.parse(JSON.stringify(old.content))
+        newBlock.props = JSON.parse(JSON.stringify(old.props))
+      }
+      // 非图片来源:保留为空图片块,由用户选择/粘贴图片
     }
+
     newBlock.id = old.id
     newBlock.created_at = old.created_at
     newBlock.updated_at = new Date().toISOString()
