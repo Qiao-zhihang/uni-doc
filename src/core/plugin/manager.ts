@@ -134,7 +134,7 @@ export class PluginManager {
   async init(vaultRoot: string | null): Promise<void> {
     this.vaultRoot = vaultRoot
     // 仅暴露最小化 API,移除对 Vue 的直接访问(减少攻击面)
-    ;(window as any).__unidoc = { Plugin }
+    ;(window as any).__unidoc = { Plugin, Vue }
     this.injectToastStyles()
     this.bindHotkeys()
     await this.scanAndLoad()
