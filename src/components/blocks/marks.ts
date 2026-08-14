@@ -4,6 +4,7 @@
  * 参考 PRD §11.2:paragraph / heading 含纯文本 + 行内样式
  */
 import type { Mark } from '@/core/blocks/types'
+import { isSafeUrl } from '@/core/parser/inlineMarkdown'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 
@@ -47,6 +48,11 @@ function dedupMarks(marks: Mark[]): Mark[] {
   const seen = new Set<string>()
   const result: Mark[] = []
   for (const mark of marks) {
+    // 纵深防御:链接/图片 mark 的 href 再次做协议安全检查
+    // (解析器已拦截,这里是防历史遗留数据、插件注入等绕过解析的情况)
+    if ((mark.type === 'link' || mark.type === 'image') && mark.href && !isSafeUrl(mark.href)) {
+      continue
+    }
     const key = JSON.stringify({
       type: mark.type,
       start: mark.start,

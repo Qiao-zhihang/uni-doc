@@ -24,6 +24,7 @@ import type {
   Mark,
   ParagraphContent,
   QuoteContent,
+  TableCell,
   TableContent,
 } from '../blocks/types'
 import {
@@ -46,6 +47,56 @@ const FRONTMATTER_DELIM = '---'
 
 /* ============== 行内标记(Mark)处理 ============== */
 
+/* ============== 辅助:换行 / 表格转义 ============== */
+
+/**
+ * 段落/列表项内的软换行(\n)序列化为"行尾两个空格"的硬换行(CommonMark 标准),
+ * 这样任何标准解析器(含 Obsidian)打开时都能还原为换行,而不是合并成空格。
+ */
+function toHardBreaks(source: string): string {
+  return source.replace(/\n/g, '  \n')
+}
+
+/** 反序列化时还原硬换行:行尾两个及以上空格 + 换行 → 换行 */
+function foldHardBreaks(raw: string): string {
+  return raw.replace(/ {2,}\n/g, '\n')
+}
+
+/** 表格单元格转义:`\` → `\\`,`|` → `\|`(GFM 标准),换行折叠为空格 */
+function escapeTableCell(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ')
+}
+
+/** 按未转义的 `|` 拆分表格行,同时还原 `\|` 转义
+ *  注意:只还原 `\|` → `|`,反斜杠本身的转义解码交给 parseInlineMarkdown 统一处理,
+ *  避免与单元格内的 `\\` 双重折叠
+ */
+function splitTableRow(line: string): string[] {
+  const cells: string[] = []
+  let cur = ''
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '\\' && line[i + 1] === '|') {
+      cur += '|'
+      i++
+      continue
+    }
+    if (ch === '|') {
+      cells.push(cur)
+      cur = ''
+      continue
+    }
+    cur += ch
+  }
+  cells.push(cur)
+  return cells
+}
+
+/** Obsidian 嵌入图片语法 ![[src|width]] 是否安全可用(src/alt 不含 | 和 ]) */
+function canUseEmbedImageSyntax(src: string, alt: string): boolean {
+  return !src.includes('|') && !src.includes(']') && !alt.includes('|') && !alt.includes(']')
+}
+
 /* ============== 序列化:blocks → markdown ============== */
 
 /** 序列化单个 Block 为 Markdown 行(可能多行) */
@@ -59,7 +110,9 @@ function serializeBlock(block: Block): string {
     }
     case 'paragraph': {
       const { text = '', marks = [] } = block.content as ParagraphContent
-      return marksToSource(text, marks)
+      const source = toHardBreaks(marksToSource(text, marks))
+      // 空段落序列化为"两个空格的占位行",保证保存再打开后空段落不丢失
+      return source || '  '
     }
     case 'quote': {
       const q = block.content as QuoteContent
@@ -77,7 +130,7 @@ function serializeBlock(block: Block): string {
           .join('\n')
       }
       const { text = '', marks = [] } = q
-      const source = marksToSource(text, marks)
+      const source = toHardBreaks(marksToSource(text, marks))
       return source
         .split('\n')
         .map((line) => `> ${line}`)
@@ -91,7 +144,8 @@ function serializeBlock(block: Block): string {
     case 'table': {
       const { headers = [], rows = [], aligns = [] } = block.content as TableContent
       if (!headers.length) return ''
-      const headerLine = `| ${headers.map((c) => marksToSource(c.text, c.marks)).join(' | ')} |`
+      const cellMd = (c: TableCell) => escapeTableCell(marksToSource(c.text, c.marks))
+      const headerLine = `| ${headers.map((c) => cellMd(c)).join(' | ')} |`
       const dividerLine = `| ${headers
         .map((_, i) => {
           const a = aligns[i]
@@ -101,9 +155,7 @@ function serializeBlock(block: Block): string {
           return '---'
         })
         .join(' | ')} |`
-      const rowLines = rows.map(
-        (r) => `| ${r.map((c) => marksToSource(c.text, c.marks)).join(' | ')} |`,
-      )
+      const rowLines = rows.map((r) => `| ${r.map((c) => cellMd(c)).join(' | ')} |`)
       return [headerLine, dividerLine, ...rowLines].join('\n')
     }
     case 'list': {
@@ -113,7 +165,7 @@ function serializeBlock(block: Block): string {
       const start = props.start ?? 1
       return items
         .map((item, idx) => {
-          const body = marksToSource(item.text, item.marks)
+          const body = toHardBreaks(marksToSource(item.text, item.marks))
           let line: string
           let prefixLen: number
           if (listType === 'ordered') {
@@ -155,11 +207,11 @@ function serializeBlock(block: Block): string {
       const props = block.props as ImageProps
       const width = props.width
       // Obsidian 嵌入语法:![[]],扩展三段式 ![[src|width|alt]] 保留 alt
-      // 无 alt 时省略第三段,保持与旧版 ![[src|width]] 兼容
-      if (width && width > 0) {
+      // 仅当 src/alt 不含 | 和 ] 时使用(否则 ![[...]] 语法会被分隔符破坏);
+      // 不安全时退化为标准 ![alt](src)(反序列化两种语法都能还原)
+      if (width && width > 0 && canUseEmbedImageSyntax(src, alt)) {
         return alt ? `![[${src}|${width}|${alt}]]` : `![[${src}|${width}]]`
       }
-      // 无宽度:用标准 ![](src) 保留 alt,兼容性更好
       return `![${alt}](${src})`
     }
     default:
@@ -167,7 +219,10 @@ function serializeBlock(block: Block): string {
   }
 }
 
-/** blocks 数组 → Markdown 字符串 */
+/** blocks 数组 → Markdown 字符串
+ *  空段落已由 serializeBlock 输出占位行('  '),此处仍过滤非段落类型的空串
+ *  (空表格、空列表等无内容块不落盘)
+ */
 export function serializeMarkdown(blocks: Block[]): string {
   return blocks
     .map((block) => serializeBlock(block))
@@ -301,13 +356,12 @@ function isTableText(text: string): boolean {
   return lines.length >= 2 && lines.every((l) => /^\|.+\|$/.test(l.trim()))
 }
 
-/** 从文本中解析表格（复用原有逻辑） */
+/** 从文本中解析表格(复用原有逻辑,支持单元格内 \| 转义) */
 function parseTableFromText(text: string): Block | null {
   const lines = text.split('\n').filter((l) => l.trim() !== '')
   if (lines.length < 2) return null
   const dividerLine = lines[1]
-  const dividerCells = dividerLine
-    .split('|')
+  const dividerCells = splitTableRow(dividerLine)
     .slice(1, -1)
     .map((c) => c.trim())
   const isDivider = dividerCells.every((c) => /^:?-{3,}:?$/.test(c))
@@ -319,13 +373,11 @@ function parseTableFromText(text: string): Block | null {
     if (right) return 'right'
     return 'left'
   })
-  const headers = lines[0]
-    .split('|')
+  const headers = splitTableRow(lines[0])
     .slice(1, -1)
     .map((c) => parseInlineMarkdown(c.trim()))
   const rows = lines.slice(2).map((row) =>
-    row
-      .split('|')
+    splitTableRow(row)
       .slice(1, -1)
       .map((c) => parseInlineMarkdown(c.trim())),
   )
@@ -342,10 +394,26 @@ function parseObsidianImage(text: string): Block | null {
   return createImageBlock(src, alt, width ? { width } : {})
 }
 
-/** 将 mdast 节点数组转换为 unidoc blocks（核心递归函数） */
-function convertNodes(source: string, nodes: any[]): Block[] {
+/** 将 mdast 节点数组转换为 unidoc blocks（核心递归函数）
+ *  withGaps=true 时（仅顶层调用）在节点间隙中检测"空白占位行"——空段落的
+ *  序列化形式（'  '，仅含空白字符的非空行），还原为空段落块，保证空段落不丢失。
+ *  注意:间隙中只有纯空行（\n\n 段落间距）时不插入,避免文件无端膨胀。
+ */
+function convertNodes(source: string, nodes: any[], withGaps = false): Block[] {
   const result: Block[] = []
+  let prevEnd = 0
   for (const node of nodes) {
+    if (withGaps && node.position) {
+      const start = node.position.start.offset ?? prevEnd
+      if (start > prevEnd) {
+        const gap = source.slice(prevEnd, start)
+        // 间隙中含"非空空白行"（两空格占位行,空段落的文件指纹）→ 还原为空段落
+        if (/(^|\n)[ \t]+(?=\n|$)/.test(gap)) {
+          result.push(createParagraphBlock())
+        }
+      }
+      prevEnd = node.position.end?.offset ?? start
+    }
     const converted = convertNode(source, node)
     if (Array.isArray(converted)) {
       result.push(...converted)
@@ -386,7 +454,16 @@ function convertNode(source: string, node: any): Block | Block[] | null {
     }
 
     case 'blockquote': {
-      const innerBlocks = convertNodes(source, node.children || [])
+      // mdast 子节点 position（含 "> " 前缀,相对全文档）,直接切片会留下 "> " 前缀
+      // 导致多行引用错乱:先取整段原文、逐行剥掉前缀后重新解析（quote 较少,成本可忽略,
+      // 且嵌套引用 ">> " 也能被嵌套解析保留）
+      const rawQuote = sliceSource(source, node.position)
+      const innerMd = rawQuote
+        .split('\n')
+        .map((line) => line.replace(/^>\s?/, ''))
+        .join('\n')
+      const innerTree = fromMarkdown(innerMd)
+      const innerBlocks = convertNodes(innerMd, innerTree.children || [])
       if (innerBlocks.length === 0) return null
       // 如果只有一个 paragraph,沿用旧格式(text+marks),否则用 blocks
       if (innerBlocks.length === 1 && innerBlocks[0].type === 'paragraph') {
@@ -401,7 +478,8 @@ function convertNode(source: string, node: any): Block | Block[] | null {
     }
 
     case 'paragraph': {
-      const raw = sliceSource(source, node.position).trim()
+      // 先还原行尾两空格硬换行,再去除首尾空白(顺序不能反:fold 依赖行尾空格)
+      const raw = foldHardBreaks(sliceSource(source, node.position)).trim()
 
       // ---page--- 分页标记
       if (raw === PAGE_BREAK) {
@@ -424,8 +502,8 @@ function convertNode(source: string, node: any): Block | Block[] | null {
         if (table) return table
       }
 
-      // 普通段落：CommonMark 规定段落内换行合并为空格
-      const { text, marks } = parseInlineMarkdown(raw.replace(/\n/g, ' '))
+      // 普通段落:保留软换行(序列化时转为行尾两空格硬换行,往返一致)
+      const { text, marks } = parseInlineMarkdown(raw)
       const block = createParagraphBlock(text)
       block.content.marks = marks
       return block
@@ -490,23 +568,23 @@ function convertListItem(source: string, node: any, _parentListType: ListType): 
     if (child.type === 'paragraph') {
       // 列表项的第一个段落就是项文本
       if (text === '') {
-        const raw = sliceSource(source, child.position).trim()
+        const raw = foldHardBreaks(sliceSource(source, child.position)).trim()
         // mdast 默认不支持 GFM 任务列表，paragraph raw 会残留 [x]/[ ] 前缀
         const taskMatch = raw.match(/^\[([ xX])\]\s*(.*)/)
         if (taskMatch) {
-          const parsed = parseInlineMarkdown(taskMatch[2].replace(/\n/g, ' '))
+          const parsed = parseInlineMarkdown(taskMatch[2])
           text = parsed.text
           marks = parsed.marks
           checked = taskMatch[1].toLowerCase() === 'x'
         } else {
-          const parsed = parseInlineMarkdown(raw.replace(/\n/g, ' '))
+          const parsed = parseInlineMarkdown(raw)
           text = parsed.text
           marks = parsed.marks
         }
       } else {
         // 后续段落作为嵌套块
         const { text: t, marks: m } = parseInlineMarkdown(
-          sliceSource(source, child.position).trim().replace(/\n/g, ' '),
+          foldHardBreaks(sliceSource(source, child.position)).trim(),
         )
         const p = createParagraphBlock(t)
         p.content.marks = m
@@ -541,9 +619,21 @@ function convertListItem(source: string, node: any, _parentListType: ListType): 
 
 /** 预处理中文标点有序列表:将 "1、A" "1）A" 转为 "1. A"
  *  CommonMark 只认 "." 和 ")" 作为有序列表标记,中文顿号/全角右括号不被识别
+ *  注意:必须跳过围栏代码块(``` / ~~~)内的内容,否则代码会被误改写
  */
 function preprocessChineseList(md: string): string {
-  return md.replace(/^(\d+)[、）]\s*/gm, '$1. ')
+  const lines = md.split('\n')
+  let inFence = false
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim()
+    if (/^(`{3,}|~{3,})/.test(trimmed)) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) continue
+    lines[i] = lines[i].replace(/^(\d+)[、）]\s*/, '$1. ')
+  }
+  return lines.join('\n')
 }
 
 /** 反序列化 Markdown 字符串为 blocks 数组
@@ -559,6 +649,6 @@ export function deserializeMarkdown(markdown: string): Block[] {
   // mdast 解析（position 默认开启,便于从源文本切取行内原始 markdown）
   const tree = fromMarkdown(preprocessed)
 
-  // 递归转换
-  return convertNodes(preprocessed, tree.children as any[])
+  // 递归转换(withGaps=true:顶层才还原空段落块)
+  return convertNodes(preprocessed, tree.children as any[], true)
 }

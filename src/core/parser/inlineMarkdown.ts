@@ -249,15 +249,18 @@ function decodeHtmlEntities(value: string): string {
     .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
 }
 
-/** 安全的 URL 协议白名单检查 */
-function isSafeUrl(url: string): boolean {
+/** 安全的 URL 协议白名单检查
+ *  用于链接 mark、图片 mark 及 HTML 属性的 href/src 校验。
+ *  注意:file: 协议不开放在白名单内(可被用于读取本地文件,主流编辑器默认屏蔽)。
+ */
+export function isSafeUrl(url: string): boolean {
   const decoded = decodeHtmlEntities(url).trim().toLowerCase()
   // 相对路径(以 / ./ ../ 开头)或无协议的纯路径:安全
   if (/^(\.\/|\.\.\/|\/|#|[a-zA-Z0-9_\-])/.test(decoded) && !decoded.includes(':')) {
     return true
   }
   // 显式的协议白名单
-  if (/^(https?|ftp|mailto|tel|file):/i.test(decoded)) {
+  if (/^(https?|ftp|mailto|tel):/i.test(decoded)) {
     return true
   }
   return false
@@ -427,9 +430,9 @@ export function parseInlineMarkdown(text: string, depth = 0): { text: string; ma
       }
     }
 
-    // 图片: ![alt](url)
+    // 图片: ![alt](url) (url 必须通过安全校验,否则按纯文本处理)
     const imgMatch = text.slice(i).match(/^!\[([^\]]*)\]\(([^)]+)\)/)
-    if (imgMatch) {
+    if (imgMatch && isSafeUrl(imgMatch[2])) {
       const alt = imgMatch[1]
       const url = imgMatch[2]
       const start = plain.length
@@ -466,10 +469,10 @@ export function parseInlineMarkdown(text: string, depth = 0): { text: string; ma
       }
     }
 
-    // 链接: [text](url)
+    // 链接: [text](url) (url 必须通过安全校验,否则按纯文本处理)
     if (!matched) {
       const linkMatch = text.slice(i).match(/^\[([^\]]+)\]\(([^)]+)\)/)
-      if (linkMatch) {
+      if (linkMatch && isSafeUrl(linkMatch[2])) {
         const label = linkMatch[1]
         const url = linkMatch[2]
         const start = plain.length
