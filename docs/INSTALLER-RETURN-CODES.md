@@ -44,19 +44,19 @@ For the complete list of Windows Installer error codes, see the official Microso
 
 ## NSIS 安装程序 / NSIS Installer
 
-UniDoc 同时提供基于 NSIS 的安装包。NSIS 安装程序返回码如下：
+UniDoc 同时提供基于 NSIS 的安装包。NSIS 安装程序遵循 NSIS 约定（`SetErrorLevel` / `Abort`），返回码如下：
 
-UniDoc also provides an NSIS-based installer. Its return codes are as follows:
+UniDoc also provides an NSIS-based installer. It follows the NSIS conventions (`SetErrorLevel` / `Abort`). Its return codes are as follows:
 
 | 返回码 / Return Code | 含义 / Meaning |
 | :--- | :--- |
 | 0 | 安装成功 / Installation succeeded |
-| 1 | 用户取消安装或安装过程中发生错误 / Installation was cancelled by the user or an error occurred during installation |
-| 2 | 安装程序运行出错（如权限不足、文件被占用等） / Installer error (e.g., insufficient permissions, file in use) |
+| 1 | 安装过程中发生错误（如权限不足、文件被占用等） / An error occurred during installation (e.g., insufficient permissions, file in use) |
+| 2 | 用户取消安装或安装被中止 / Installation was cancelled by the user or aborted |
 
-> 说明 / Note: NSIS 安装程序仅在发生错误或用户主动取消时返回非 0 值。任何非 0 返回码均表示安装未成功完成，建议重新运行安装程序或检查系统权限。
+> 说明 / Note: NSIS 安装程序仅在发生错误或用户主动取消时返回非 0 值。任何非 0 返回码均表示安装未成功完成，建议重新运行安装程序或检查系统权限。NSIS 未定义独立的"需要重启"返回码，需要重启时安装程序在完成相关处理后正常返回 0。
 >
-> NSIS installers only return a non-zero value on error or when the user actively cancels. Any non-zero return code means the installation did not complete successfully; we recommend re-running the installer or checking system permissions.
+> NSIS installers only return a non-zero value on error or when the user actively cancels. Any non-zero return code means the installation did not complete successfully; we recommend re-running the installer or checking system permissions. NSIS does not define a separate "reboot required" return code; when a reboot is required the installer performs the necessary handling and returns 0 on normal completion.
 
 ## 联系我们 / Contact Us
 
