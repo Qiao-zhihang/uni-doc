@@ -189,6 +189,7 @@ async function streamChatWithContinue(
   // 用临时消息数组保存状态，避免修改原 messages
   const tempMessages = [...messages]
   let fullContent = ''
+  let finalReasoning = ''
   let finalToolCalls: ToolCall[] = []
   let finalFinishReason = ''
 
@@ -196,6 +197,7 @@ async function streamChatWithContinue(
     if (signal?.aborted) break
     const result = await streamChat(tempMessages, tools, config, onDelta, signal)
     fullContent += result.content
+    finalReasoning = result.reasoning
     finalToolCalls = result.toolCalls
     finalFinishReason = result.finishReason
 
@@ -206,11 +208,20 @@ async function streamChatWithContinue(
     if (result.toolCalls.length > 0) break
 
     // 续推：把当前生成的内容作为 assistant 消息，再请求一次
-    tempMessages.push({ role: 'assistant', content: result.content })
+    tempMessages.push({
+      role: 'assistant',
+      content: result.content,
+      reasoning_content: result.reasoning || '',
+    })
     tempMessages.push({ role: 'user', content: '请继续' })
   }
 
-  return { content: fullContent, toolCalls: finalToolCalls, finishReason: finalFinishReason }
+  return {
+    content: fullContent,
+    reasoning: finalReasoning,
+    toolCalls: finalToolCalls,
+    finishReason: finalFinishReason,
+  }
 }
 
 /**
@@ -417,12 +428,14 @@ export function createAgent(deps: AgentDeps): Agent {
           // c. 用最终结果更新两个数组中的 assistant 消息
           const lastCtxMsg = contextMessages[contextMessages.length - 1]
           lastCtxMsg.content = streamResult.content
+          lastCtxMsg.reasoning_content = streamResult.reasoning || ''
           lastCtxMsg.tool_calls = streamResult.toolCalls?.length
             ? streamResult.toolCalls
             : undefined
 
           const lastMsg = messages[messages.length - 1]
           lastMsg.content = streamResult.content
+          lastMsg.reasoning_content = streamResult.reasoning || ''
           lastMsg.tool_calls = streamResult.toolCalls?.length ? streamResult.toolCalls : undefined
 
           // d. 无工具调用则结束循环
@@ -501,6 +514,7 @@ export function createAgent(deps: AgentDeps): Agent {
               messages.push({
                 role: 'assistant',
                 content: finalResult.content,
+                reasoning_content: finalResult.reasoning || '',
               })
             } catch (e) {
               if ((e as Error).name === 'AbortError') {

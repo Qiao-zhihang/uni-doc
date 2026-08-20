@@ -27,6 +27,12 @@ export interface ChatMessage {
   content: string | MessageContent[]
   tool_calls?: ToolCall[]
   tool_call_id?: string
+  /**
+   * DeepSeek thinking 模式的思考内容(chain-of-thought)。
+   * 官方要求:带 tools 参数的请求中,后续请求必须把每条历史 assistant 消息的
+   * reasoning_content 原样回传,缺失会返回 400 invalid_request_error。
+   */
+  reasoning_content?: string
 }
 
 export interface ToolParameterSchema {

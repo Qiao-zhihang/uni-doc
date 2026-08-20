@@ -14,6 +14,8 @@ interface ToolSpec {
 /** 流式响应中的 delta 片段 */
 interface StreamDelta {
   content?: string
+  /** DeepSeek thinking 模式的思考增量(必须累积并回传给 API) */
+  reasoning_content?: string
   tool_calls?: Array<{
     index: number
     id?: string
@@ -25,6 +27,8 @@ interface StreamDelta {
 /** 流式聊天完整结果 */
 export interface StreamResult {
   content: string
+  /** DeepSeek thinking 模式思考内容(与 content 同级,需在后续请求中回传) */
+  reasoning: string
   toolCalls: ToolCall[]
   finishReason: string
 }
@@ -32,6 +36,7 @@ export interface StreamResult {
 /** SSE 单行 data 解析结果的可变状态 */
 interface ParseState {
   content: string
+  reasoning: string
   toolCalls: ToolCall[]
   finishReason: string
 }
@@ -54,6 +59,11 @@ function parseSseData(data: string, state: ParseState, onDelta?: (text: string) 
     if (delta.content) {
       state.content += delta.content
       onDelta?.(delta.content)
+    }
+
+    // DeepSeek thinking 模式:reasoning_content 与 content 同级流式返回
+    if (delta.reasoning_content) {
+      state.reasoning += delta.reasoning_content
     }
 
     if (delta.tool_calls) {
@@ -86,12 +96,17 @@ function buildBody(
 ): Record<string, unknown> {
   const body: Record<string, unknown> = {
     model: config.model,
-    messages,
+    messages: normalizeMessages(messages, config),
     temperature: config.temperature,
     max_tokens: config.maxTokens,
   }
   if (stream) body.stream = true
   if (tools.length > 0) body.tools = tools
+
+  // DeepSeek thinking 模型(reasoner/r1/thinking 系)不支持 temperature,剔除避免 400
+  if (config.provider === 'deepseek' && /reasoner|thinking|r1/i.test(config.model)) {
+    delete body.temperature
+  }
 
   // 原生联网搜索参数（优先于 function calling 工具方式）
   if (config.nativeSearch) {
@@ -104,6 +119,20 @@ function buildBody(
   }
 
   return body
+}
+
+/**
+ * 归一化发送给 API 的 messages：
+ * - 历史 assistant 消息若携带 reasoning_content,原样回传
+ * - DeepSeek 要求带 tools 的请求中每条历史 assistant 消息都必须有 reasoning_content
+ *   （缺失即 400 invalid_request_error）;旧会话数据缺失时补空串兜底
+ * - 其他 provider 仅透传,不注入额外字段
+ */
+function normalizeMessages(messages: ChatMessage[], config: ModelConfig): ChatMessage[] {
+  if (config.provider !== 'deepseek') return messages
+  return messages.map((m) =>
+    m.role === 'assistant' ? { ...m, reasoning_content: m.reasoning_content ?? '' } : m,
+  )
 }
 
 /**
@@ -122,7 +151,12 @@ export async function streamChat(
 
   if (!useStream) {
     const result = await chat(messages, tools, config, signal)
-    return { content: result.content, toolCalls: result.toolCalls, finishReason: 'stop' }
+    return {
+      content: result.content,
+      reasoning: result.reasoning,
+      toolCalls: result.toolCalls,
+      finishReason: 'stop',
+    }
   }
 
   let response: Response
@@ -158,6 +192,7 @@ export async function streamChat(
       choices?: Array<{
         message?: {
           content?: string
+          reasoning_content?: string
           tool_calls?: Array<{
             id: string
             type: 'function'
@@ -176,13 +211,18 @@ export async function streamChat(
     }))
     const content = message?.content ?? ''
     if (content && onDelta) onDelta(content)
-    return { content, toolCalls, finishReason }
+    return {
+      content,
+      reasoning: message?.reasoning_content ?? '',
+      toolCalls,
+      finishReason,
+    }
   }
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder('utf-8')
   let buffer = ''
-  const state: ParseState = { content: '', toolCalls: [], finishReason: '' }
+  const state: ParseState = { content: '', reasoning: '', toolCalls: [], finishReason: '' }
 
   while (true) {
     const { done, value } = await reader.read()
@@ -201,6 +241,7 @@ export async function streamChat(
         if (parseSseData(clean.slice(6), state, onDelta)) {
           return {
             content: state.content,
+            reasoning: state.reasoning,
             toolCalls: state.toolCalls,
             finishReason: state.finishReason,
           }
@@ -218,7 +259,12 @@ export async function streamChat(
     }
   }
 
-  return { content: state.content, toolCalls: state.toolCalls, finishReason: state.finishReason }
+  return {
+    content: state.content,
+    reasoning: state.reasoning,
+    toolCalls: state.toolCalls,
+    finishReason: state.finishReason,
+  }
 }
 
 /**
@@ -230,7 +276,7 @@ export async function chat(
   tools: ToolSpec[],
   config: ModelConfig,
   signal?: AbortSignal,
-): Promise<{ content: string; toolCalls: ToolCall[] }> {
+): Promise<{ content: string; reasoning: string; toolCalls: ToolCall[] }> {
   let response: Response
   try {
     response = await fetch(`${config.apiUrl}/chat/completions`, {
@@ -258,6 +304,7 @@ export async function chat(
     choices?: Array<{
       message?: {
         content?: string
+        reasoning_content?: string
         tool_calls?: Array<{
           id: string
           type: 'function'
@@ -273,7 +320,11 @@ export async function chat(
     function: { name: tc.function.name, arguments: tc.function.arguments },
   }))
 
-  return { content: message?.content ?? '', toolCalls }
+  return {
+    content: message?.content ?? '',
+    reasoning: message?.reasoning_content ?? '',
+    toolCalls,
+  }
 }
 
 /** 公开测试图片 URL（1x1 透明 GIF，体积小加载快），用于 vision 探针 */
