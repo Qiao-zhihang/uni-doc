@@ -34,14 +34,6 @@ export const useEditorStore = defineStore('editor', () => {
   const aiFloatingState = ref<AiFloatingState>('closed')
   const aiLayoutMode = ref<AiLayoutMode>('floating')
 
-  // ===== 兼容旧字段(标记为弃用,逐步迁移) =====
-  /** @deprecated 改用 fileExplorerOpen */
-  const sidebarOpen = ref(true)
-  /** @deprecated 右侧属性栏已移除,本字段不再使用 */
-  const panelOpen = ref(false)
-  /** @deprecated 改用 aiFloatingState */
-  const aiBarOpen = ref(false)
-
   function selectBlock(id: string | null) {
     selectedBlockId.value = id
   }
@@ -107,19 +99,6 @@ export const useEditorStore = defineStore('editor', () => {
     aiLayoutMode.value = aiLayoutMode.value === 'floating' ? 'split' : 'floating'
   }
 
-  /** @deprecated */
-  function toggleAiBar() {
-    toggleAiFloating()
-  }
-  /** @deprecated */
-  function togglePanel() {
-    panelOpen.value = !panelOpen.value
-  }
-  /** @deprecated */
-  function toggleSidebar() {
-    toggleFileExplorer()
-  }
-
   function setCurrentPage(page: number) {
     currentPage.value = page
   }
@@ -135,10 +114,6 @@ export const useEditorStore = defineStore('editor', () => {
     outlineTab,
     aiFloatingState,
     aiLayoutMode,
-    // deprecated
-    sidebarOpen,
-    panelOpen,
-    aiBarOpen,
     // actions
     selectBlock,
     toggleMode,
@@ -156,9 +131,5 @@ export const useEditorStore = defineStore('editor', () => {
     setAiLayoutMode,
     toggleAiLayoutMode,
     setCurrentPage,
-    // deprecated
-    toggleAiBar,
-    togglePanel,
-    toggleSidebar,
   }
 })

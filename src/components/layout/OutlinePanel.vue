@@ -148,7 +148,7 @@ const tabs = [
   { key: 'info' as const, label: '信息', icon: Info },
 ]
 
-// 标签 mock(M1 占位)
+// 标签列表(功能待实现)
 const tags = ref<string[]>([])
 
 // 文档信息

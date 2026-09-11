@@ -103,6 +103,19 @@ function buildBody(
   if (stream) body.stream = true
   if (tools.length > 0) body.tools = tools
 
+  // 临时调试日志：排查图片发送问题，确认后删除
+  // 显示每条消息的 content 结构，一眼看出 image_url 是否进入请求体
+  const msgSummary = (body.messages as ChatMessage[])
+    .map((m) =>
+      Array.isArray(m.content)
+        ? `${m.role}[${m.content.map((p) => p.type).join('+')}]`
+        : m.role,
+    )
+    .join(', ')
+  console.log(
+    `[buildBody] model=${config.model} url=${config.apiUrl} stream=${!!body.stream} tools=${tools.length} messages=${msgSummary}`,
+  )
+
   // DeepSeek thinking 模型(reasoner/r1/thinking 系)不支持 temperature,剔除避免 400
   if (config.provider === 'deepseek' && /reasoner|thinking|r1/i.test(config.model)) {
     delete body.temperature
@@ -327,8 +340,12 @@ export async function chat(
   }
 }
 
-/** 公开测试图片 URL（1x1 透明 GIF，体积小加载快），用于 vision 探针 */
-const PROBE_IMAGE_URL = 'https://www.baidu.com/img/PCtm_d9c8750bed0b3c7d089fa7d55720d6cf.png'
+/**
+ * 探针图片：1x1 蓝色 PNG，data URL 格式
+ * 必须和用户实战发图格式（data:image/...;base64,...）一致，保证探针结果可靠
+ */
+const PROBE_IMAGE_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPj/HwAEAQH/F6nNvQAAAABJRU5ErkJggg=='
 
 /** 探针用的 dummy tool，检测 function calling 支持 */
 const PROBE_TOOL: ToolSpec = {
@@ -356,7 +373,7 @@ export async function probeCapabilities(config: ModelConfig): Promise<{
   webSearchError?: string
   nativeSearchError?: string
 }> {
-  // ===== Vision 探针：发送带图片的消息 =====
+  // ===== Vision 探针：发送与实战格式一致的 data URL 图片 =====
   let vision = false
   let visionError: string | undefined
   try {
@@ -366,7 +383,7 @@ export async function probeCapabilities(config: ModelConfig): Promise<{
           role: 'user',
           content: [
             { type: 'text', text: '这张图里有什么？用一个词回答' },
-            { type: 'image_url', image_url: { url: PROBE_IMAGE_URL, detail: 'low' } },
+            { type: 'image_url', image_url: { url: PROBE_IMAGE_DATA_URL, detail: 'low' } },
           ],
         },
       ],
