@@ -7,7 +7,7 @@ import { deserializeMarkdown } from '@/core/serializer/markdown'
 import { parseInlineMarkdown } from '@/core/parser/inlineMarkdown'
 import { detectBlockSyntax } from '@/core/parser/blockSyntax'
 import { uuid } from '@/core/blocks/factory'
-import type { Block, Mark } from '@/core/blocks/types'
+import type { Block, BlockType, Mark } from '@/core/blocks/types'
 import BlockRenderer from './BlockRenderer.vue'
 import { interceptExternalLink, openExternalUrl } from '@/core/serializer/markdownFile'
 import { marksToSource } from '@/components/blocks/marks'
@@ -21,6 +21,9 @@ const sourceText = ref('')
 const isSourceInputting = ref(false)
 /** 源码模式提交防抖定时器 */
 let sourceCommitTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 行首 Backspace 合并两个文本块时插入的分隔符 */
+const BLOCK_MERGE_SEPARATOR = ' '
 
 const selectedId = computed(() => editor.selectedBlockId)
 
@@ -46,7 +49,36 @@ async function onEnter(id: string, afterText: string = '') {
     return
   }
 
-  // 检测块级 Markdown 语法（# 标题、- 列表、> 引用、``` 代码块、| 表格 等）
+  /**
+   * 语法转换后统一收尾：在当前块之后新建一个段落并把光标放到段落开头。
+   * afterText(Enter 时位于光标之后的原文)会写入新段落，避免拆分时丢字。
+   * 转换与新建放在同一个 batch 里，只产生一条历史记录。
+   */
+  async function continueAfterConversion(patch: {
+    type: BlockType
+    content: Record<string, unknown>
+    props?: Record<string, unknown>
+  }) {
+    const newId = doc.batch(() => {
+      doc.updateBlock(id, patch, '转换区块类型')
+      const nid = doc.insertBlockAfter(id, 'paragraph', '新建区块')
+      if (afterText) {
+        const parsed = parseInlineMarkdown(afterText)
+        doc.updateBlock(
+          nid,
+          { content: { text: parsed.text, marks: parsed.marks } },
+          '设置分割文本',
+        )
+      }
+      return nid
+    }, '转换区块类型')
+    editor.selectBlock(newId)
+    await nextTick()
+    await nextTick()
+    focusBlockAt(newId, 'start')
+  }
+
+  // 检测块级 Markdown 语法（# 标题、- 列表、> 引用、``` 代码块 等）
   const rawText = (block.content.text as string) || ''
   const syntaxMatch = detectBlockSyntax(rawText)
 
@@ -56,13 +88,14 @@ async function onEnter(id: string, afterText: string = '') {
         id,
         {
           type: 'code_block',
-          content: { code: '' },
+          content: { code: rawText },
           props: syntaxMatch.props ?? {},
         },
         '转换为代码块',
       )
       return
     }
+    // 表格分支目前不可达:blockSyntax.detectBlockSyntax 已显式禁用表格检测
     if (syntaxMatch.type === 'table' && syntaxMatch.extra?.headers) {
       const headers = (syntaxMatch.extra.headers as string[]).map((h) => {
         const parsed = parseInlineMarkdown(h)
@@ -82,18 +115,13 @@ async function onEnter(id: string, afterText: string = '') {
     if (syntaxMatch.type === 'list') {
       const parsed = parseInlineMarkdown(syntaxMatch.strippedText)
       const checked = syntaxMatch.extra?.checked as boolean | undefined
-      doc.updateBlock(
-        id,
-        {
-          type: 'list',
-          content: {
-            items: [{ id: uuid(), text: parsed.text, marks: parsed.marks, checked }],
-          },
-          props: syntaxMatch.props ?? { listType: 'bullet' },
+      await continueAfterConversion({
+        type: 'list',
+        content: {
+          items: [{ id: uuid(), text: parsed.text, marks: parsed.marks, checked }],
         },
-        '转换为列表',
-      )
-      editor.selectBlock(id)
+        props: syntaxMatch.props ?? { listType: 'bullet' },
+      })
       return
     }
     if (syntaxMatch.type === 'divider') {
@@ -114,21 +142,13 @@ async function onEnter(id: string, afterText: string = '') {
       focusBlockAt(nextId, 'start')
       return
     }
-    // 标题/引用：解析行内语法
+    // 标题/引用：解析行内语法，转换后在其后新建段落继续书写
     const parsed = parseInlineMarkdown(syntaxMatch.strippedText)
-    doc.updateBlock(
-      id,
-      {
-        type: syntaxMatch.type,
-        content: { text: parsed.text, marks: parsed.marks },
-        props: syntaxMatch.props ?? {},
-      },
-      '转换区块类型',
-    )
-    editor.selectBlock(id)
-    await nextTick()
-    await nextTick()
-    focusBlockAt(id, 'start')
+    await continueAfterConversion({
+      type: syntaxMatch.type,
+      content: { text: parsed.text, marks: parsed.marks },
+      props: syntaxMatch.props ?? {},
+    })
     return
   }
 
@@ -163,21 +183,26 @@ function findEditableBlockIndexForward(fromIdx: number): number {
   return -1
 }
 
-/** 计算合并点在 DOM 源码文本中的偏移量(含语法标记和标题/引用前缀) */
-function getDomMergePoint(block: Block): number {
-  const text = (block.content.text as string) || ''
-  const marks: Mark[] = (block.content.marks as Mark[]) || []
-  const source = marksToSource(text, marks)
-  const sourceLen = source.length
-  if (block.type === 'heading') {
-    const level = (block.props as { level?: number }).level ?? 1
-    return level + 1 + sourceLen
+/**
+ * 计算合并后 prev 块中「两段文字交界处」的 DOM 偏移量。
+ *
+ * 不能用 getDomMergePoint(prev) —— 它基于 prev **单独渲染**时的文本长度，
+ * 而合并后的 prev 文本多了一个分隔符，引用块的 DOM 前缀还要按合并后的行数重算。
+ */
+function getMergedBoundaryOffset(prev: Block, prevSourceLen: number, prevText: string): number {
+  const sepLen = BLOCK_MERGE_SEPARATOR.length
+  if (prev.type === 'heading') {
+    const level = (prev.props as { level?: number }).level ?? 1
+    // DOM = '#'.repeat(level) + ' ' + source
+    return level + 1 + prevSourceLen + sepLen
   }
-  if (block.type === 'quote') {
-    const lineCount = source.split('\n').length
-    return sourceLen + lineCount * 2
+  if (prev.type === 'quote') {
+    // QuoteBlock.renderSource 对合并后的每一行都前置 '> ',
+    // 因此前缀个数必须按**合并后**的行数算(prevText 本身可能已含换行)
+    const mergedLineCount = (prevText + BLOCK_MERGE_SEPARATOR).split('\n').length
+    return prevSourceLen + sepLen + mergedLineCount * 2
   }
-  return sourceLen
+  return prevSourceLen + sepLen
 }
 
 /** 行首 Backspace：合并到上一行（或删除空行） */
@@ -215,16 +240,29 @@ async function onBackspaceMerge(id: string) {
     currentMarks = (current.content.marks as Mark[]) || []
   }
 
-  // 将当前行 marks 偏移到上一行纯文本末尾(marks 基于纯文本坐标)
-  const mergePoint = prevText.length
+  // 行首 Backspace 合并两段时应插入分隔符,否则 abc + def 会粘成 abcdef
+  const sep = BLOCK_MERGE_SEPARATOR
+
+  // 将当前行 marks 偏移到合并后的位置(marks 基于纯文本坐标)
+  const mergePoint = prevText.length + sep.length
   const offsetMarks: Mark[] = currentMarks.map((m) => ({
     ...m,
     start: m.start + mergePoint,
     end: m.end + mergePoint,
   }))
 
-  // 合并点在 DOM 源码文本中的偏移量(updateBlock 之前计算,避免 prev 被替换)
-  const domMergePoint = getDomMergePoint(prev)
+  // prev 的 marks 原本止于 prevText.length,插入分隔符后会被拉长,
+  // 导致格式"越过"交界处包住后一段文字(如 abc 加粗则 def 也变粗)。
+  // 这里把 prev 的 marks 截断到 prevText.length,再与偏移后的 current marks 拼接。
+  const clampedPrevMarks: Mark[] = prevMarks.map((m) => ({
+    ...m,
+    start: Math.min(m.start, prevText.length),
+    end: Math.min(m.end, prevText.length),
+  }))
+
+  // 交界处在 DOM 源码文本中的偏移量(updateBlock 之前计算,避免 prev 被替换)
+  const prevSourceLen = marksToSource(prevText, prevMarks).length
+  const domMergePoint = getMergedBoundaryOffset(prev, prevSourceLen, prevText)
 
   // 合并文本 + marks, 删除当前行(批处理,只产生一条历史记录)
   doc.batch(() => {
@@ -232,8 +270,8 @@ async function onBackspaceMerge(id: string) {
       prev.id,
       {
         content: {
-          text: prevText + currentText,
-          marks: [...prevMarks, ...offsetMarks],
+          text: prevText + sep + currentText,
+          marks: [...clampedPrevMarks, ...offsetMarks],
         },
       },
       '合并区块',
@@ -448,7 +486,29 @@ function flushPendingEdit() {
   }
 }
 
+/**
+ * 判断按键事件是否真的来自编辑器画布。
+ *
+ * 本处理器挂在 window 上(见 onMounted),否则它会对**整个应用**生效:
+ * 在 AI 面板输入框里打字时,只要编辑器还留着 selectedBlockId,
+ * 按 Backspace 就会删掉文档里的块、按 Ctrl+Z 会撤销文档而不是撤销输入框。
+ * 因此凡是可能改动文档的分支,都必须先确认事件源在画布内。
+ */
+function isEventFromEditor(e: KeyboardEvent): boolean {
+  const canvas = canvasRef.value
+  const inCanvas = (n: Node | null | undefined): boolean =>
+    !!canvas && !!n && (canvas === n || canvas.contains(n))
+  // 正常情况:事件源就是正在编辑的 contenteditable
+  if (inCanvas(e.target as Node | null)) return true
+  // 兜底:个别情况(如 IME 组合、事件源被解析为 body)下 e.target 不可靠,
+  // 改看当前焦点元素是否落在画布内
+  return inCanvas(document.activeElement)
+}
+
 function onKeydown(e: KeyboardEvent) {
+  // 焦点不在编辑器内 → 完全不干预,把按键交还给当前控件(AI 输入框、设置页输入框等)
+  if (!isEventFromEditor(e)) return
+
   const ctrl = e.ctrlKey || e.metaKey
   if (ctrl) {
     // 源码模式下:Ctrl+Z/Y 交给 textarea 处理(字符级撤销),Ctrl+S 保存前先 flush 未提交修改
@@ -512,13 +572,36 @@ function flushSourceCommit() {
   }
 }
 
+/**
+ * 焦点落到编辑器之外的"非按钮"控件时清空选中块。
+ *
+ * 选中态原本只由"点画布空白"和"切到源码模式"两处清除,导致点了 AI 面板输入框后
+ * selectedBlockId 仍然悬空。按钮类元素排除在外,以便工具栏的"转换为…/插入…"
+ * 仍能作用于当前选中块。
+ */
+function onDocumentFocusIn(e: FocusEvent) {
+  const target = e.target as HTMLElement | null
+  if (!target) return
+  // 焦点仍在编辑器内 → 保留选中
+  if (target === canvasRef.value || canvasRef.value?.contains(target)) return
+  // 按钮/链接等"动作型"控件保留选中,让工具栏能作用于当前块
+  const tag = target.tagName
+  if (tag === 'BUTTON' || tag === 'A' || tag === 'SELECT') return
+  if (target.closest('button, a, [role="button"]')) return
+  // AI 面板自身的控件(重命名输入框等)也算编辑目标,清掉选中更安全
+  editor.selectBlock(null)
+}
+
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('beforeunload', flushSourceCommit)
+  // 捕获阶段监听,确保在控件自身的 focus 处理之前完成选中态清理
+  document.addEventListener('focusin', onDocumentFocusIn, true)
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('beforeunload', flushSourceCommit)
+  document.removeEventListener('focusin', onDocumentFocusIn, true)
   flushSourceCommit()
 })
 

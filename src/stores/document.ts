@@ -11,7 +11,14 @@
 
 import { defineStore } from 'pinia'
 import { computed, markRaw, nextTick, ref } from 'vue'
-import type { Block, BlockType, DocumentMeta, ListType, OutlineEntry } from '@/core/blocks/types'
+import type {
+  Block,
+  BlockType,
+  DocumentMeta,
+  ListType,
+  Mark,
+  OutlineEntry,
+} from '@/core/blocks/types'
 import { createBlock, createHeadingBlock, uuid } from '@/core/blocks/factory'
 import { UndoRedo } from '@/core/history/UndoRedo'
 import {
@@ -35,6 +42,7 @@ import {
   findFileByName,
   type VaultNode,
 } from '@/core/vault/vault'
+import { useEditorStore } from '@/stores/editor'
 
 /** 单个文档 tab 实例 */
 interface TabInstance {
@@ -97,6 +105,9 @@ function createBlankTab(title = '未命名文档'): TabInstance {
 }
 
 export const useDocumentStore = defineStore('document', () => {
+  // 注意:editor store 不反向依赖本 store,无循环依赖风险
+  const editor = useEditorStore()
+
   // ===== state =====
   const openTabs = ref<TabInstance[]>([])
   const activeTabId = ref<string>('')
@@ -280,9 +291,80 @@ export const useDocumentStore = defineStore('document', () => {
     }
   }
 
+  /**
+   * 整份替换 blocks 时复用旧 block 的 id。
+   *
+   * 源码模式提交走的是「导出现有 blocks → 反序列化回 blocks」这条路,
+   * 而反序列化对每个块都生成**全新 uuid**。若直接赋值,BlockEditor 里
+   * v-for :key="block.id" 会全部失配 → 整篇文档的块组件被卸载重建,
+   * 表现为选中块丢失、滚动位置重置。
+   *
+   * 这里按「同位置 + 同类型 + 同内容」判定为同一个块并沿用其 id;
+   * 内容真正变化的块仍分配新 id(语义上确实是新块)。
+   */
+  function reconcileBlockIds(oldBlocks: Block[], newBlocks: Block[]): Block[] {
+    /**
+     * 计算可用于比对的纯内容指纹(忽略 id / 时间戳)。
+     * 列表项的 item.id 也是每次反序列化新生成的,必须一并剔除,
+     * 否则列表块的指纹恒不相等,id 永远无法复用。
+     */
+    const fingerprint = (b: Block): string => {
+      const content = { ...(b.content as Record<string, unknown>) }
+      if (Array.isArray(content.items)) {
+        content.items = (content.items as Array<Record<string, unknown>>).map((it) => {
+          const rest: Record<string, unknown> = {}
+          for (const [k, v] of Object.entries(it)) {
+            if (k !== 'id') rest[k] = v
+          }
+          return rest
+        })
+      }
+      return JSON.stringify({ t: b.type, c: content, p: b.props })
+    }
+
+    /** key = 类型 + 内容指纹 → 旧块 id 队列(同内容多块时按出现顺序配对) */
+    const pool = new Map<string, string[]>()
+    for (const b of oldBlocks) {
+      const k = fingerprint(b)
+      const list = pool.get(k)
+      if (list) list.push(b.id)
+      else pool.set(k, [b.id])
+    }
+
+    const used = new Set<string>()
+    return newBlocks.map((b) => {
+      const list = pool.get(fingerprint(b))
+      const reused = list?.shift()
+      if (reused && !used.has(reused)) {
+        used.add(reused)
+        // 保留原有创建时间,便于文档回放/审计的连续性
+        const old = oldBlocks.find((o) => o.id === reused)
+        return old ? { ...b, id: reused, created_at: old.created_at } : { ...b, id: reused }
+      }
+      return b
+    })
+  }
+
   function replaceBlocks(newBlocks: Block[], label: string) {
+    const tab = getActive()
+    if (!tab) return
+    const selBefore = editor.selectedBlockId
+    // commit 必须在替换前调用,快照才是替换前的状态
     commit(label)
-    blocks.value = newBlocks
+    const oldBlocks = tab.blocks
+    const reconciled = reconcileBlockIds(oldBlocks, newBlocks)
+    tab.blocks = reconciled
+    // 选中的块若因内容变化换了 id,按位置把选中态迁移到对应新块,而不是直接清空
+    if (selBefore) {
+      if (reconciled.some((b) => b.id === selBefore)) {
+        // id 被复用,选中态自动保持,无需处理
+      } else {
+        const oldIdx = oldBlocks.findIndex((b) => b.id === selBefore)
+        const next = oldIdx >= 0 ? reconciled[oldIdx] : undefined
+        editor.selectBlock(next ? next.id : null)
+      }
+    }
+    tab.renderTick++
   }
 
   // ===== actions:作用于 active tab =====
@@ -378,14 +460,21 @@ export const useDocumentStore = defineStore('document', () => {
     commit(label)
     const old = blocks.value[idx]
     const newBlock = createBlock(type)
+    // 文本类块之间互转时保留行内格式(marks)与对齐方式,避免"转成标题后加粗消失/居中丢失"
     if (old.type === 'paragraph' || old.type === 'heading') {
-      const text = (old.content as { text: string }).text
+      const oldContent = old.content as { text?: string; marks?: Mark[] }
+      const oldProps = old.props as { align?: string; level?: number }
+      const text = oldContent.text ?? ''
+      const marks = oldContent.marks ?? []
       if (type === 'heading') {
-        newBlock.content = { text, marks: [] }
-        newBlock.props = { level: 2, align: 'left' }
+        newBlock.content = { text, marks }
+        newBlock.props = {
+          level: oldProps.level ?? 2,
+          align: oldProps.align ?? 'left',
+        }
       } else if (type === 'paragraph') {
-        newBlock.content = { text, marks: [] }
-        newBlock.props = { align: 'left' }
+        newBlock.content = { text, marks }
+        newBlock.props = { align: oldProps.align ?? 'left' }
       }
     }
     newBlock.id = old.id
@@ -393,6 +482,23 @@ export const useDocumentStore = defineStore('document', () => {
     newBlock.updated_at = new Date().toISOString()
     blocks.value[idx] = newBlock
     return true
+  }
+
+  /**
+   * 撤销/重做后校正选中块。
+   *
+   * 历史快照恢复的是整份 blocks,而被撤销掉的块可能已不存在,
+   * 此时 editor.selectedBlockId 会指向一个失效 id:
+   *   - BlockEditor.focusBlockAt 的 querySelector 找不到节点 → 静默 return,焦点掉到 body
+   *   - BlockEditor.onKeydown 的 findIndex 返回 -1 → 删除等操作静默失效
+   * 表现为"撤销之后键盘没反应"。这里在块失效时清空选中,至少让 UI 状态可信。
+   */
+  function reconcileSelection(blocksToCheck: Block[]) {
+    const sel = editor.selectedBlockId
+    if (!sel) return
+    if (!blocksToCheck.some((b) => b.id === sel)) {
+      editor.selectBlock(null)
+    }
   }
 
   function undo() {
@@ -406,6 +512,7 @@ export const useDocumentStore = defineStore('document', () => {
       // 递增 renderTick,触发 Mermaid 等需要重新渲染的块更新
       tab.renderTick++
       tab.historyTick++
+      reconcileSelection(tab.blocks)
     }
   }
 
@@ -420,6 +527,7 @@ export const useDocumentStore = defineStore('document', () => {
       // 递增 renderTick,触发 Mermaid 等需要重新渲染的块更新
       tab.renderTick++
       tab.historyTick++
+      reconcileSelection(tab.blocks)
     }
   }
 

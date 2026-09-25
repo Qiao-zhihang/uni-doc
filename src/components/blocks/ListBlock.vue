@@ -87,7 +87,12 @@ onMounted(() => {
 watch(isSelected, () => {
   nextTick(() => {
     syncText()
-    if (isSelected.value) itemRefs.value[0]?.focus()
+    // 仅当列表内尚未持有焦点时才聚焦首项。
+    // 无条件 itemRefs[0].focus() 会在每次选中时把 caret 拽回第一项偏移 0,
+    // 覆盖调用方(如 onListOutdent / 方向键导航)期望的落点。
+    const active = document.activeElement
+    const holder = itemRefs.value.find((r) => r && r.contains(active))
+    if (isSelected.value && !holder) itemRefs.value[0]?.focus()
   })
 })
 
@@ -195,7 +200,11 @@ function focusItemAtStart(idx: number) {
 
 function onItemKeydown(e: KeyboardEvent, idx: number) {
   if (e.key === 'Tab') {
-    onTabKey(e)
+    // 列表的缩进/反缩进尚未实现(useContentEditable.onTabKey 的 'indent' 分支为空)。
+    // 必须传 'indent':否则兜底分支会把两个字面空格 execCommand 进 item 文本,
+    // 既没有产生层级,又会把空格持久化进 .md。
+    // TODO: 实现真正的层级调整(把 item 移入前一项的 children)
+    onTabKey(e, 'indent')
     return
   }
   // 优先处理 wikilink 自动补全的键盘导航

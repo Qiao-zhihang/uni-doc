@@ -340,6 +340,27 @@ export interface PendingSyntax {
 }
 
 /**
+ * 可被反斜杠转义的字符集(反斜杠自身排在最前)。
+ *
+ * 这是「解析端反转义」与「序列化端转义」共用的唯一真源:
+ * 序列化时若要保证纯文本往返无损,只能转义本集合内的字符 ——
+ * 转义集合外的字符(`&` 等)不会被反转义,反而会留下多余的反斜杠。
+ *
+ * 含 `<` `>`:文档里写 `\<div\>` 这类字面标签时,Editors/CommonMark 都会反转义,
+ * 若不支持会导致反斜杠在每次保存时翻倍。
+ */
+export const INLINE_ESCAPABLE_CHARS = '\\`*_{}[]()#+-.!|~$=<>'
+
+/**
+ * 真正会触发行内语法的字符 —— 序列化时只需转义这些。
+ *
+ * 是 INLINE_ESCAPABLE_CHARS 的子集:像 `=` `|` `{` `}` 虽然能反转义,
+ * 但裸写出来并不会被解析成语法,转义它们只会让落盘内容变难看
+ * (`a = b` 变成 `a \= b`)。
+ */
+export const INLINE_SYNTAX_CHARS = '\\`*_~^$[]!<('
+
+/**
  * 从文本中解析出所有 Markdown 行内语法
  * 返回: { plainText, marks }
  * @param depth 递归深度,超过阈值停止解析(防栈溢出)
@@ -573,7 +594,7 @@ export function parseInlineMarkdown(text: string, depth = 0): { text: string; ma
     // 转义字符: \* \_ \# 等
     if (!matched && text[i] === '\\' && i + 1 < text.length) {
       const next = text[i + 1]
-      if ('\\`*_{}[]()#+-.!|~$='.includes(next)) {
+      if (INLINE_ESCAPABLE_CHARS.includes(next)) {
         plain += next
         i += 2
         matched = true

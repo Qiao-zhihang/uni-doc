@@ -74,7 +74,11 @@ watch(isSelected, (selected) => {
   nextTick(() => {
     if (selected) {
       renderSource()
-      el.value?.focus()
+      // 仅当本块尚未持有焦点时才主动聚焦。
+      // renderSource() 重写 innerText 会把 caret 重置到偏移 0(即 `> ` 前缀之前),
+      // 无条件 focus() 会覆盖调用方计算出的落点。caret 已在本块内时保持不动。
+      const active = document.activeElement
+      if (!active || !el.value?.contains(active)) el.value?.focus()
     } else {
       renderHtml()
     }

@@ -39,8 +39,17 @@ import {
   createImageBlock,
   uuid,
 } from '../blocks/factory'
-import { parseInlineMarkdown } from '../parser/inlineMarkdown'
-import { marksToSource } from '@/components/blocks/marks'
+import {
+  INLINE_ESCAPABLE_CHARS,
+  INLINE_SYNTAX_CHARS,
+  parseInlineMarkdown,
+} from '../parser/inlineMarkdown'
+import {
+  buildEvents,
+  dedupMarks,
+  getSourcePrefix,
+  getSourceSuffix,
+} from '@/components/blocks/marks'
 
 const PAGE_BREAK = '---page---'
 const FRONTMATTER_DELIM = '---'
@@ -65,6 +74,113 @@ function foldHardBreaks(raw: string): string {
 /** 表格单元格转义:`\` → `\\`,`|` → `\|`(GFM 标准),换行折叠为空格 */
 function escapeTableCell(text: string): string {
   return text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ')
+}
+
+/**
+ * 转义「无 mark 的行内文本」,使其重新解析时仍是同样的纯文本。
+ *
+ * 背景:`parseInlineMarkdown` 会把 `\*` 这类转义**反转义**为纯文本字符,
+ * 但序列化时从不补回转义符,于是用户写的转义字符在保存重开后语义就变了:
+ *   `\# not a heading` → 变成 H1;`\*\*x\*\*` → 变成粗体;`1\. x` → 变成有序列表。
+ *
+ * 两套转义范围:
+ *  - 行内(文本任意位置):只转义 INLINE_SYNTAX_CHARS 中真正会触发语法的字符,
+ *    避免把 `a = b` 写成 `a \= b` 这种虽能往返、但落盘内容难看的结果。
+ *  - 块首(每块第一行开头):任何能构成块级前缀的字符都要转义,
+ *    否则整段会被 detectBlockSyntax / mdast 改判成列表、引用或标题。
+ *
+ * 注意:只用于**写盘**。编辑态渲染与 caret 偏移计算仍走未转义的 marksToSource,
+ * 以保证 DOM 文本与偏移量一致。
+ */
+const RE_INLINE_ESCAPE = new RegExp(`([${INLINE_SYNTAX_CHARS.replace(/[\\\]^-]/g, '\\$&')}])`, 'g')
+/**
+ * 块首专用字符集:从可反转义集合里**去掉反斜杠**。
+ *
+ * 必须去掉:escapeSegment 先做 `\` → `\\`,若本字符类含反斜杠,
+ * 就会把刚插入的反斜杠再转义一次(`\`` → `\\\``),导致每轮往返翻倍。
+ * 反斜杠本身已由第一步统一处理。
+ */
+const BLOCKSTART_CHARS = INLINE_ESCAPABLE_CHARS.replace(/\\/g, '')
+const RE_BLOCKSTART_ESCAPE = new RegExp(`^([${BLOCKSTART_CHARS.replace(/[\]^-]/g, '\\$&')}])`)
+
+/**
+ * 把 text + marks 序列化为「写盘用」的 Markdown 源码:
+ * 由 marks 生成的语法记号(如 `**`、`` ` ``、`[[…]]`)原样保留,
+ * 只对**无 mark 覆盖的纯文本片段**做转义。
+ *
+ * 不能简单地对 marksToSource 的返回值整体转义 —— 那会把 mark 自身生成的
+ * `**`、`$`、`[` 也转义掉,反而破坏正常文档(粗体变字面量等)。
+ *
+ * 实现与 marksToSource 一致地遍历同一组事件,只是把纯文本片段换成转义版。
+ */
+function escapeSegment(seg: string, isBlockStart: boolean): string {
+  if (!seg) return seg
+  let out = seg.replace(/\\/g, '\\\\').replace(RE_INLINE_ESCAPE, '\\$1')
+  if (isBlockStart) {
+    // 块首:任何可反转义的块级前缀字符都要转义,再补上 `1.` 这类数字前缀
+    out = out.replace(RE_BLOCKSTART_ESCAPE, '\\$1').replace(/^(\d+)\./, '$1\\.')
+  }
+  return out
+}
+
+function escapeMarkdownSource(text: string, marks: Mark[] = []): string {
+  if (!text) return ''
+  const valid = dedupMarks(marks).filter(
+    (m) => m.start >= 0 && m.end <= text.length && m.start <= m.end,
+  )
+  if (!valid.length) return escapeSegment(text, true)
+
+  const events = buildEvents(valid, text.length)
+  let result = ''
+  let cursor = 0
+  // 一个 mark 区域内的文本仍可能包含 markdown 记号(如标题文本里含 `*`),
+  // 裸写出去会被反解析成新样式,因此区域内部同样转义。
+  // 但区域内容若本身是 markdown 源码(数学公式 / 原始 HTML),则必须原样保留。
+  const RAW_CONTENT_TYPES = new Set<Mark['type']>(['math', 'html'])
+  const rawRanges = valid
+    .filter((m) => RAW_CONTENT_TYPES.has(m.type))
+    .map((m) => [m.start, m.end] as const)
+  const isRaw = (pos: number): boolean => rawRanges.some(([s, e]) => pos >= s && pos < e)
+  /** 对 [from, to) 片段转义,跳过 raw 区域 */
+  const escRange = (from: number, to: number, blockStart: boolean): string => {
+    if (from >= to) return ''
+    if (!rawRanges.length) return escapeSegment(text.slice(from, to), blockStart)
+    let out = ''
+    let p = from
+    while (p < to) {
+      if (isRaw(p)) {
+        let q = p
+        while (q < to && isRaw(q)) q++
+        out += text.slice(p, q)
+        p = q
+      } else {
+        let q = p
+        while (q < to && !isRaw(q)) q++
+        out += escapeSegment(text.slice(p, q), false)
+        p = q
+      }
+    }
+    return out
+  }
+
+  for (const evt of events) {
+    if (evt.pos > text.length) continue
+    if (evt.pos > cursor) {
+      result += escRange(cursor, evt.pos, cursor === 0)
+      cursor = evt.pos
+    }
+    if (evt.kind === 'open') {
+      result += getSourcePrefix(evt.mark)
+    } else if (evt.kind === 'close') {
+      result += getSourceSuffix(evt.mark)
+    } else if (evt.kind === 'self') {
+      result += getSourcePrefix(evt.mark)
+    }
+  }
+  if (cursor < text.length) {
+    result += escRange(cursor, text.length, cursor === 0)
+  }
+  return result
 }
 
 /** 按未转义的 `|` 拆分表格行,同时还原 `\|` 转义
@@ -106,11 +222,11 @@ function serializeBlock(block: Block): string {
       const { text = '', marks = [] } = block.content as ParagraphContent
       const level = (block.props as HeadingProps).level
       const prefix = '#'.repeat(level)
-      return `${prefix} ${marksToSource(text, marks)}`
+      return `${prefix} ${escapeMarkdownSource(text, marks)}`
     }
     case 'paragraph': {
       const { text = '', marks = [] } = block.content as ParagraphContent
-      const source = toHardBreaks(marksToSource(text, marks))
+      const source = toHardBreaks(escapeMarkdownSource(text, marks))
       // 空段落序列化为"两个空格的占位行",保证保存再打开后空段落不丢失
       return source || '  '
     }
@@ -130,7 +246,7 @@ function serializeBlock(block: Block): string {
           .join('\n')
       }
       const { text = '', marks = [] } = q
-      const source = toHardBreaks(marksToSource(text, marks))
+      const source = toHardBreaks(escapeMarkdownSource(text, marks))
       return source
         .split('\n')
         .map((line) => `> ${line}`)
@@ -144,7 +260,7 @@ function serializeBlock(block: Block): string {
     case 'table': {
       const { headers = [], rows = [], aligns = [] } = block.content as TableContent
       if (!headers.length) return ''
-      const cellMd = (c: TableCell) => escapeTableCell(marksToSource(c.text, c.marks))
+      const cellMd = (c: TableCell) => escapeTableCell(escapeMarkdownSource(c.text, c.marks))
       const headerLine = `| ${headers.map((c) => cellMd(c)).join(' | ')} |`
       const dividerLine = `| ${headers
         .map((_, i) => {
@@ -165,7 +281,7 @@ function serializeBlock(block: Block): string {
       const start = props.start ?? 1
       return items
         .map((item, idx) => {
-          const body = toHardBreaks(marksToSource(item.text, item.marks))
+          const body = toHardBreaks(escapeMarkdownSource(item.text, item.marks))
           let line: string
           let prefixLen: number
           if (listType === 'ordered') {

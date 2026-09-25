@@ -1443,6 +1443,8 @@ onUnmounted(() => {
   align-items: center;
   padding: 8px;
   gap: 6px;
+  /* 小窗时保持头部完整高度 */
+  flex-shrink: 0;
   border-bottom: 1px solid var(--border);
 }
 .collapse-btn {
@@ -1478,6 +1480,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  /* 小窗时不被压缩,保证按钮文字始终完整 */
+  flex-shrink: 0;
   border: 1px dashed var(--border);
   border-radius: var(--radius-button);
   background: transparent;
@@ -1497,6 +1501,8 @@ onUnmounted(() => {
 }
 .conversation-list {
   flex: 1;
+  /* 纵向滚动区必须显式允许收缩,否则内容会把面板顶高、行被压扁 */
+  min-height: 0;
   overflow-y: auto;
   padding: 4px 6px 8px;
   gap: 2px;
@@ -1510,6 +1516,16 @@ onUnmounted(() => {
   cursor: pointer;
   overflow: hidden;
   transition: background 0.15s ease;
+  /*
+   * 会话列表是纵向 flex 容器,默认 min-height:auto + 可压缩。
+   * 小窗(尤其分屏模式下 .split-mode 把 min-height 归零)时每行会被压扁,
+   * 标题随之被裁切;分屏下更会出现行高小于行内内容而显示不全。
+   * 这里固定行高不参与压缩,并把标题真正垂直居中。
+   */
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 32px;
 }
 .conv-item:hover {
   background: var(--muted);
@@ -1519,11 +1535,14 @@ onUnmounted(() => {
 }
 .conv-title {
   font-size: 12px;
+  line-height: 1.4;
   color: var(--muted-foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: block;
+  /* 作为 flex 项参与布局,才能正确省略并垂直居中(display:block 会退化为普通块) */
+  flex: 1 1 auto;
+  min-width: 0;
   padding-left: 2px;
   font-weight: 500;
 }

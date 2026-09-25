@@ -76,6 +76,11 @@ export default [
         TextDecoder: 'readonly',
         TextEncoder: 'readonly',
         DataView: 'readonly',
+        Node: 'readonly',
+        NodeFilter: 'readonly',
+        Range: 'readonly',
+        Selection: 'readonly',
+        EventTarget: 'readonly',
       },
     },
     plugins: {

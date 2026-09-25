@@ -44,7 +44,7 @@ interface MarkEvent {
  * marksToSource 生成 [[text](url)](url) 形式的翻倍源码,
  * 或 marksToHtml 生成 <a><a>text</a></a> 嵌套标签
  */
-function dedupMarks(marks: Mark[]): Mark[] {
+export function dedupMarks(marks: Mark[]): Mark[] {
   const seen = new Set<string>()
   const result: Mark[] = []
   for (const mark of marks) {
@@ -82,7 +82,7 @@ function dedupMarks(marks: Mark[]): Mark[] {
  *      - open: end 降序(外层先开),end 相同按 origIndex 升序(外层先创建先开)
  *      - close: end 升序(内层先关),end 相同按 origIndex 降序(内层后创建先关)
  */
-function buildEvents(marks: Mark[], textLen: number): MarkEvent[] {
+export function buildEvents(marks: Mark[], textLen: number): MarkEvent[] {
   const events: MarkEvent[] = []
   marks.forEach((mark, idx) => {
     // selfClosing 标记:html(自闭合标签)和 image(单点占位)
@@ -118,7 +118,7 @@ function buildEvents(marks: Mark[], textLen: number): MarkEvent[] {
 }
 
 /** 获取 mark 的源码前缀(编辑态显示) */
-function getSourcePrefix(mark: Mark): string {
+export function getSourcePrefix(mark: Mark): string {
   switch (mark.type) {
     case 'bold':
       return '**'
@@ -160,7 +160,7 @@ function getSourcePrefix(mark: Mark): string {
 }
 
 /** 获取 mark 的源码后缀(编辑态显示) */
-function getSourceSuffix(mark: Mark): string {
+export function getSourceSuffix(mark: Mark): string {
   switch (mark.type) {
     case 'bold':
       return '**'

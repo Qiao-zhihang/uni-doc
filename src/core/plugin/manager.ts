@@ -53,6 +53,9 @@ export class PluginManager {
     this._keydownHandler = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
+      // 用户正在文本控件里输入时不触发插件热键,否则会抢走 Ctrl+<键> 组合
+      // (例如在 AI 面板输入框或设置页输入框里打字时误触发插件命令)
+      if (this.isTypingTarget(e.target)) return
       for (const cmd of this.customCommands.values()) {
         if (!cmd.hotkey) continue
         const match = this.matchHotkey(e, cmd.hotkey)
@@ -64,6 +67,16 @@ export class PluginManager {
       }
     }
     window.addEventListener('keydown', this._keydownHandler)
+  }
+
+  /** 事件源是否为文本输入类控件(input/textarea/contenteditable) */
+  private isTypingTarget(target: EventTarget | null): boolean {
+    const el = target as HTMLElement | null
+    if (!el || typeof el.tagName !== 'string') return false
+    const tag = el.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
+    if (el.isContentEditable) return true
+    return !!el.closest?.('[contenteditable="true"]')
   }
 
   private unbindHotkeys() {

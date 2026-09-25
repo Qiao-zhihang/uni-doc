@@ -72,7 +72,12 @@ watch(isSelected, (selected) => {
   nextTick(() => {
     if (selected) {
       renderSource()
-      el.value?.focus()
+      // 仅当本块尚未持有焦点时才主动聚焦。
+      // renderSource() 重写 innerText 会把 caret 重置到偏移 0,若在此处无条件
+      // focus(),调用方(BlockEditor.focusBlockAt)精心计算的落点会被静默覆盖,
+      // 表现为"光标跳到第一个字符"。caret 已在本块内时保持不动。
+      const active = document.activeElement
+      if (!active || !el.value?.contains(active)) el.value?.focus()
     } else {
       renderHtml()
     }
