@@ -6,6 +6,7 @@ import { useEditorStore } from '@/stores/editor'
 import { deserializeMarkdown } from '@/core/serializer/markdown'
 import { parseInlineMarkdown } from '@/core/parser/inlineMarkdown'
 import { detectBlockSyntax } from '@/core/parser/blockSyntax'
+import { focusBlockAt as focusBlockInDom, focusFirstAvailable } from '@/core/editor/blockFocus'
 import { uuid } from '@/core/blocks/factory'
 import type { Block, BlockType, Mark } from '@/core/blocks/types'
 import BlockRenderer from './BlockRenderer.vue'
@@ -358,51 +359,7 @@ function onNavigate(id: string, direction: 'prev' | 'next') {
 }
 
 function focusBlockAt(id: string, at: 'start' | 'end' | number) {
-  if (!canvasRef.value) return
-  const row = canvasRef.value.querySelector(`[data-block-id="${id}"]`)
-  if (!row) return
-  const editable = row.querySelector('[contenteditable="true"]') as HTMLElement | null
-  if (!editable) return
-  editable.focus()
-  const sel = window.getSelection()
-  if (!sel) return
-  const range = document.createRange()
-
-  if (at === 'start') {
-    const child = editable.firstChild
-    range.setStart(child || editable, 0)
-    range.setEnd(child || editable, 0)
-  } else if (at === 'end') {
-    const child = editable.lastChild
-    const len = child?.textContent?.length ?? 0
-    range.setStart(child || editable, len)
-    range.setEnd(child || editable, len)
-  } else {
-    // 数字偏移：遍历文本节点定位
-    const walker = document.createTreeWalker(editable, NodeFilter.SHOW_TEXT)
-    let remaining = at
-    let placed = false
-    let node: Node | null
-    while ((node = walker.nextNode())) {
-      const len = node.textContent?.length ?? 0
-      if (remaining <= len) {
-        range.setStart(node, remaining)
-        range.setEnd(node, remaining)
-        placed = true
-        break
-      }
-      remaining -= len
-    }
-    if (!placed) {
-      const child = editable.lastChild
-      const len = child?.textContent?.length ?? 0
-      range.setStart(child || editable, len)
-      range.setEnd(child || editable, len)
-    }
-  }
-
-  sel.removeAllRanges()
-  sel.addRange(range)
+  focusBlockInDom(id, at)
 }
 
 function moveUp(id: string) {
@@ -487,30 +444,38 @@ function flushPendingEdit() {
 }
 
 /**
- * 判断按键事件是否真的来自编辑器画布。
+ * 事件源是否为「正在输入的文本框」。
  *
- * 本处理器挂在 window 上(见 onMounted),否则它会对**整个应用**生效:
- * 在 AI 面板输入框里打字时,只要编辑器还留着 selectedBlockId,
- * 按 Backspace 就会删掉文档里的块、按 Ctrl+Z 会撤销文档而不是撤销输入框。
- * 因此凡是可能改动文档的分支,都必须先确认事件源在画布内。
+ * 本处理器挂在 window 上(见 onMounted),会对整个应用生效。
+ * 但不能简单地在"焦点离开画布"时整体早退 —— 那样点过工具栏按钮、
+ * 面板空白之后 Ctrl+S / Ctrl+Z 也会跟着失效。
+ * 正确做法是只让**会与输入控件原生行为冲突**的按键让位:
+ *   - Backspace/Delete:AI 输入框里删字,不应删掉文档里选中的块
+ *   - Ctrl+Z / Ctrl+Y:输入框里应撤销文本输入,而不是撤销文档
+ * 按钮、面板、body 等"非输入型"焦点不属于 typing target,快捷键照常生效。
  */
-function isEventFromEditor(e: KeyboardEvent): boolean {
-  const canvas = canvasRef.value
-  const inCanvas = (n: Node | null | undefined): boolean =>
-    !!canvas && !!n && (canvas === n || canvas.contains(n))
-  // 正常情况:事件源就是正在编辑的 contenteditable
-  if (inCanvas(e.target as Node | null)) return true
-  // 兜底:个别情况(如 IME 组合、事件源被解析为 body)下 e.target 不可靠,
-  // 改看当前焦点元素是否落在画布内
-  return inCanvas(document.activeElement)
+function isTypingTarget(e: KeyboardEvent): boolean {
+  const target = (e.target ?? document.activeElement) as HTMLElement | null
+  if (!target || typeof target.tagName !== 'string') return false
+  const tag = target.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
+  if (target.isContentEditable) return true
+  return !!target.closest?.('[contenteditable="true"]')
 }
 
 function onKeydown(e: KeyboardEvent) {
-  // 焦点不在编辑器内 → 完全不干预,把按键交还给当前控件(AI 输入框、设置页输入框等)
-  if (!isEventFromEditor(e)) return
-
   const ctrl = e.ctrlKey || e.metaKey
   if (ctrl) {
+    /*
+     * Ctrl+Z / Ctrl+Y 会与文本框自带撤销冲突,只在"用户正在输入"时才让位:
+     *  - AI 输入框 / 设置页输入框 / 搜索框 / 非编辑器的 contenteditable
+     * 而不是"焦点不在画布内就一律不管" —— 那样会导致点过工具栏按钮、
+     * 面板空白等位置后 Ctrl+S / Ctrl+Z 直接失效(工具栏按钮属于 action,
+     * 不是 typing target,应当继续作用于文档)。
+     */
+    if ((e.key === 'z' || e.key === 'Z' || e.key === 'y' || e.key === 'Y') && isTypingTarget(e)) {
+      return
+    }
     // 源码模式下:Ctrl+Z/Y 交给 textarea 处理(字符级撤销),Ctrl+S 保存前先 flush 未提交修改
     if (editor.mode === 'source') {
       if (e.key === 's' || e.key === 'S') {
@@ -546,16 +511,35 @@ function onKeydown(e: KeyboardEvent) {
   if (editor.mode === 'source') return
 
   if ((e.key === 'Backspace' || e.key === 'Delete') && selectedId.value) {
-    const ae = document.activeElement as HTMLElement | null
-    const inEditable = ae?.closest('[contenteditable="true"]')
-    if (!inEditable) {
+    /*
+     * 只有在「焦点不在任何输入控件里」时才把 Backspace/Delete 当作"删除选中块"。
+     * 必须在整份文档范围内判断 typing target,而不是只看画布:
+     * 焦点在 AI 输入框 / 设置页输入框里按 Backspace,是想删那个字,
+     * 一旦误判就会顺手删掉文档里选中的块。
+     */
+    if (!isTypingTarget(e)) {
       e.preventDefault()
       const idx = doc.blocks.findIndex((b) => b.id === selectedId.value)
       doc.removeBlock(selectedId.value, '删除区块')
-      const focusTarget = doc.blocks[Math.max(0, idx - 1)]
-      if (focusTarget) {
-        editor.selectBlock(focusTarget.id)
-        nextTick(() => focusBlockAt(focusTarget.id, 'end'))
+      /*
+       * 删除后的候选焦点目标,按优先级排列:
+       *  1. 删除位置的前一块
+       *  2. 删除位置的后一块(删的是首块时,前一块不存在)
+       *  3. 新的首块(极端情况兜底)
+       * 用 focusFirstAvailable 而非直接索引:目标块可能是 divider / image
+       * 这类没有 contenteditable 的块,或索引已失效,直接取下标会静默丢焦点。
+       */
+      const rest = doc.blocks
+      const candidates = [
+        rest[idx - 1]?.id,
+        rest[idx]?.id,
+        rest.length ? rest[0].id : undefined,
+      ].filter((id): id is string => !!id)
+      if (candidates.length) {
+        editor.selectBlock(candidates[0])
+        nextTick(() => focusFirstAvailable(candidates, 'end'))
+      } else {
+        editor.selectBlock(null)
       }
     }
   }
@@ -664,6 +648,7 @@ watch(
           class="block-row"
           :class="{ selected: selectedId === block.id }"
           :data-block-id="block.id"
+          tabindex="-1"
           @click.stop="(e: MouseEvent) => onBlockRowClick(e, block.id)"
         >
           <!-- Block 操作按钮 -->
@@ -730,6 +715,18 @@ watch(
   position: relative;
   border-radius: 4px;
   transition: background 0.12s ease;
+}
+/*
+ * 行容器可编程聚焦(非文本块 divder/image 等没有 contenteditable,
+ * focusBlockAt 会回退聚焦行本身)。仅在键盘聚焦时给一个很淡的提示,
+ * 避免鼠标点击也出现轮廓。
+ */
+.block-row:focus {
+  outline: none;
+}
+.block-row:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 1px;
 }
 .block-row.selected {
   background: var(--secondary);

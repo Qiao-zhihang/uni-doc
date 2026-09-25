@@ -4,7 +4,7 @@
  * 参考 PRD §10.1(布局结构)和 §10.4(快捷键体系)
  * 含:格式化、标题下拉、插入工具、撤销重做、源码/可视化切换
  */
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import {
   Bold,
   Italic,
@@ -36,6 +36,7 @@ import { useEditorStore } from '@/stores/editor'
 import { useReplayStore } from '@/stores/replay'
 import { useThemeStore } from '@/stores/theme'
 import { openExportDialog } from '@/composables/useExportDialog'
+import { focusBlockAt } from '@/core/editor/blockFocus'
 import type { BlockType, ListType } from '@/core/blocks/types'
 
 const emit = defineEmits<{ (e: 'presentation'): void; (e: 'replay'): void }>()
@@ -121,12 +122,16 @@ function convertTo(opt: { type: BlockType; level?: number }) {
       // 只设置 level,保留块原有的 align(避免覆盖用户已设置的居中/右对齐)
       doc.updateBlock(newId, { props: { level: opt.level } }, '设置标题级别')
     }
+    // 焦点交还给新块:否则焦点停在工具栏按钮上,继续打字没有反应
+    nextTick(() => focusBlockAt(newId, 'start'))
   } else {
     doc.convertBlock(id, opt.type, '转换区块类型')
     if (opt.type === 'heading' && opt.level) {
       // 只设置 level,保留 convertBlock 保留的 align
       doc.updateBlock(id, { props: { level: opt.level } }, '设置标题级别')
     }
+    // convertBlock 会整体替换块组件(旧 DOM 被卸载),必须重新聚焦
+    nextTick(() => focusBlockAt(id, 'start'))
   }
   closeMenus()
 }
@@ -135,6 +140,8 @@ function insertAfter(type: BlockType, listType?: ListType) {
   const id = editor.selectedBlockId
   const newId = doc.insertBlockAfter(id, type, `插入${type}`, listType)
   editor.selectBlock(newId)
+  // 新插入的块此前不在 DOM 中,等它挂载后再聚焦
+  nextTick(() => focusBlockAt(newId, 'start'))
   closeMenus()
 }
 

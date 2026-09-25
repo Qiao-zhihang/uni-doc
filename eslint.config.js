@@ -81,6 +81,7 @@ export default [
         Range: 'readonly',
         Selection: 'readonly',
         EventTarget: 'readonly',
+        CSS: 'readonly',
       },
     },
     plugins: {
