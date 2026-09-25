@@ -92,13 +92,16 @@ function escapeTableCell(text: string): string {
  * 注意:只用于**写盘**。编辑态渲染与 caret 偏移计算仍走未转义的 marksToSource,
  * 以保证 DOM 文本与偏移量一致。
  */
-const RE_INLINE_ESCAPE = new RegExp(`([${INLINE_SYNTAX_CHARS.replace(/[\\\]^-]/g, '\\$&')}])`, 'g')
+const RE_INLINE_ESCAPE = new RegExp(
+  // 必须把反斜杠从字符类里去掉:escapeSegment 已先单独做过 `\` → `\\`,
+  // 若这里再匹配反斜杠,同一批反斜杠会被转义两次(1 个变 4 个),
+  // 且每保存一次就翻倍 —— 用户写 Windows 路径 `C:\Users` 就会不断膨胀。
+  `([${INLINE_SYNTAX_CHARS.replace(/\\/g, '').replace(/[\]^-]/g, '\\$&')}])`,
+  'g',
+)
 /**
- * 块首专用字符集:从可反转义集合里**去掉反斜杠**。
- *
- * 必须去掉:escapeSegment 先做 `\` → `\\`,若本字符类含反斜杠,
- * 就会把刚插入的反斜杠再转义一次(`\`` → `\\\``),导致每轮往返翻倍。
- * 反斜杠本身已由第一步统一处理。
+ * 块首专用字符集:从可反转义集合里**去掉反斜杠**(理由同上)。
+ * 反斜杠本身已由 escapeSegment 的第一步统一处理。
  */
 const BLOCKSTART_CHARS = INLINE_ESCAPABLE_CHARS.replace(/\\/g, '')
 const RE_BLOCKSTART_ESCAPE = new RegExp(`^([${BLOCKSTART_CHARS.replace(/[\]^-]/g, '\\$&')}])`)
