@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import type { Block, ParagraphContent, ParagraphProps } from '@/core/blocks/types'
-import { marksToHtml, marksToSource } from './marks'
+import { marksToHtml, marksToSource, sameAsSource } from './marks'
 import { parseInlineMarkdown } from '@/core/parser/inlineMarkdown'
+import { deserializeMarkdown } from '@/core/serializer/markdown'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { writeImageToVault } from '@/core/vault/vault'
@@ -111,6 +112,11 @@ watch(
 
 function commitWithMarks(text: string) {
   if (!el.value) return
+  // 未编辑(仅聚焦后又失焦)时直接跳过:
+  // 否则字面转义字符会被重新解析成语法(如 text 为 `**不是粗体**` 会变成真粗体),
+  // 用户什么都没改、内容却被静默改坏。
+  const c = content()
+  if (sameAsSource(text, c.text, c.marks ?? [])) return
   const parsed = parseInlineMarkdown(text)
   selfUpdate.value = true
   emit('update', {
@@ -318,6 +324,44 @@ async function onPaste(e: ClipboardEvent) {
       return
     }
   }
+
+  /*
+   * 纯文本粘贴:
+   *  - 单行 → 走浏览器默认插入(保持光标处插入的语义)
+   *  - 多行 → 交给 deserializeMarkdown 按 Markdown 规则拆块。
+   *    否则从 AI/网页复制来的 `# 标题`、`- 列表`、表格会被整段塞进一个段落,
+   *    块级结构全部丢失(用户看到的就是"粘贴后自动整合成一段")。
+   */
+  const text = e.clipboardData?.getData('text/plain') ?? ''
+  if (!text) return
+  e.preventDefault()
+  const stripped = text.replace(/\r\n?/g, '\n')
+  const blocks = deserializeMarkdown(stripped)
+  if (blocks.length === 0) return
+
+  if (blocks.length === 1 && blocks[0].type === 'paragraph') {
+    // 单段落:直接在当前块内插入,保留原有 marks(用 execCommand 走浏览器插入)
+    document.execCommand('insertText', false, stripped)
+    return
+  }
+
+  // 多块:整体插到当前块之后;当前块为空则替换它,避免留下空段落
+  const isCurrentEmpty = (content().text || '').trim().length === 0
+  const anchorId = props.block.id
+  doc.batch(() => {
+    if (isCurrentEmpty) {
+      doc.removeBlock(anchorId, '粘贴内容')
+    }
+    let prevId: string | null = isCurrentEmpty ? null : anchorId
+    for (const b of blocks) {
+      const newId = doc.insertBlockAfter(prevId, b.type, '粘贴内容', undefined)
+      doc.updateBlock(newId, { content: b.content, props: b.props }, '粘贴内容')
+      prevId = newId
+    }
+  }, '粘贴内容')
+
+  // 粘贴后让编辑器接管焦点,便于继续输入
+  editor.selectBlock(null)
 }
 </script>
 

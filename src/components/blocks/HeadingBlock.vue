@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import type { Block, HeadingContent, HeadingProps } from '@/core/blocks/types'
-import { marksToHtml, marksToSource } from './marks'
+import { marksToHtml, marksToSource, sameAsSource } from './marks'
 import { parseInlineMarkdown } from '@/core/parser/inlineMarkdown'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
@@ -111,6 +111,10 @@ function commitWithMarks(text: string) {
     newLevel = headingMatch[1].length as 1 | 2 | 3 | 4 | 5 | 6
     cleanText = headingMatch[2]
   }
+  // 未编辑(仅聚焦后又失焦)时跳过,避免字面转义字符被重新解析成语法。
+  // 注意比较的是**去掉 # 前缀后**的正文,前缀本身不参与提交。
+  const c = content()
+  if (newLevel === level() && sameAsSource(cleanText, c.text, c.marks ?? [])) return
   const parsed = parseInlineMarkdown(cleanText)
   selfUpdate.value = true
   emit('update', {

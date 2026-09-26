@@ -5,7 +5,7 @@
  */
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import type { Block, QuoteContent } from '@/core/blocks/types'
-import { marksToHtml, marksToSource } from './marks'
+import { marksToHtml, marksToSource, sameAsSource } from './marks'
 import { parseInlineMarkdown } from '@/core/parser/inlineMarkdown'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
@@ -110,6 +110,10 @@ function commitWithMarks(text: string) {
     .split('\n')
     .map((line) => line.replace(/^>\s?/, ''))
     .join('\n')
+  // 未编辑(仅聚焦后又失焦)时跳过,避免字面转义字符被重新解析成语法。
+  // 比较的是**剥离 > 前缀后**的正文,前缀本身不参与提交。
+  const c = content()
+  if (sameAsSource(stripped, c.text, c.marks ?? [])) return
   const parsed = parseInlineMarkdown(stripped)
   selfUpdate.value = true
   emit('update', { content: { text: parsed.text, marks: parsed.marks } })

@@ -290,17 +290,43 @@ export function marksToSource(text: string, marks: Mark[] = []): string {
   return result
 }
 
+/**
+ * 编辑态的语义比较:DOM 里读回来的文本与当前 text+marks 是否等价。
+ *
+ * 用于消除一类静默损坏:用户只是"点进块再点走"(没有任何编辑),
+ * 若照常走 parseInlineMarkdown 重新解析,字面转义字符会被当成语法。
+ *   例:磁盘 `\*\*不是粗体\*\*` → text=`**不是粗体**`、marks=[],
+ *       编辑态 DOM 显示 `**不是粗体**`,失焦时若重新解析就变成真粗体。
+ *
+ * 比较规则:以 marksToSource 的结果为基准,把 DOM 文本里的转义
+ * (反斜杠 + 1 字符)折成 1 个字符后逐字符对照 —— 等价即"未编辑"。
+ */
+export function sameAsSource(domText: string, text: string, marks: Mark[] = []): boolean {
+  const source = marksToSource(text, marks)
+  if (domText === source) return true
+  const i = domText.indexOf('\\')
+  if (i === -1) return false
+  // 折叠转义后再比:保证「同一内容的两种等价写法」也算未编辑
+  const unescapedDom = domText.replace(/\\([\s\S])/g, '$1')
+  return unescapedDom === source.replace(/\\([\s\S])/g, '$1')
+}
+
+/** 转义为 HTML,并把换行渲染成 <br>(与磁盘上 toHardBreaks 的表示对应) */
+function escapeHtmlWithBreaks(text: string): string {
+  return escapeHtml(text).replace(/\n/g, '<br>')
+}
+
 /** 将 text + marks 渲染为带行内样式的 HTML 字符串 */
 export function marksToHtml(text: string, marks: Mark[] = []): string {
   if (!text && !marks.length) return ''
-  if (!marks.length) return escapeHtml(text)
+  if (!marks.length) return escapeHtmlWithBreaks(text)
   const events = buildEvents(dedupMarks(marks), text.length)
   let result = ''
   let cursor = 0
   for (const evt of events) {
     if (evt.pos > text.length) continue
     if (evt.pos > cursor) {
-      result += escapeHtml(text.slice(cursor, evt.pos))
+      result += escapeHtmlWithBreaks(text.slice(cursor, evt.pos))
       cursor = evt.pos
     }
     if (evt.kind === 'open') {
@@ -332,7 +358,7 @@ export function marksToHtml(text: string, marks: Mark[] = []): string {
     }
   }
   if (cursor < text.length) {
-    result += escapeHtml(text.slice(cursor))
+    result += escapeHtmlWithBreaks(text.slice(cursor))
   }
   return result
 }

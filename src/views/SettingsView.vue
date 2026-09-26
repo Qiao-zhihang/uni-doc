@@ -105,9 +105,7 @@ const deleteTargetName = computed(
 )
 
 /** 自动推断的上下文窗口(基于当前 draft 的 provider+model) */
-const inferredWindow = computed(() =>
-  inferContextWindow(draft.provider, draft.model),
-)
+const inferredWindow = computed(() => inferContextWindow(draft.provider, draft.model))
 /** 格式化为 k 显示 */
 function formatK(tokens: number): string {
   if (tokens >= 1000) return `${(tokens / 1000).toFixed(tokens % 1000 === 0 ? 0 : 1)}k`
@@ -278,6 +276,17 @@ onMounted(() => {
   settings.load()
 })
 
+/**
+ * 切换「联网」:开启联网时关闭原生联网,两者互斥。
+ *
+ * 抽成函数而非模板内联多语句表达式 —— 内联写法会被 prettier
+ * 重排掉分号、变成跨行的非法表达式,导致 SFC 模板编译失败。
+ */
+function toggleWebSearch() {
+  draft.webSearch = !draft.webSearch
+  if (draft.webSearch) draft.nativeSearch = false
+}
+
 const shortcuts = [
   { keys: ['Ctrl', 'Z'], desc: '撤销' },
   { keys: ['Ctrl', 'Shift', 'Z'], desc: '重做' },
@@ -307,14 +316,68 @@ const latestVersion = ref<string>('')
 const latestReleaseUrl = ref<string>('')
 const updateError = ref<string>('')
 
+/**
+ * 比较两个版本号(遵循 semver 的优先级规则)。
+ *
+ * 返回 1 表示 a 更新,0 表示相同,-1 表示 a 更旧。
+ *
+ * 关键规则:预发布版本**低于**同号正式版,即 3.9.0-beta.1 < 3.9.0。
+ * 早期实现直接 `split('.').map(Number)`,`3.9.0-beta.1` 会解析出 NaN,
+ * 导致两个比较分支都不成立、结果随机 —— 发预发布版时就会误报/漏报。
+ */
+function parseVersion(v: string): { nums: number[]; pre: string | null } {
+  const raw = v.trim().replace(/^v/i, '')
+  // 以第一个 - 或 + 切分:主版本号 | 预发布/构建元数据
+  const core = raw.split(/[-+]/, 1)[0]
+  const preMatch = raw.slice(core.length).match(/^-([^+]*)/)
+  const nums = core.split('.').map((s) => {
+    // 只取开头的数字,容忍 1.2.x 之类写法
+    const m = s.match(/^\d+/)
+    return m ? Number(m[0]) : 0
+  })
+  return { nums, pre: preMatch ? preMatch[1] : null }
+}
+
 function compareVersions(a: string, b: string): number {
-  const pa = a.replace(/^v/, '').split('.').map(Number)
-  const pb = b.replace(/^v/, '').split('.').map(Number)
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const na = pa[i] ?? 0
-    const nb = pb[i] ?? 0
+  const va = parseVersion(a)
+  const vb = parseVersion(b)
+
+  // 1) 逐位比主版本号,缺失位按 0 处理
+  const len = Math.max(va.nums.length, vb.nums.length)
+  for (let i = 0; i < len; i++) {
+    const na = va.nums[i] ?? 0
+    const nb = vb.nums[i] ?? 0
     if (na > nb) return 1
     if (na < nb) return -1
+  }
+
+  // 2) 主版本号相同:有预发布后缀的更旧(semver §11)
+  if (va.pre && !vb.pre) return -1
+  if (!va.pre && vb.pre) return 1
+  if (!va.pre && !vb.pre) return 0
+
+  // 3) 都有预发布后缀:逐段比较,数字段按数值、其余按字典序
+  const pa = va.pre!.split('.')
+  const pb = vb.pre!.split('.')
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const sa = pa[i]
+    const sb = pb[i]
+    // 段数少的更旧(1.0.0-alpha < 1.0.0-alpha.1)
+    if (sa === undefined) return -1
+    if (sb === undefined) return 1
+    const na = /^\d+$/.test(sa) ? Number(sa) : null
+    const nb = /^\d+$/.test(sb) ? Number(sb) : null
+    if (na !== null && nb !== null) {
+      if (na > nb) return 1
+      if (na < nb) return -1
+    } else if (na !== null) {
+      return -1 // 数字段优先于字母段
+    } else if (nb !== null) {
+      return 1
+    } else {
+      if (sa > sb) return 1
+      if (sa < sb) return -1
+    }
   }
   return 0
 }
@@ -610,7 +673,11 @@ async function reloadPlugins() {
                 <label class="form-label">
                   上下文窗口
                   <span class="field-hint-inline">
-                    {{ draft.contextWindow ? formatK(draft.contextWindow) : `自动 ${formatK(inferredWindow)}` }}
+                    {{
+                      draft.contextWindow
+                        ? formatK(draft.contextWindow)
+                        : `自动 ${formatK(inferredWindow)}`
+                    }}
                   </span>
                 </label>
                 <input
@@ -650,10 +717,7 @@ async function reloadPlugins() {
                     type="button"
                     class="cap-toggle"
                     :class="{ on: draft.webSearch || draft.nativeSearch }"
-                    @click="
-                      draft.webSearch = !draft.webSearch;
-                      draft.nativeSearch = false;
-                    "
+                    @click="toggleWebSearch"
                   >
                     <Check v-if="draft.webSearch || draft.nativeSearch" :size="12" />
                     联网
@@ -763,10 +827,15 @@ async function reloadPlugins() {
               >
                 <RotateCw :size="14" :class="{ spin: reloading }" />
               </button>
-              <div class="safe-mode-toggle" :title="plugins.safeMode ? '安全模式已启用：所有第三方插件被禁用' : '启用安全模式'">
+              <div
+                class="safe-mode-toggle"
+                :title="plugins.safeMode ? '安全模式已启用：所有第三方插件被禁用' : '启用安全模式'"
+              >
                 <ShieldCheck v-if="!plugins.safeMode" :size="16" />
                 <ShieldAlert v-else :size="16" class="warn" />
-                <span class="safe-mode-label">{{ plugins.safeMode ? '安全模式' : '正常模式' }}</span>
+                <span class="safe-mode-label">
+                  {{ plugins.safeMode ? '安全模式' : '正常模式' }}
+                </span>
                 <button
                   type="button"
                   class="switch"
@@ -779,7 +848,9 @@ async function reloadPlugins() {
             </div>
           </header>
           <p class="section-desc">
-            插件目录：<code class="inline-code">.unidoc/plugins/</code>（当前 Vault 下）。安全模式下所有插件被禁用。
+            插件目录：
+            <code class="inline-code">.unidoc/plugins/</code>
+            （当前 Vault 下）。安全模式下所有插件被禁用。
           </p>
 
           <div v-if="plugins.plugins.length === 0" class="placeholder-card">
@@ -788,7 +859,9 @@ async function reloadPlugins() {
             </div>
             <div class="placeholder-text">暂无插件</div>
             <div class="placeholder-hint">
-              将插件文件夹放入 <code class="inline-code">.unidoc/plugins/</code> 即可自动加载。
+              将插件文件夹放入
+              <code class="inline-code">.unidoc/plugins/</code>
+              即可自动加载。
             </div>
           </div>
 
@@ -808,16 +881,25 @@ async function reloadPlugins() {
                     <span class="plugin-name">{{ p.manifest.name }}</span>
                     <span class="plugin-version">v{{ p.manifest.version }}</span>
                     <span v-if="p.error" class="plugin-badge error-badge">加载失败</span>
-                    <span v-else-if="p.enabled && p.loaded" class="plugin-badge ok-badge">已启用</span>
-                    <span v-else-if="p.enabled && !p.loaded" class="plugin-badge warn-badge">未加载</span>
+                    <span v-else-if="p.enabled && p.loaded" class="plugin-badge ok-badge">
+                      已启用
+                    </span>
+                    <span v-else-if="p.enabled && !p.loaded" class="plugin-badge warn-badge">
+                      未加载
+                    </span>
                     <span v-else class="plugin-badge">已禁用</span>
                   </div>
                   <div class="plugin-desc">{{ p.manifest.description }}</div>
                   <div class="plugin-meta">
                     <span>作者：{{ p.manifest.author }}</span>
-                    <span v-if="p.manifest.minAppVersion">最低版本：v{{ p.manifest.minAppVersion }}</span>
+                    <span v-if="p.manifest.minAppVersion">
+                      最低版本：v{{ p.manifest.minAppVersion }}
+                    </span>
                   </div>
-                  <div v-if="p.manifest.permissions && p.manifest.permissions.length > 0" class="plugin-permissions">
+                  <div
+                    v-if="p.manifest.permissions && p.manifest.permissions.length > 0"
+                    class="plugin-permissions"
+                  >
                     <span class="perm-label">权限：</span>
                     <span
                       v-for="perm in p.manifest.permissions"
@@ -845,10 +927,7 @@ async function reloadPlugins() {
             </div>
           </div>
 
-          <div
-            v-if="plugins.getCustomSettingsPanels().length > 0"
-            class="plugin-settings-panels"
-          >
+          <div v-if="plugins.getCustomSettingsPanels().length > 0" class="plugin-settings-panels">
             <div
               v-for="panel in plugins.getCustomSettingsPanels()"
               :key="panel.title"
@@ -900,7 +979,6 @@ async function reloadPlugins() {
             <div class="update-card">
               <div class="update-info">
                 <div class="update-version">当前版本：v{{ CURRENT_VERSION }}</div>
-                <div class="update-build">构建号：v{{ CURRENT_VERSION }}</div>
                 <div class="update-status" :class="updateStatus">
                   <RefreshCw v-if="updateStatus === 'checking'" :size="12" class="spin" />
                   <CheckCircle2 v-else-if="updateStatus === 'latest'" :size="12" class="ok" />
@@ -1691,12 +1769,7 @@ kbd {
   font-size: 13px;
   font-weight: 500;
   color: var(--foreground);
-  margin-bottom: 4px;
-}
-.update-build {
-  font-size: 12px;
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
+  /* 原本由下面的「构建号」行提供间距,该行已移除,这里补齐 */
   margin-bottom: 8px;
 }
 .update-status {
@@ -1904,7 +1977,9 @@ kbd {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 8px;
-  transition: border-color 0.15s, opacity 0.15s;
+  transition:
+    border-color 0.15s,
+    opacity 0.15s;
 }
 .plugin-card.disabled {
   opacity: 0.6;

@@ -225,7 +225,10 @@ function serializeBlock(block: Block): string {
       const { text = '', marks = [] } = block.content as ParagraphContent
       const level = (block.props as HeadingProps).level
       const prefix = '#'.repeat(level)
-      return `${prefix} ${escapeMarkdownSource(text, marks)}`
+      // 标题是单行块,换行必须折成空格 —— 否则落盘后第二行没有 # 前缀,
+      // 重开时会被当成新块,标题结构丢失
+      const source = escapeMarkdownSource(text, marks).replace(/\n/g, ' ')
+      return `${prefix} ${source}`
     }
     case 'paragraph': {
       const { text = '', marks = [] } = block.content as ParagraphContent
