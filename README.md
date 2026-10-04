@@ -1,7 +1,7 @@
 ---
 title: unidoc - 通用文档说明
 author: Qiao-zhihang
-version: 4.0.0
+version: 4.1.0
 created_at: "2026-07-17T14:32:43.322Z"
 updated_at: "2026-10-04T09:09:14.629Z"
 ---
