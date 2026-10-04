@@ -1,0 +1,459 @@
+{
+  "version": "1.0.0",
+  "docPath": "高级特性/02-Mermaid图表.md",
+  "title": "未命名文档",
+  "config": {
+    "enabled": false,
+    "autoIntervalSec": 0,
+    "playbackSpeed": 1
+  },
+  "snapshots": [
+    {
+      "id": "c46a10ec-3813-4617-947e-2f6ef6742775",
+      "timestamp": 1784447558301,
+      "label": "文档初始状态",
+      "type": "manual",
+      "blocks": [
+        {
+          "id": "aec6cc8e-f321-4a49-a7cb-e2dccb8e3819",
+          "type": "heading",
+          "content": {
+            "text": "Mermaid 图表测试",
+            "marks": []
+          },
+          "props": {
+            "level": 1,
+            "align": "left"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "d8b672ce-a75d-4a34-b07b-7223191f4f0f",
+          "type": "heading",
+          "content": {
+            "text": "流程图",
+            "marks": []
+          },
+          "props": {
+            "level": 2,
+            "align": "left"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "94de84d1-4874-46a2-8eb8-9d06b2a73609",
+          "type": "heading",
+          "content": {
+            "text": "基础流程图",
+            "marks": []
+          },
+          "props": {
+            "level": 3,
+            "align": "left"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "40d3549e-3be4-4d95-b184-85719d83332a",
+          "type": "code_block",
+          "content": {
+            "code": "graph TD\n    A[开始] --> B{判断条件}\n    B -->|是| C[执行操作]\n    B -->|否| D[结束]\n    C --> D"
+          },
+          "props": {
+            "language": "mermaid"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "9f46e040-35aa-4862-ae23-d3b9f8541210",
+          "type": "heading",
+          "content": {
+            "text": "左右流程图",
+            "marks": []
+          },
+          "props": {
+            "level": 3,
+            "align": "left"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "efcdfca1-b4b7-4243-a3ea-0449ba9444c5",
+          "type": "code_block",
+          "content": {
+            "code": "graph LR\n    A[输入] --> B[处理]\n    B --> C[输出]"
+          },
+          "props": {
+            "language": "mermaid"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "25b68f4e-aebe-4ff0-b202-f7712ec5227d",
+          "type": "heading",
+          "content": {
+            "text": "复杂流程图",
+            "marks": []
+          },
+          "props": {
+            "level": 3,
+            "align": "left"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "03f3dc7f-eb33-4f52-a533-8f7f54dacdd1",
+          "type": "code_block",
+          "content": {
+            "code": "graph TD\n    A[用户登录] --> B{验证身份}\n    B -->|成功| C[加载用户数据]\n    B -->|失败| D[显示错误信息]\n    D --> E[返回登录页]\n    C --> F{权限检查}\n    F -->|管理员| G[显示管理面板]\n    F -->|普通用户| H[显示用户面板]\n    G --> I[结束]\n    H --> I"
+          },
+          "props": {
+            "language": "mermaid"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "6c43dec6-713f-48be-8ca9-62d4a1d811ee",
+          "type": "divider",
+          "content": {},
+          "props": {},
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "4cdc4611-b138-446a-a7be-71e13149cd47",
+          "type": "heading",
+          "content": {
+            "text": "时序图",
+            "marks": []
+          },
+          "props": {
+            "level": 2,
+            "align": "left"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "f357fbe2-cd8c-4897-9df4-6d393868a9ad",
+          "type": "code_block",
+          "content": {
+            "code": "sequenceDiagram\n    participant 用户\n    participant 前端\n    participant 后端\n    participant 数据库\n\n    用户->>前端: 输入用户名密码\n    前端->>后端: 发送登录请求\n    后端->>数据库: 查询用户信息\n    数据库-->>后端: 返回用户数据\n    后端->>后端: 验证密码\n    后端-->>前端: 返回登录结果\n    前端-->>用户: 显示登录成功"
+          },
+          "props": {
+            "language": "mermaid"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "99114080-7b39-41df-ba6f-d201373db6d6",
+          "type": "divider",
+          "content": {},
+          "props": {},
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "cc1d8f1b-113d-4bd1-9008-941812b9a9ba",
+          "type": "heading",
+          "content": {
+            "text": "类图",
+            "marks": []
+          },
+          "props": {
+            "level": 2,
+            "align": "left"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "7418f6d3-8d65-4932-b916-ffd511126e2b",
+          "type": "code_block",
+          "content": {
+            "code": "classDiagram\n    class Animal {\n        +String name\n        +int age\n        +eat()\n        +sleep()\n    }\n    \n    class Dog {\n        +String breed\n        +bark()\n        +fetch()\n    }\n    \n    class Cat {\n        +String color\n        +meow()\n        +scratch()\n    }\n    \n    Animal <|-- Dog\n    Animal <|-- Cat"
+          },
+          "props": {
+            "language": "mermaid"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "52f45d5f-02ef-42e1-bd4c-8a37dad31947",
+          "type": "divider",
+          "content": {},
+          "props": {},
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "8ae6a5f1-7bd3-478a-ba89-d023f14c6a95",
+          "type": "heading",
+          "content": {
+            "text": "状态图",
+            "marks": []
+          },
+          "props": {
+            "level": 2,
+            "align": "left"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "86f0ffbc-feea-4856-880d-f229873aac59",
+          "type": "code_block",
+          "content": {
+            "code": "stateDiagram-v2\n    [*] --> 待机\n    待机 --> 运行中: 开始\n    运行中 --> 暂停: 暂停\n    暂停 --> 运行中: 继续\n    运行中 --> 完成: 结束\n    运行中 --> 错误: 异常\n    错误 --> 待机: 重置\n    完成 --> [*]"
+          },
+          "props": {
+            "language": "mermaid"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "3ce7ca72-f638-4547-a8ab-d11ae60e9fe6",
+          "type": "divider",
+          "content": {},
+          "props": {},
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "3c2c9f1c-0f7e-4eac-818d-95dc749b6f30",
+          "type": "heading",
+          "content": {
+            "text": "甘特图",
+            "marks": []
+          },
+          "props": {
+            "level": 2,
+            "align": "left"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "2f2b6694-083a-4e4c-91a7-599e473f74d4",
+          "type": "code_block",
+          "content": {
+            "code": "gantt\n    title 项目开发计划\n    dateFormat  YYYY-MM-DD\n    section 设计阶段\n    需求分析     :done,    des1, 2026-06-01, 5d\n    原型设计     :done,    des2, after des1, 7d\n    UI 设计      :active,  des3, after des2, 10d\n    section 开发阶段\n    前端开发     :         dev1, after des3, 15d\n    后端开发     :         dev2, after des3, 20d\n    section 测试阶段\n    集成测试     :         test1, after dev1, 5d\n    用户测试     :         test2, after test1, 7d"
+          },
+          "props": {
+            "language": "mermaid"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "2b9a5fc5-c9b2-4964-908e-a40251c1388a",
+          "type": "divider",
+          "content": {},
+          "props": {},
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "f9ae4d0b-060b-46a0-8611-c3d41b8846d2",
+          "type": "heading",
+          "content": {
+            "text": "饼图",
+            "marks": []
+          },
+          "props": {
+            "level": 2,
+            "align": "left"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "3318e2b0-cff7-4011-b2c5-253114bcf520",
+          "type": "code_block",
+          "content": {
+            "code": "pie\n    title 编程语言使用比例\n    \"JavaScript\" : 35\n    \"Python\" : 25\n    \"Java\" : 20\n    \"Go\" : 10\n    \"其他\" : 10"
+          },
+          "props": {
+            "language": "mermaid"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "34c0e262-917c-4be9-920c-c882577f8700",
+          "type": "divider",
+          "content": {},
+          "props": {},
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "a473e99e-b5d3-46c8-acd2-f4eece7d127f",
+          "type": "heading",
+          "content": {
+            "text": "思维导图",
+            "marks": []
+          },
+          "props": {
+            "level": 2,
+            "align": "left"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "88526cb2-dc28-4892-bfe9-098a1364ea53",
+          "type": "code_block",
+          "content": {
+            "code": "mindmap\n  root((Markdown))\n    基础语法\n      标题\n      列表\n      粗体斜体\n      链接图片\n    扩展语法\n      表格\n      代码块\n      脚注\n      任务列表\n    高级特性\n      Mermaid图表\n      数学公式\n      HTML混排"
+          },
+          "props": {
+            "language": "mermaid"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "1bad32ee-51dd-4fea-9655-debcb788d8d0",
+          "type": "divider",
+          "content": {},
+          "props": {},
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "df5ce6cd-206e-4a89-8a93-5396546e7a27",
+          "type": "heading",
+          "content": {
+            "text": "实体关系图",
+            "marks": []
+          },
+          "props": {
+            "level": 2,
+            "align": "left"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "e7e412c5-bb4a-40b3-9453-79a3585fb4ef",
+          "type": "code_block",
+          "content": {
+            "code": "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    CUSTOMER {\n        string name\n        string email\n        string phone\n    }\n    ORDER ||--|{ ORDER_ITEM : contains\n    ORDER {\n        int order_id\n        date order_date\n        float total\n    }\n    ORDER_ITEM }o--|| PRODUCT : references\n    PRODUCT {\n        int product_id\n        string name\n        float price\n    }"
+          },
+          "props": {
+            "language": "mermaid"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "c64e613f-8d3f-4c89-abaf-bf1a3b8b1cb7",
+          "type": "divider",
+          "content": {},
+          "props": {},
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "2421e64e-7360-4e6d-b490-12598f5df676",
+          "type": "heading",
+          "content": {
+            "text": "旅程图",
+            "marks": []
+          },
+          "props": {
+            "level": 2,
+            "align": "left"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "b5e7792b-ffdc-431c-8e92-2ce90f857263",
+          "type": "code_block",
+          "content": {
+            "code": "journey\n    title 用户购物旅程\n    section 浏览商品\n      访问网站: 5: 用户\n      搜索商品: 4: 用户\n      查看详情: 5: 用户\n    section 下单购买\n      加入购物车: 4: 用户\n      结算支付: 3: 用户\n      确认订单: 5: 用户\n    section 收货评价\n      等待发货: 2: 用户\n      收到商品: 5: 用户\n      评价晒单: 3: 用户"
+          },
+          "props": {
+            "language": "mermaid"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "fb271096-87a1-40b6-a3e7-c645f023fddc",
+          "type": "divider",
+          "content": {},
+          "props": {},
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        },
+        {
+          "id": "aa8a34d4-c8e4-4549-8d16-338fe28068b5",
+          "type": "paragraph",
+          "content": {
+            "text": "文件结束",
+            "marks": [
+              {
+                "type": "italic",
+                "start": 0,
+                "end": 4
+              }
+            ]
+          },
+          "props": {
+            "align": "left"
+          },
+          "ai_history": [],
+          "created_at": "2026-07-19T07:52:38.222Z",
+          "updated_at": "2026-07-19T07:52:38.222Z"
+        }
+      ]
+    }
+  ]
+}

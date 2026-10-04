@@ -361,6 +361,49 @@ export const INLINE_ESCAPABLE_CHARS = '\\`*_{}[]()#+-.!|~$=<>'
 export const INLINE_SYNTAX_CHARS = '\\`*_~^$[]!<('
 
 /**
+ * 解析端**可反转义**的字符集 = 可转义集合 ∪ 会触发语法的集合。
+ *
+ * 必须取并集:序列化器会转义 INLINE_SYNTAX_CHARS 里的每个字符,解析器若只认
+ * INLINE_ESCAPABLE_CHARS,那些只存在于前者的字符(目前是 `^`)写出去就再也
+ * 还原不回来 —— 反斜杠会留在文本里,并随每次保存翻倍:
+ *   `a^b` → `a\^b` → `a\\\^b` → `a\\\\\^b` …
+ * 不变量:**序列化器能写出的转义,解析器必须都能还原**。
+ */
+const PARSE_ESCAPABLE_CHARS = `${INLINE_ESCAPABLE_CHARS}${INLINE_SYNTAX_CHARS}`
+
+/**
+ * 行内代码的历史转义字符集(仅用于存量兼容,不参与新解析)。
+ *
+ * 旧版本的序列化器会把 code span 内容当普通文本转义:
+ *   - `escapeSegment`:反斜杠加倍(`\` → `\\`),并转义 INLINE_SYNTAX_CHARS;
+ *   - 块首还会转义 INLINE_ESCAPABLE_CHARS(如 `` `-v` `` 存成 `` `\-v` ``);
+ *   - 表格单元格还会把 `|` 转义成 `\|`。
+ * 于是磁盘上出现了 `\_`、`\[`、`\-` 这类多余转义,而当时的解析器会把它们吃掉,
+ * 所以渲染看起来正常。现在 code span 改为字面量语义后,必须先把这批历史转义还原,
+ * 否则升级后老文档会突然显示多余反斜杠。
+ *
+ * 刻意只包含**标点**:反斜杠后跟字母/数字/空白(Windows 路径 `C:\Users`、
+ * 正则 `\d+`、LaTeX `\alpha`)从未被旧序列化器转义过,一律原样保留。
+ */
+const CODE_SPAN_LEGACY_ESCAPES = '\\`*_{}[]()#+-.!|~$=<>^'
+
+/**
+ * 还原 code span 内的历史转义(幂等:还原后再解析不会二次变化)
+ * 例:`a\_b` → `a_b`、`arr\[0\]` → `arr[0]`、`C:\\Users` → `C:\Users`、
+ * 而 `C:\Users`、`\d+` 因 `U`/`d` 不在集合内保持不变。
+ *
+ * 导出给 AI 气泡使用:气泡为了处理"表格单元格里的 `|`"会在进 mdast 之前
+ * 就把 code span 摘成占位符,因此必须复用同一套还原规则,否则同一段内容
+ * 在气泡与编辑器里的显示会不一致。
+ */
+export function unescapeLegacyCodeSpan(content: string): string {
+  if (!content.includes('\\')) return content
+  return content.replace(/\\([\s\S])/g, (m, ch: string) =>
+    CODE_SPAN_LEGACY_ESCAPES.includes(ch) ? ch : m,
+  )
+}
+
+/**
  * 从文本中解析出所有 Markdown 行内语法
  * 返回: { plainText, marks }
  * @param depth 递归深度,超过阈值停止解析(防栈溢出)
@@ -591,10 +634,10 @@ export function parseInlineMarkdown(text: string, depth = 0): { text: string; ma
       }
     }
 
-    // 转义字符: \* \_ \# 等
+    // 转义字符: \* \_ \# 等(用并集,保证序列化写出的转义都能还原)
     if (!matched && text[i] === '\\' && i + 1 < text.length) {
       const next = text[i + 1]
-      if (INLINE_ESCAPABLE_CHARS.includes(next)) {
+      if (PARSE_ESCAPABLE_CHARS.includes(next)) {
         plain += next
         i += 2
         matched = true
@@ -639,12 +682,15 @@ export function parseInlineMarkdown(text: string, depth = 0): { text: string; ma
               }
             }
             const content = text.slice(contentStart, endPos)
-            const parsed = parseInlineMarkdown(content, depth + 1)
-            plain += parsed.text
+            // 行内代码按字面量处理:CommonMark 规定 code span 内部不解析行内语法,
+            // 反斜杠也不做转义处理。若像其它标记那样递归解析,`**x**` 会同时产生
+            // code 与 bold 两个同区间 mark —— 渲染成 <code><strong>x</strong></code>
+            // (代码里出现粗体)且星号本身丢失;并且会让序列化器把 `\_` 之类写进
+            // 文件,与 Typora/Obsidian 的读法不一致。
+            // 兼容:旧版本写出的文件在 code span 内带有多余转义,这里一次性还原,
+            // 使其渲染结果与升级前一致,并在下次保存时收敛为干净源码。
+            plain += unescapeLegacyCodeSpan(content)
             marks.push({ type, start: startPos, end: plain.length })
-            for (const nested of parsed.marks) {
-              marks.push({ ...nested, start: startPos + nested.start, end: startPos + nested.end })
-            }
             i = endPos + end.length
             matched = true
             break

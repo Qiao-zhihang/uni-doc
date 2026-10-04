@@ -10,14 +10,8 @@ import type { Block, ImageContent, ImageProps } from '@/core/blocks/types'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { pickImageToVault, writeImageToVault, downloadImageToVault } from '@/core/vault/vault'
-import { isTauri } from '@/core/serializer/markdownFile'
+import { resolveAssetSrc } from '@/core/vault/assetSrc'
 import { ImageIcon, Upload, Link as LinkIcon } from 'lucide-vue-next'
-
-async function convertFileSrc(path: string): Promise<string> {
-  if (!isTauri()) return path
-  const { convertFileSrc: cv } = await import('@tauri-apps/api/core')
-  return cv(path)
-}
 
 const props = defineProps<{ block: Block }>()
 const doc = useDocumentStore()
@@ -51,22 +45,11 @@ async function resolveSrc() {
     displaySrc.value = ''
     return
   }
-  // 绝对路径或 http(s)/data 直接用
-  if (/^(https?:|data:|asset:|\/|blob:)/.test(src)) {
-    displaySrc.value = src
-    return
-  }
-  // 相对路径(vault 内):src 相对文档所在目录,需拼上"vaultRoot/文档目录/src"
-  const root = doc.vaultRoot
-  if (!root || !isTauri()) {
-    displaySrc.value = src
-    return
-  }
-  // 算出文档所在目录(去掉文件名);path 为 null 时落到 vault 根
-  const tabPath = doc.activeTabPath
-  const dir = tabPath ? tabPath.split('/').slice(0, -1).join('/') : ''
-  const abs = (dir ? `${root}/${dir}/${src}` : `${root}/${src}`).replace(/\\/g, '/')
-  displaySrc.value = await convertFileSrc(abs)
+  // 统一走 core/vault/assetSrc:绝对地址原样返回,相对路径拼 vaultRoot 后转 asset://
+  displaySrc.value = await resolveAssetSrc(src, {
+    vaultRoot: doc.vaultRoot,
+    docPath: doc.activeTabPath,
+  })
 }
 
 watch(() => content().src, resolveSrc, { immediate: true })

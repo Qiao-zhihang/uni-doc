@@ -10,7 +10,7 @@ import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { useThemeStore } from '@/stores/theme'
 import { useContentEditable } from '@/composables/useContentEditable'
-import mermaid from 'mermaid'
+import { renderMermaidSvg, type MermaidTheme } from '@/core/render/mermaid'
 
 const props = defineProps<{ block: Block }>()
 const doc = useDocumentStore()
@@ -49,7 +49,7 @@ function syncText() {
 }
 
 /** Mermaid 主题跟随应用主题 */
-function mermaidTheme() {
+function mermaidTheme(): MermaidTheme {
   return theme.mode === 'dark' ? 'dark' : 'default'
 }
 
@@ -68,16 +68,18 @@ async function renderMermaid() {
   }
   mermaidRendering.value = true
   try {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: mermaidTheme(),
-      securityLevel: 'loose',
-      fontFamily: 'inherit',
-    })
+    // 初始化与 render 统一在 core/render/mermaid 里(AI 气泡共用同一套逻辑)
     // 唯一 id 防止重复(加实例标识避免演示模式与编辑器同时渲染时冲突)
     const id = `mmd-${props.block.id.replace(/[^a-zA-Z0-9]/g, '')}-${instanceId}`
-    const { svg } = await mermaid.render(id, code)
-    mermaidSvg.value = svg
+    mermaidSvg.value = await renderMermaidSvg(code, id, {
+      theme: mermaidTheme(),
+      // antiscript:标签仍按 HTML 渲染(兼容 <br/> 等既有写法),但 mermaid 会执行
+      // DOMPurify 净化(标签文本 + 最终 SVG),图内链接也会过 sanitizeUrl。
+      // 请勿改回 'loose' —— loose 是唯一三处净化全部跳过的档位,而 AI 能通过
+      // insert_block 把 mermaid 块写进用户文档,形成"模型输出→文档→编辑器"链路。
+      securityLevel: 'antiscript',
+      fontFamily: 'inherit',
+    })
     mermaidError.value = ''
   } catch (e: unknown) {
     // mermaid.render 失败会抛出,显示错误信息

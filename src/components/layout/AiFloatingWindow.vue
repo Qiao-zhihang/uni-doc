@@ -12,12 +12,16 @@ import { useDocumentStore } from '@/stores/document'
 import { useSettingsStore } from '@/stores/settings'
 import { useAiConversationStore } from '@/stores/aiConversation'
 import { useAiMemoryStore } from '@/stores/aiMemory'
+import { useThemeStore } from '@/stores/theme'
 import { createAgent, type Agent } from '@/ai/agent'
 import { renderMarkdown } from '@/ai/markdown'
+import { renderBubbleMarkdown } from '@/ai/renderBubble'
 import { TOOL_LABELS } from '@/ai/tools'
 import type { MessageContent, ToolResult } from '@/ai/types'
 import AiIconUrl from '@/assets/UUshark/icon.svg'
 import { writeImageToVault } from '@/core/vault/vault'
+import { resolveAssetSrc } from '@/core/vault/assetSrc'
+import { renderMermaidSvg } from '@/core/render/mermaid'
 import { isTauri, handleExternalLinkClick } from '@/core/serializer/markdownFile'
 
 const router = useRouter()
@@ -27,6 +31,7 @@ const doc = useDocumentStore()
 const settings = useSettingsStore()
 const convStore = useAiConversationStore()
 const memoryStore = useAiMemoryStore()
+const theme = useThemeStore()
 const agent = ref<Agent | null>(null)
 const sending = ref(false)
 const abortController = ref<AbortController | null>(null)
@@ -79,6 +84,23 @@ function extractText(content: string | MessageContent[]): string {
   return raw.replace(/__AI_INTERNAL__:[\s\S]*?__AI_INTERNAL_END__/g, '').trim()
 }
 
+/**
+ * 稳定消息 key
+ * 消息对象在流式输出期间是"原地改写 content"的（见 aiConversation.updateLastMessage），
+ * 因此这里用 WeakMap 按对象身份分配 id：内容怎么变，key 都不变。
+ * 旧实现用 `content.length` 拼 key，导致每个 token 都换 key → 整行 DOM 卸载重建。
+ */
+const messageKeys = new WeakMap<object, string>()
+let messageKeySeq = 0
+function stableMessageKey(m: object): string {
+  let key = messageKeys.get(m)
+  if (!key) {
+    key = `msg-${++messageKeySeq}`
+    messageKeys.set(m, key)
+  }
+  return key
+}
+
 /** 当前活跃会话的消息（过滤掉 system/tool 消息和空内容的 assistant 消息，用于显示） */
 const displayMessages = computed(() => {
   const conv = convStore.activeConversation
@@ -97,10 +119,10 @@ const displayMessages = computed(() => {
       }
       return false
     })
-    .map((m, i) => ({
+    .map((m) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
-      _key: (m as { _id?: string })._id ?? `${m.role}-${i}-${typeof m.content === 'string' ? m.content.length : m.content.map(c => c.type).join(',')}`,
+      _key: stableMessageKey(m),
     }))
 })
 
@@ -441,12 +463,7 @@ async function execute() {
           bytes[i] = binaryStr.charCodeAt(i)
         }
         const ext = img.mimeType.split('/')[1]?.split(';')[0] || 'png'
-        const relPath = await writeImageToVault(
-          doc.vaultRoot,
-          doc.activeTabPath ?? '',
-          bytes,
-          ext,
-        )
+        const relPath = await writeImageToVault(doc.vaultRoot, doc.activeTabPath ?? '', bytes, ext)
         if (relPath) savedImagePaths.push(relPath)
       } catch (e) {
         console.error('保存图片到 vault 失败:', e)
@@ -457,17 +474,16 @@ async function execute() {
   // 所有情况都用多模态结构存储（text + image_url）
   // agent.chat 会负责：发给模型时根据 vision 能力决定是否剥离图片
   if (hasImages) {
-    const imageInfo = savedImagePaths.length > 0
-      ? savedImagePaths.map((p, i) => `图片${i + 1}: ${p}`).join('，')
-      : ''
+    const imageInfo =
+      savedImagePaths.length > 0
+        ? savedImagePaths.map((p, i) => `图片${i + 1}: ${p}`).join('，')
+        : ''
     const aiHintBase =
       '以下图片已保存到 vault，路径如上。如需将图片插入文档，可直接使用上述路径调用 insert_block 工具，type=image，src 填相对路径（相对文档所在目录）。'
     const aiInternal = imageInfo
       ? `__AI_INTERNAL__: ${imageInfo}。${aiHintBase}__AI_INTERNAL_END__`
       : `__AI_INTERNAL__: ${aiHintBase}__AI_INTERNAL_END__`
-    const textWithImageInfo = userText
-      ? `${userText}\n${aiInternal}`
-      : aiInternal
+    const textWithImageInfo = userText ? `${userText}\n${aiInternal}` : aiInternal
 
     const parts: MessageContent[] = [{ type: 'text', text: textWithImageInfo }]
     for (const img of attachedImages.value) {
@@ -487,12 +503,44 @@ async function execute() {
 
   sending.value = true
   let accumulatedContent = ''
+  let lastStreamMsg: unknown = null
+  let flushTimer: ReturnType<typeof setTimeout> | null = null
+  let lastFlushAt = 0
   let isAborted = false
+  /** 流式刷新间隔:避免每个 delta 都触发整棵消息列表重渲染 */
+  const STREAM_FLUSH_MS = 60
+
+  const flushStream = () => {
+    if (flushTimer) {
+      clearTimeout(flushTimer)
+      flushTimer = null
+    }
+    lastFlushAt = Date.now()
+    convStore.updateLastMessage(convId, accumulatedContent)
+  }
+  const cancelFlush = () => {
+    if (flushTimer) {
+      clearTimeout(flushTimer)
+      flushTimer = null
+    }
+  }
 
   const controller = agent.value.chat(conv.messages, userContent, {
     onDelta: (text) => {
+      // agent 每进入一轮工具调用都会 push 一条新的空 assistant 消息:
+      // 检测到消息对象变化就重置累积,否则第 2 轮流式期间会把第 1 轮全文重复显示一遍
+      const last = conv.messages[conv.messages.length - 1]
+      if (last && last !== lastStreamMsg) {
+        lastStreamMsg = last
+        accumulatedContent = ''
+      }
       accumulatedContent += text
-      convStore.updateLastMessage(convId, accumulatedContent)
+      const now = Date.now()
+      if (now - lastFlushAt >= STREAM_FLUSH_MS) {
+        flushStream()
+      } else if (!flushTimer) {
+        flushTimer = setTimeout(flushStream, STREAM_FLUSH_MS - (now - lastFlushAt))
+      }
     },
     onToolCall: (toolName, _args, result) => {
       if (result.data === '__calling__') {
@@ -514,6 +562,9 @@ async function execute() {
     },
     onComplete: () => {
       if (!isAborted) {
+        // 不做 flush:agent 已用权威结果覆写了消息内容(agent.ts 的 lastMsg.content = ...),
+        // 这里再写 accumulatedContent 反而可能把跨轮累积的旧文本写回去
+        cancelFlush()
         sending.value = false
         abortController.value = null
         // 若最后 assistant 消息仍为空，移除它
@@ -535,6 +586,8 @@ async function execute() {
 
   controller.signal.addEventListener('abort', () => {
     isAborted = true
+    // 中止时 agent 不会再回写内容,把已收到的增量补一次,避免最后 60ms 的文字丢失
+    flushStream()
     sending.value = false
     abortController.value = null
     // 若最后 assistant 消息仍为空，移除它
@@ -714,7 +767,12 @@ function formatToolResult(toolName: string, result: ToolResult): string {
       return `已找到 ${count} 条相关记忆`
     }
     case 'set_reminder': {
-      const d = data as { title?: string; triggerType?: string; timeStr?: string; triggerAt?: number }
+      const d = data as {
+        title?: string
+        triggerType?: string
+        timeStr?: string
+        triggerAt?: number
+      }
       const typeLabel: Record<string, string> = {
         once: '一次性',
         daily: '每天',
@@ -748,11 +806,168 @@ function extractImages(content: string | MessageContent[]): Array<{ url: string 
     .map((p) => ({ url: p.image_url.url }))
 }
 
-/** 渲染消息内容 */
-function renderContent(role: string, content: string | MessageContent[]): string {
-  const text = extractText(content)
-  if (role === 'assistant') return renderMarkdown(text)
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+/** 正在流式输出的那条 assistant 消息(只有它会走轻量渲染器) */
+const streamingKey = computed(() => {
+  if (!sending.value) return ''
+  const msgs = displayMessages.value
+  const last = msgs[msgs.length - 1]
+  return last && last.role === 'assistant' ? last._key : ''
+})
+
+/**
+ * 富文本渲染结果缓存(只缓存完成态):
+ * 每次响应式更新都会重新调用 renderContent,若不做缓存,历史消息的
+ * KaTeX/表格会被反复重算。key = 消息key + 完整内容。
+ */
+const renderCache = new Map<string, string>()
+const RENDER_CACHE_MAX = 60
+
+/**
+ * 渲染消息内容
+ * - user:按字面显示,只转义不解析 Markdown
+ * - assistant 流式中:轻量渲染器(src/ai/markdown.ts),容错且便宜
+ * - assistant 完成态:完整渲染器(src/ai/renderBubble.ts),支持
+ *   图片/KaTeX/Mermaid/嵌套列表/==高亮==/^上标^/~下标~/<u>/原始 HTML/脚注
+ */
+function renderContent(msg: {
+  role: string
+  content: string | MessageContent[]
+  _key: string
+}): string {
+  const text = extractText(msg.content)
+  if (!text) return ''
+  if (msg.role !== 'assistant') {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  }
+  if (msg._key === streamingKey.value) return renderMarkdown(text)
+  const cacheKey = `${msg._key}|${text}`
+  const hit = renderCache.get(cacheKey)
+  if (hit !== undefined) return hit
+  const html = renderBubbleMarkdown(text, { idPrefix: msg._key })
+  if (renderCache.size >= RENDER_CACHE_MAX) {
+    const oldest = renderCache.keys().next().value
+    if (oldest !== undefined) renderCache.delete(oldest)
+  }
+  renderCache.set(cacheKey, html)
+  return html
+}
+
+/**
+ * 后置渲染通道(异步、幂等,仅在无流式输出时执行)
+ * v-html 每次更新都会重建子树,所以这里必须每次重新扫描并靠标记去重:
+ *   1. 图片:vault 相对路径 → asset://(见 core/vault/assetSrc.ts)
+ *   2. Mermaid:pre>code.language-mermaid → SVG
+ */
+let hydrateTimer: ReturnType<typeof setTimeout> | null = null
+let hydrateSeq = 0
+let diagramSeq = 0
+
+async function hydrateMedia() {
+  const root = chatAreaRef.value
+  if (!root || sending.value) return
+  const token = ++hydrateSeq
+
+  for (const img of Array.from(root.querySelectorAll<HTMLImageElement>('img[data-md-lazy="1"]'))) {
+    const raw = img.getAttribute('data-md-src') ?? ''
+    if (!raw) continue
+    img.removeAttribute('data-md-lazy')
+    try {
+      const url = await resolveAssetSrc(raw, {
+        vaultRoot: doc.vaultRoot,
+        docPath: doc.activeTabPath,
+      })
+      if (token !== hydrateSeq || !img.isConnected) return
+      img.src = url
+    } catch (e) {
+      img.classList.add('md-img-error')
+      console.error('[AI 气泡] 图片路径解析失败:', raw, e)
+    }
+  }
+
+  const themeName = theme.mode === 'dark' ? 'dark' : 'default'
+  for (const pre of Array.from(root.querySelectorAll<HTMLElement>('pre.md-pre'))) {
+    // 精确匹配 class="language-mermaid"(避免 language-mermaidish 之类的误命中)
+    const codeEl = Array.from(pre.querySelectorAll<HTMLElement>('code')).find((c) =>
+      c.classList.contains('language-mermaid'),
+    )
+    // 源码:未渲染过时取 <code> 文本;已渲染成 SVG 后从 dataset 里取回
+    const source = (
+      codeEl ? (codeEl.textContent ?? '') : (pre.dataset.mdMermaidSource ?? '')
+    ).trim()
+    if (!source) continue
+    // 同一主题下渲染过就不再重做(主题变化时下面的 dataset 比对会放行)
+    if (pre.dataset.mdMermaidTheme === themeName) continue
+    pre.dataset.mdMermaidSource = source
+    pre.dataset.mdMermaidTheme = themeName
+    try {
+      const svg = await renderMermaidSvg(source, `md-mermaid-${++diagramSeq}`, {
+        theme: themeName,
+        securityLevel: 'strict',
+      })
+      if (token !== hydrateSeq || !pre.isConnected) return
+      pre.classList.add('md-mermaid')
+      pre.classList.remove('md-mermaid-error')
+      pre.innerHTML = svg
+    } catch (e) {
+      const err = e as { message?: string; str?: string }
+      const message = err.message ?? err.str ?? String(e)
+      pre.classList.add('md-mermaid-error')
+      pre.setAttribute('title', message)
+      console.error('[AI 气泡] Mermaid 渲染失败:', message)
+    }
+  }
+}
+
+/** 节流调度:等 DOM 更新完再跑后置通道 */
+function scheduleHydrate() {
+  if (hydrateTimer) clearTimeout(hydrateTimer)
+  hydrateTimer = setTimeout(() => {
+    hydrateTimer = null
+    void nextTick(() => hydrateMedia())
+  }, 30)
+}
+
+watch(
+  () => [
+    displayMessages.value.length,
+    streamingKey.value,
+    convStore.activeConversationId,
+    theme.mode,
+    // 浮窗关闭会销毁消息 DOM(根节点 v-if),重新打开后需要重跑后置通道
+    isOpen.value,
+  ],
+  () => scheduleHydrate(),
+)
+onUnmounted(() => {
+  if (hydrateTimer) clearTimeout(hydrateTimer)
+})
+
+/**
+ * 消息区点击:
+ *   1. 脚注锚点 —— 用 id 跳转。不能用 href="#fn-1":路由是 hash 模式,
+ *      会把 #fn-1 当成路由地址跳走(白屏)
+ *   2. 其余交给外链处理器(系统浏览器打开)
+ */
+function onMessagesClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  const ref = target.closest('a.md-fn-ref') as HTMLElement | null
+  const back = target.closest('a.md-fn-back') as HTMLElement | null
+  const anchor = ref ?? back
+  if (anchor?.id) {
+    const targetId = ref
+      ? anchor.id.replace(/^fnref-/, 'fn-')
+      : anchor.id.replace(/^fnback-/, 'fnref-')
+    const el = document.getElementById(targetId)
+    if (el) {
+      e.preventDefault()
+      e.stopPropagation()
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      el.classList.add('md-fn-flash')
+      setTimeout(() => el.classList.remove('md-fn-flash'), 1200)
+      return
+    }
+  }
+  handleExternalLinkClick(e)
 }
 
 /** 关闭 Profile 下拉（点击外部） */
@@ -1065,7 +1280,7 @@ onUnmounted(() => {
             <div class="empty-title">UU鲨已就绪</div>
             <div class="empty-desc">输入指令开始对话</div>
           </div>
-          <div v-else class="messages" @click="handleExternalLinkClick">
+          <div v-else class="messages" @click="onMessagesClick">
             <div
               v-for="msg in displayMessages"
               :key="msg._key"
@@ -1084,7 +1299,8 @@ onUnmounted(() => {
                 </div>
                 <div
                   v-if="extractText(msg.content).trim().length > 0"
-                  v-html="renderContent(msg.role, msg.content)"
+                  class="md-body"
+                  v-html="renderContent(msg)"
                 ></div>
               </div>
             </div>
@@ -1111,13 +1327,15 @@ onUnmounted(() => {
 
         <!-- 输入区 -->
         <div class="chat-input-area">
-          <div class="input-composer" :class="{ 'composer-focused': isInputFocused}">
+          <div class="input-composer" :class="{ 'composer-focused': isInputFocused }">
             <div class="composer-main">
               <textarea
                 ref="inputRef"
                 v-model="input"
                 class="chat-input"
-                :placeholder="sending ? '正在生成响应…' : '输入你的问题或指令…（Enter 发送，Shift+Enter 换行）'"
+                :placeholder="
+                  sending ? '正在生成响应…' : '输入你的问题或指令…（Enter 发送，Shift+Enter 换行）'
+                "
                 :disabled="sending"
                 rows="1"
                 @keydown.enter.exact.prevent="execute"
@@ -1143,11 +1361,7 @@ onUnmounted(() => {
                   </svg>
                   <span>联网</span>
                 </button>
-                <button
-                  class="toolbar-btn"
-                  title="添加图片"
-                  @click="fileInputRef?.click()"
-                >
+                <button class="toolbar-btn" title="添加图片" @click="fileInputRef?.click()">
                   <svg
                     viewBox="0 0 16 16"
                     fill="none"
@@ -1177,7 +1391,12 @@ onUnmounted(() => {
                     <rect x="3" y="3" width="8" height="8" rx="1.5" />
                   </svg>
                 </button>
-                <button v-else class="send-btn" :disabled="!input.trim() && attachedImages.length === 0" @click="execute">
+                <button
+                  v-else
+                  class="send-btn"
+                  :disabled="!input.trim() && attachedImages.length === 0"
+                  @click="execute"
+                >
                   <svg
                     viewBox="0 0 14 14"
                     fill="none"
@@ -1709,13 +1928,11 @@ onUnmounted(() => {
   gap: 10px;
   user-select: text;
   background:
-    radial-gradient(ellipse at 50% 0%, var(--brand-alpha-03) 0%, transparent 50%),
-    var(--popover);
+    radial-gradient(ellipse at 50% 0%, var(--brand-alpha-03) 0%, transparent 50%), var(--popover);
 }
 .dark .chat-messages {
   background:
-    radial-gradient(ellipse at 50% 0%, var(--brand-alpha-06) 0%, transparent 50%),
-    var(--popover);
+    radial-gradient(ellipse at 50% 0%, var(--brand-alpha-06) 0%, transparent 50%), var(--popover);
 }
 .empty-state {
   display: flex;
@@ -2237,6 +2454,149 @@ onUnmounted(() => {
 }
 .md-bubble :deep(.md-td) {
   vertical-align: top;
+}
+
+/* ===== 富文本渲染(Plan C):行内标记 / 图片 / 公式 / 脚注 / 图表 ===== */
+/* 行内代码:marksToHtml 用的是 .inline-code(与 .md-code 并存,兼容旧渲染器) */
+.md-bubble :deep(.inline-code) {
+  background: var(--code-bg);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+.md-bubble :deep(.md-link) {
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.md-bubble :deep(.md-wikilink) {
+  color: var(--primary);
+  cursor: pointer;
+}
+.md-bubble :deep(mark.md-highlight) {
+  background: #fff3cd;
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+html.dark .md-bubble :deep(mark.md-highlight) {
+  background: #635300;
+  color: #fff3cd;
+}
+.md-bubble :deep(sup),
+.md-bubble :deep(sub) {
+  font-size: 0.75em;
+  line-height: 0;
+}
+
+/* 图片 */
+.md-bubble :deep(.md-image) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 6px 0;
+  border-radius: 6px;
+  cursor: zoom-in;
+}
+.md-bubble :deep(img[data-md-lazy='1']) {
+  min-height: 18px;
+  background: var(--code-bg);
+  border-radius: 6px;
+}
+.md-bubble :deep(.md-img-error) {
+  min-height: 0;
+  background: transparent;
+  outline: 1px dashed var(--destructive);
+}
+
+/* 引用(块级引用由 renderBubble 输出 .md-quote,旧渲染器输出裸 blockquote) */
+.md-bubble :deep(.md-quote) {
+  border-left: 3px solid var(--border);
+  padding-left: 10px;
+  margin: 6px 0;
+  color: var(--muted-foreground);
+}
+.md-bubble :deep(.md-quote .md-p) {
+  margin: 2px 0;
+}
+.md-bubble :deep(.md-page-break) {
+  border-top: 1px dashed var(--border);
+  margin: 10px 0;
+}
+.md-bubble :deep(.md-task-text) {
+  vertical-align: middle;
+}
+
+/* 表格:窄气泡里允许横向滚动 */
+.md-bubble :deep(.md-table-wrap) {
+  overflow-x: auto;
+  margin: 6px 0;
+}
+.md-bubble :deep(.md-table-wrap .md-table) {
+  margin: 0;
+}
+
+/* KaTeX 公式 */
+.md-bubble :deep(.katex) {
+  font-size: 1.05em;
+}
+.md-bubble :deep(.katex-display) {
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 8px 0;
+  padding: 2px 0;
+}
+
+/* 脚注 */
+.md-bubble :deep(.md-fn-ref) {
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 0.75em;
+  vertical-align: super;
+  padding: 0 1px;
+  text-decoration: none;
+}
+.md-bubble :deep(.md-footnotes) {
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.md-bubble :deep(.md-fn-list) {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.md-bubble :deep(.md-fn-item) {
+  margin: 2px 0;
+  line-height: 1.5;
+}
+.md-bubble :deep(.md-fn-item:target),
+.md-bubble :deep(.md-fn-flash) {
+  background: var(--accent);
+  border-radius: 3px;
+}
+.md-bubble :deep(.md-fn-back) {
+  margin-left: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--primary);
+}
+
+/* Mermaid 图表 */
+.md-bubble :deep(.md-mermaid) {
+  background: transparent;
+  padding: 0;
+  overflow-x: auto;
+  text-align: center;
+}
+.md-bubble :deep(.md-mermaid svg) {
+  max-width: 100%;
+  height: auto;
+}
+.md-bubble :deep(.md-mermaid-error) {
+  outline: 1px solid var(--destructive);
 }
 
 /* ===== 分屏模式 ===== */

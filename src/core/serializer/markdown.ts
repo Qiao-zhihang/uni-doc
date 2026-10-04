@@ -71,9 +71,16 @@ function foldHardBreaks(raw: string): string {
   return raw.replace(/ {2,}\n/g, '\n')
 }
 
-/** 表格单元格转义:`\` → `\\`,`|` → `\|`(GFM 标准),换行折叠为空格 */
+/**
+ * 表格单元格转义:GFM 要求把 `|` 写成 `\|`,换行折成空格。
+ *
+ * 这里**不再加倍反斜杠**:escapeMarkdownSource 已经处理过反斜杠(RAW 区间
+ * 如公式/原始 HTML/行内代码本就不该动),而解析端 splitTableRow 只还原 `\|`、
+ * parseInlineMarkdown 再还原一层 —— 若此处重复加倍,就会出现"写盘加两层、
+ * 解析只还一层",单元格里的反斜杠随每次保存翻倍(指数增长),并破坏公式源码。
+ */
 function escapeTableCell(text: string): string {
-  return text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ')
+  return text.replace(/\|/g, '\\|').replace(/\n/g, ' ')
 }
 
 /**
@@ -138,8 +145,11 @@ function escapeMarkdownSource(text: string, marks: Mark[] = []): string {
   let cursor = 0
   // 一个 mark 区域内的文本仍可能包含 markdown 记号(如标题文本里含 `*`),
   // 裸写出去会被反解析成新样式,因此区域内部同样转义。
-  // 但区域内容若本身是 markdown 源码(数学公式 / 原始 HTML),则必须原样保留。
-  const RAW_CONTENT_TYPES = new Set<Mark['type']>(['math', 'html'])
+  // 但区域内容若本身是 markdown 源码(数学公式 / 原始 HTML / 行内代码),必须原样保留:
+  //   - code span 内部不解析语法、也不处理反斜杠,所以转义只会污染文件
+  //     (`` `a_b` `` 被写成 `` `a\_b` ``),在 Typora/Obsidian 里会显示多余反斜杠。
+  //   - 注意表格单元格另有 escapeTableCell 负责 `|` 与反斜杠,与这里互不冲突。
+  const RAW_CONTENT_TYPES = new Set<Mark['type']>(['math', 'html', 'code'])
   const rawRanges = valid
     .filter((m) => RAW_CONTENT_TYPES.has(m.type))
     .map((m) => [m.start, m.end] as const)
@@ -633,7 +643,10 @@ function convertNode(source: string, node: any): Block | Block[] | null {
 
     case 'html': {
       // HTML 块:作为段落处理（交给 parseInlineMarkdown 解析其中的 HTML 标签）
-      const { text, marks } = parseInlineMarkdown(node.value || '')
+      // 必须先折叠硬换行:序列化时 toHardBreaks 会给每个 \n 补两个空格,
+      // 而这里用的是 mdast 的 node.value,若不过 foldHardBreaks,
+      // HTML 块内的行尾空格会每保存一次累加 2 个(页脚类内容必然命中)
+      const { text, marks } = parseInlineMarkdown(foldHardBreaks(node.value || ''))
       const block = createParagraphBlock(text)
       block.content.marks = marks
       return block

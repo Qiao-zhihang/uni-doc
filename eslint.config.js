@@ -110,6 +110,7 @@ export default [
       'dist/**',
       'src-tauri/**',
       'node_modules/**',
+      'scripts/**',
       '*.config.js',
       '*.config.ts',
     ],
