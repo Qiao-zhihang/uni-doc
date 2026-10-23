@@ -12,6 +12,7 @@ import { parseInlineMarkdown } from '@/core/parser/inlineMarkdown'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { useWikilinkAutocomplete } from '@/composables/useWikilinkAutocomplete'
+import { useContentEditable } from '@/composables/useContentEditable'
 import WikilinkPopup from '@/components/common/WikilinkPopup.vue'
 
 const props = defineProps<{ block: Block }>()
@@ -27,6 +28,8 @@ const selfUpdate = ref(false)
 // 当前编辑中的 cell 元素(用于 wikilink 自动补全)
 const activeCellEl = ref<HTMLElement | null>(null)
 const autocomplete = useWikilinkAutocomplete({ el: activeCellEl })
+// IME 组合输入保护(此前表格完全没有,中文输入时 Enter 上屏会被当成提交)
+const { isComposing, onCompositionStart, onCompositionEnd } = useContentEditable(activeCellEl)
 
 const content = () => props.block.content as TableContent
 
@@ -47,12 +50,56 @@ function setCellRef(el: HTMLElement | null, rowIdx: number, colIdx: number) {
   if (el) cellRefs.value.set(cellKey(rowIdx, colIdx), el)
 }
 
+/**
+ * 取元素内 caret 的字符偏移(Range.toString 累加,与 blockFocus.placeCaret 同一套坐标)
+ */
+function getCaretOffset(root: HTMLElement): number | null {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0) return null
+  const range = sel.getRangeAt(0)
+  if (!range.collapsed || !root.contains(range.startContainer)) return null
+  const pre = document.createRange()
+  pre.selectNodeContents(root)
+  pre.setEnd(range.startContainer, range.startOffset)
+  return pre.toString().length
+}
+
+/** 把 caret 放回元素内的字符偏移(按文本节点累加,元素子节点不占字符) */
+function placeCaret(root: HTMLElement, offset: number) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  let remaining = offset
+  let node: Node | null
+  while ((node = walker.nextNode())) {
+    const len = node.textContent?.length ?? 0
+    if (remaining <= len) {
+      const range = document.createRange()
+      range.setStart(node, remaining)
+      range.collapse(true)
+      const sel = window.getSelection()
+      sel?.removeAllRanges()
+      sel?.addRange(range)
+      return
+    }
+    remaining -= len
+  }
+  // 偏移越界或没有文本节点:退到末尾
+  const range = document.createRange()
+  range.selectNodeContents(root)
+  range.collapse(false)
+  const sel = window.getSelection()
+  sel?.removeAllRanges()
+  sel?.addRange(range)
+}
+
 /** 按选中态渲染所有单元格 */
 function syncCells() {
   const c = content()
   const renderCell = (cell: TableCell, key: string) => {
     const el = cellRefs.value.get(key)
     if (!el) return
+    // 重写 innerText/innerHTML 会把 caret 重置到偏移 0。
+    // 正在编辑的单元格跳过重写,让内容与 caret 都留在原处。
+    if (el === document.activeElement) return
     if (isSelected.value) {
       const source = marksToSource(cell.text, cell.marks)
       el.innerText = source
@@ -139,13 +186,19 @@ function commitCellWithMarks(rowIdx: number, colIdx: number, text: string) {
 }
 
 function onCellKeydown(e: KeyboardEvent, rowIdx: number, colIdx: number) {
+  // IME 组合输入期间让位:输入法用 Enter 上屏候选词,否则会被当成「提交单元格」(详见 ParagraphBlock)
+  if (e.isComposing || isComposing.value) return
   if (autocomplete.onKeyDown(e)) return
   if (e.key === 'Enter') {
     e.preventDefault()
     const el = cellRefs.value.get(cellKey(rowIdx, colIdx))
     if (el) {
+      // 提交前先取 caret 偏移:syncCells 重写 innerText 会把它重置到 0,
+      // 表现为「在单元格里按回车,光标跳回开头」。
+      const caretOffset = getCaretOffset(el)
       commitCellWithMarks(rowIdx, colIdx, el.innerText)
-      selfUpdate.value = false
+      // 注意:这里刻意不把 selfUpdate 置回 false —— 那会触发 watch 重写 DOM(见上)
+      if (caretOffset !== null) nextTick(() => placeCaret(el, caretOffset))
     }
   }
 }
@@ -153,14 +206,31 @@ function onCellKeydown(e: KeyboardEvent, rowIdx: number, colIdx: number) {
 /** 单元格输入时检测 [[ 触发自动补全 */
 function onCellInput(e: Event) {
   activeCellEl.value = e.target as HTMLElement
+  if (isComposing.value) return
   autocomplete.checkTrigger()
 }
 
 function onCellBlur(rowIdx: number, colIdx: number) {
   autocomplete.close()
+  // IME 组合输入中不提交,等 compositionend 补提交
+  if (isComposing.value) return
   const el = cellRefs.value.get(cellKey(rowIdx, colIdx))
   if (!el) return
   commitCellWithMarks(rowIdx, colIdx, el.innerText)
+}
+
+/** compositionend:若组合结束时焦点已不在单元格内,补一次提交(对齐其它块的策略) */
+function onCellCompositionEnd() {
+  onCompositionEnd()
+  const el = activeCellEl.value
+  if (el && document.activeElement !== el) {
+    for (const [key, node] of cellRefs.value) {
+      if (node !== el) continue
+      const [r, c] = key.split(':').map((n) => Number(n))
+      commitCellWithMarks(r, c, el.innerText)
+      break
+    }
+  }
 }
 
 /* ============== 右键菜单:行列增删 ============== */
@@ -348,6 +418,8 @@ function onMousedown(e: MouseEvent) {
               @keydown="(e: KeyboardEvent) => onCellKeydown(e, -1, i)"
               @input="onCellInput"
               @blur="onCellBlur(-1, i)"
+              @compositionstart="onCompositionStart"
+              @compositionend="onCellCompositionEnd"
               @contextmenu="(e: MouseEvent) => onCellContextmenu(e, -1, i)"
             ></div>
           </th>
@@ -368,6 +440,8 @@ function onMousedown(e: MouseEvent) {
               @keydown="(e: KeyboardEvent) => onCellKeydown(e, rIdx, cIdx)"
               @input="onCellInput"
               @blur="onCellBlur(rIdx, cIdx)"
+              @compositionstart="onCompositionStart"
+              @compositionend="onCellCompositionEnd"
               @contextmenu="(e: MouseEvent) => onCellContextmenu(e, rIdx, cIdx)"
             ></div>
           </td>

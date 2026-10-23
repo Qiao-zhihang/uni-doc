@@ -292,6 +292,8 @@ function onPointerUp(e: PointerEvent) {
 }
 
 onUnmounted(() => {
+  // 关闭/切换 AI 窗口时立即落盘记忆，避免 500ms 防抖窗口内丢改动
+  void memoryStore.flushSave()
   document.body.style.userSelect = ''
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
@@ -755,7 +757,8 @@ function formatToolResult(toolName: string, result: ToolResult): string {
       return `已搜索到 ${Math.max(1, count)} 条结果`
     }
     case 'save_memory': {
-      const d = data as { category?: string }
+      const d = data as { category?: string; duplicateOf?: string }
+      if (d?.duplicateOf) return '记忆已存在，未重复保存'
       return `已保存记忆(${d?.category ?? ''})`
     }
     case 'list_memory':

@@ -114,6 +114,9 @@ export interface StreamCallbacks {
 
 // ============ AI 记忆系统类型 ============
 
+/** 当前记忆数据 schema 版本。v2 起新增 settings / updatedAt / pinned / enabled / origin */
+export const MEMORY_VERSION = 2
+
 export interface UserProfile {
   name?: string
   aliases?: string[]
@@ -126,6 +129,9 @@ export interface UserProfile {
 
 export type MemoryCategory = 'personal' | 'project' | 'knowledge' | 'preference' | 'other'
 
+/** 记忆来源语义（source 字符串保留兼容旧数据） */
+export type MemoryOrigin = 'manual' | 'agent' | 'auto-extract' | 'import'
+
 export interface MemoryFact {
   id: string
   category: MemoryCategory
@@ -137,19 +143,61 @@ export interface MemoryFact {
   accessCount: number
   confidence: number
   importance: number
+  /** 最后修改时间（v2 起必填） */
+  updatedAt?: number
+  /** 置顶：注入排序优先、清理与超限淘汰时受保护 */
+  pinned?: boolean
+  /** 单条停用：不参与注入与检索（数据保留） */
+  enabled?: boolean
+  /** 来源语义；旧数据可由 source 推导 */
+  origin?: MemoryOrigin
+  /** 自动提取时的来源会话 id */
+  sourceConversationId?: string
+}
+
+/** 记忆行为设置（存放在 ai_memory.json 内，随记忆一起导入导出） */
+export interface MemorySettings {
+  /** 总开关：关闭后不再注入、不再注册记忆工具、不再自动提取（数据保留） */
+  enabled: boolean
+  /** 会话结束后从对话中自动提取记忆 */
+  autoExtract: boolean
+  /** 每次提问最多注入几条相关记忆（1-10） */
+  maxInjectFacts: number
+  /** 单条记忆注入时的最大长度（100-2000） */
+  maxFactChars: number
+  /** 加载时自动清理低价值记忆（置顶项永不清理） */
+  autoCleanup: boolean
 }
 
 export interface GlobalMemory {
   version: number
   profile: UserProfile
   facts: MemoryFact[]
+  settings: MemorySettings
   updatedAt: number
 }
 
+/** 记忆导出文件信封（设置页导出/导入共用） */
+export interface MemoryExport {
+  format: 'unidoc-ai-memory'
+  formatVersion: number
+  exportedAt: number
+  memory: GlobalMemory
+}
+
+export const DEFAULT_MEMORY_SETTINGS: MemorySettings = {
+  enabled: true,
+  autoExtract: true,
+  maxInjectFacts: 5,
+  maxFactChars: 500,
+  autoCleanup: true,
+}
+
 export const DEFAULT_MEMORY: GlobalMemory = {
-  version: 1,
+  version: MEMORY_VERSION,
   profile: {},
   facts: [],
+  settings: { ...DEFAULT_MEMORY_SETTINGS },
   updatedAt: 0,
 }
 

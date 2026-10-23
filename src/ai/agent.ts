@@ -12,7 +12,7 @@ import { streamChat, type StreamResult } from './model'
 import { createTools, getToolDefinitions, executeTool, TOOL_LABELS } from './tools'
 import { buildContext, buildSystemPrompt } from './context'
 import { useAiMemoryStore } from '@/stores/aiMemory'
-import { extractProfileFromConversation, parseAndSaveFact } from './memory'
+import { extractHeuristicCandidates } from './memoryCore'
 import { estimateTokens, estimateMessageTokens } from './tokenEstimate'
 import { inferContextWindow } from './contextWindow'
 import type { useDocumentStore } from '@/stores/document'
@@ -118,7 +118,15 @@ function formatToolResultForAI(
       return `【搜索结果】\n${text}`
     }
     case 'save_memory': {
-      const d = result.data as { id: string; category: string; content: string }
+      const d = result.data as {
+        id?: string
+        category?: string
+        content?: string
+        duplicateOf?: string
+      }
+      if (d?.duplicateOf) {
+        return `【记忆已存在】未重复保存，已有记忆 ID=${d.duplicateOf} 内容="${d?.content?.slice(0, 100) ?? ''}"`
+      }
       return `【记忆已保存】分类=${d?.category} 内容="${d?.content?.slice(0, 100) ?? ''}"`
     }
     case 'list_memory': {
@@ -392,7 +400,10 @@ export function createAgent(deps: AgentDeps): Agent {
         const contextMessages = prepareMessagesForModel(rawContextMessages, hasVision)
 
         // 准备工具：内部 ToolDefinition[] 与 OpenAI Function Calling 格式
-        const tools = createTools(doc, editor, useToolSearch, memory, getConversationId)
+        // 记忆关闭或未成功加载时完全不注册记忆工具，保证与注入/自动提取一致的隐私语义
+        const memoryTools =
+          memory && memory.loaded && memory.settings.enabled !== false ? memory : undefined
+        const tools = createTools(doc, editor, useToolSearch, memoryTools, getConversationId)
         const toolDefs = getToolDefinitions(tools)
 
         // 多轮工具调用循环
@@ -533,10 +544,16 @@ export function createAgent(deps: AgentDeps): Agent {
         callbacks?.onError?.(e instanceof Error ? e.message : String(e))
       } finally {
         callbacks?.onComplete?.()
-        // 会话结束后自动提取记忆
-        if (memory && !signal.aborted) {
+        // 会话结束后自动提取记忆（受记忆总开关与自动提取开关控制）
+        if (
+          memory &&
+          memory.loaded &&
+          memory.settings.enabled !== false &&
+          memory.settings.autoExtract &&
+          !signal.aborted
+        ) {
           try {
-            autoExtractMemory(messages, memory)
+            autoExtractMemory(messages, memory, getConversationId?.() ?? null)
           } catch {
             // 记忆提取失败不影响主流程
           }
@@ -551,56 +568,36 @@ export function createAgent(deps: AgentDeps): Agent {
 }
 
 /**
- * 会话结束后自动提取记忆
- * - 从用户消息中提取个人画像信息（姓名、别称等）
- * - 从对话中提取关键事实（通过启发式规则）
+ * 会话结束后自动提取记忆（启发式降级方案，受记忆设置开关控制）
+ * - 保守提取姓名/别称等画像（不再把「我是…」当作姓名）
+ * - 从最近用户消息中提取少量候选事实，写入前统一查重
  */
 function autoExtractMemory(
   messages: ChatMessage[],
   memory: ReturnType<typeof useAiMemoryStore>,
+  conversationId: string | null,
 ): void {
   const userMessages = messages
-    .filter((m) => m.role === 'user')
-    .map((m) => (typeof m.content === 'string' ? m.content : ''))
-    .filter((t) => t.length > 0)
+    .filter((message) => message.role === 'user')
+    .map((message) => (typeof message.content === 'string' ? message.content : ''))
+    .filter((text) => text.length > 0)
 
   if (userMessages.length === 0) return
 
-  const profileUpdate = extractProfileFromConversation(userMessages)
-  if (profileUpdate) {
-    memory.updateProfile(profileUpdate)
+  const { profile, candidates } = extractHeuristicCandidates(userMessages)
+  if (profile && Object.keys(profile).length > 0) {
+    memory.updateProfile(profile)
   }
 
-  const recentUserText = userMessages.slice(-3).join(' ')
-  const extractionPatterns: Array<{
-    pattern: RegExp
-    category: 'personal' | 'preference' | 'project' | 'knowledge'
-    tag: string
-  }> = [
-    { pattern: /我(?:叫|是|名字是)\s*([^\s，。,.\n]{2,10})/, category: 'personal', tag: '姓名' },
-    {
-      pattern: /(?:喜欢|偏好|习惯|常用|爱用)\s*([^\s，。,.\n]{2,10})/,
-      category: 'preference',
-      tag: '偏好',
-    },
-    {
-      pattern: /(?:项目|工程|仓库)\s*[:：]?\s*([^\s，。,.\n]{2,20})/,
-      category: 'project',
-      tag: '项目',
-    },
-    { pattern: /(?:使用|用|技术栈)\s*([^\s，。,.\n]{2,15})/, category: 'knowledge', tag: '技术' },
-  ]
-
-  for (const { pattern, category, tag } of extractionPatterns) {
-    const match = recentUserText.match(pattern)
-    if (match) {
-      const content = match[0]
-      const existing = memory.facts.find(
-        (f) => f.category === category && f.content.includes(content.slice(0, 5)),
-      )
-      if (!existing) {
-        parseAndSaveFact(content, category, [tag], 'auto-extract')
-      }
+  for (const candidate of candidates) {
+    if (memory.findSimilarFact(candidate.content)) continue
+    try {
+      memory.addFact(candidate.content, candidate.category, candidate.tags, 'auto-extract', 0.5, {
+        origin: 'auto-extract',
+        ...(conversationId ? { sourceConversationId: conversationId } : {}),
+      })
+    } catch {
+      // 单条失败（容量已满/内容非法）不影响其他候选
     }
   }
 }

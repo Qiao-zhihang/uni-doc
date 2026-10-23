@@ -177,6 +177,8 @@ function isCursorAtEnd(): boolean {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  // IME 组合输入期间让位:输入法用 Enter 上屏候选词,否则会误拆块(详见 ParagraphBlock)
+  if (e.isComposing || isComposing.value) return
   if (e.key === 'Tab') {
     onTabKey(e)
     return

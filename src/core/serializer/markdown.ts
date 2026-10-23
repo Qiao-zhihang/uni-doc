@@ -8,6 +8,8 @@
  */
 
 import { fromMarkdown } from 'mdast-util-from-markdown'
+import { gfmTable } from 'micromark-extension-gfm-table'
+import { gfmTableFromMarkdown } from 'mdast-util-gfm-table'
 import type {
   Block,
   CodeBlockContent,
@@ -133,12 +135,12 @@ function escapeSegment(seg: string, isBlockStart: boolean): string {
   return out
 }
 
-function escapeMarkdownSource(text: string, marks: Mark[] = []): string {
+function escapeMarkdownSource(text: string, marks: Mark[] = [], blockStart = true): string {
   if (!text) return ''
   const valid = dedupMarks(marks).filter(
     (m) => m.start >= 0 && m.end <= text.length && m.start <= m.end,
   )
-  if (!valid.length) return escapeSegment(text, true)
+  if (!valid.length) return escapeSegment(text, blockStart)
 
   const events = buildEvents(valid, text.length)
   let result = ''
@@ -179,7 +181,7 @@ function escapeMarkdownSource(text: string, marks: Mark[] = []): string {
   for (const evt of events) {
     if (evt.pos > text.length) continue
     if (evt.pos > cursor) {
-      result += escRange(cursor, evt.pos, cursor === 0)
+      result += escRange(cursor, evt.pos, blockStart && cursor === 0)
       cursor = evt.pos
     }
     if (evt.kind === 'open') {
@@ -191,7 +193,7 @@ function escapeMarkdownSource(text: string, marks: Mark[] = []): string {
     }
   }
   if (cursor < text.length) {
-    result += escRange(cursor, text.length, cursor === 0)
+    result += escRange(cursor, text.length, blockStart && cursor === 0)
   }
   return result
 }
@@ -276,7 +278,9 @@ function serializeBlock(block: Block): string {
     case 'table': {
       const { headers = [], rows = [], aligns = [] } = block.content as TableContent
       if (!headers.length) return ''
-      const cellMd = (c: TableCell) => escapeTableCell(escapeMarkdownSource(c.text, c.marks))
+      // 单元格不是块首(前面还有 `| `),传 blockStart=false:
+      // 否则 `#` `-` `1.` 开头的单元格会被写成 `\#` `\-` `1\.`,保存后凭空多出反斜杠
+      const cellMd = (c: TableCell) => escapeTableCell(escapeMarkdownSource(c.text, c.marks, false))
       const headerLine = `| ${headers.map((c) => cellMd(c)).join(' | ')} |`
       const dividerLine = `| ${headers
         .map((_, i) => {
@@ -482,6 +486,76 @@ function extractInline(
   return parseInlineMarkdown(raw)
 }
 
+/* ============== GFM 表格(规范解析) ============== */
+
+/**
+ * 项目内**唯一**的 mdast 解析入口。
+ *
+ * 开启 GFM 表格扩展,让「合法 GFM 表格」都能被解析成 `table` 节点:
+ * 单横线/对齐冒号分隔行、省略首尾竖线、段落紧接表格、列表/引用内表格等。
+ * 此前没有该扩展时,表格只能靠 `isTableText` + `parseTableFromText` 启发式兜底识别,
+ * 写法稍有出入(例如分隔行只有一个 `-`)整张表就会退化成带 `|` 的普通段落。
+ *
+ * 注意:文件内所有 `fromMarkdown` 调用都必须走这里(包括引用内部的重解析),
+ * 否则容器里的表格仍然识别不到。
+ */
+function parseMd(markdown: string): ReturnType<typeof fromMarkdown> {
+  return fromMarkdown(markdown, {
+    extensions: [gfmTable()],
+    mdastExtensions: [gfmTableFromMarkdown()],
+  })
+}
+
+/**
+ * 切分一个 GFM 表格行的单元格。
+ *
+ * 与旧 `splitTableRow` 的区别:GFM 允许省略首尾竖线(且可不对称),
+ * 这里只在「确实有首/尾分隔竖线」时丢弃对应的空段,再逐格 trim。
+ * 单元格内的 `\|` 还原交给 splitTableRow / parseInlineMarkdown 的既有规则,
+ * 这里不重复解码,避免反斜杠被折叠两次。
+ */
+function splitGfmRow(rawLine: string): string[] {
+  const trimmed = rawLine.trim()
+  const cells = splitTableRow(trimmed)
+  // 行尾的 `|` 若被反斜杠转义(`\|`)则属于单元格内容,不能当分隔符丢掉
+  const tail = trimmed.match(/(\\*)\|$/)
+  const hasTrailingPipe = !!tail && tail[1].length % 2 === 0
+  if (trimmed.startsWith('|') && cells.length > 0) cells.shift()
+  if (hasTrailingPipe && cells.length > 0) cells.pop()
+  return cells.map((c) => c.trim())
+}
+
+/**
+ * mdast `table` 节点 → unidoc table block。
+ *
+ * 单元格原始源码按**行**的 position 切取:行 position 不含容器前缀(`> `、列表缩进)
+ * 且不包含换行;cell 的 position 会带上分隔竖线,反而不适合直接切片。
+ *
+ * GFM 规则:表头列数决定表格结构,数据行多出的单元格截断、缺少的补空。
+ */
+function convertTable(source: string, node: any): Block | null {
+  const rowNodes: any[] = (node.children ?? []).filter((row: any) => row?.type === 'tableRow')
+  if (rowNodes.length === 0 || !rowNodes[0].position) return null
+
+  const rowCells = (row: any): string[] => splitGfmRow(sliceSource(source, row.position))
+
+  const headers = rowCells(rowNodes[0]).map((text) => parseInlineMarkdown(text))
+  if (headers.length === 0) return null
+
+  const aligns: ColumnAlign[] = (Array.isArray(node.align) ? node.align : [])
+    .slice(0, headers.length)
+    .map((a: string | null): ColumnAlign => (a === 'center' || a === 'right' ? a : 'left'))
+  while (aligns.length < headers.length) aligns.push('left')
+
+  const rows = rowNodes.slice(1).map((row: any) => {
+    const cells = rowCells(row).slice(0, headers.length)
+    while (cells.length < headers.length) cells.push('')
+    return cells.map((text) => parseInlineMarkdown(text))
+  })
+
+  return createTableBlock(headers, rows, aligns)
+}
+
 /** 检测一段文本是否全是表格行（用于 mdast→表格 的回退处理） */
 function isTableText(text: string): boolean {
   const lines = text.split('\n').filter((l) => l.trim() !== '')
@@ -562,6 +636,11 @@ function convertNode(source: string, node: any): Block | Block[] | null {
     case 'thematicBreak':
       return createDividerBlock()
 
+    case 'table':
+      // GFM 表格(见 parseMd / convertTable)。旧的段落启发式仍保留在 paragraph 分支,
+      // 用于兼容 GFM 不认、但用户期待按表格渲染的历史文件(如表头/分隔行列数不一致)。
+      return convertTable(source, node)
+
     case 'heading': {
       const level = node.depth as HeadingProps['level']
       // 去掉 "# " 前缀:level + 1(空格)
@@ -594,7 +673,7 @@ function convertNode(source: string, node: any): Block | Block[] | null {
         .split('\n')
         .map((line) => line.replace(/^>\s?/, ''))
         .join('\n')
-      const innerTree = fromMarkdown(innerMd)
+      const innerTree = parseMd(innerMd)
       const innerBlocks = convertNodes(innerMd, innerTree.children || [])
       if (innerBlocks.length === 0) return null
       // 如果只有一个 paragraph,沿用旧格式(text+marks),否则用 blocks
@@ -782,7 +861,8 @@ export function deserializeMarkdown(markdown: string): Block[] {
   const preprocessed = preprocessChineseList(markdown)
 
   // mdast 解析（position 默认开启,便于从源文本切取行内原始 markdown）
-  const tree = fromMarkdown(preprocessed)
+  // 走 parseMd:启用 GFM 表格扩展,否则表格会退化成带 `|` 的普通段落
+  const tree = parseMd(preprocessed)
 
   // 递归转换(withGaps=true:顶层才还原空段落块)
   return convertNodes(preprocessed, tree.children as any[], true)

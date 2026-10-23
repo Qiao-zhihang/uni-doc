@@ -32,10 +32,12 @@ import {
 import { useThemeStore } from '@/stores/theme'
 import { useSettingsStore, type ApiProfile, type ProviderPreset } from '@/stores/settings'
 import { usePluginStore } from '@/stores/plugin'
+import { useAiMemoryStore } from '@/stores/aiMemory'
 import { PERMISSION_LABELS, type PluginPermission } from '@/core/plugin/types'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import type { ModelConfig } from '@/ai/types'
 import { inferContextWindow } from '@/ai/contextWindow'
+import MemoryManager from '@/components/memory/MemoryManager.vue'
 
 import deepseekIcon from '@/assets/settings-icons/deepseek.svg'
 import openaiIcon from '@/assets/settings-icons/openai.svg'
@@ -48,22 +50,38 @@ import alipayQr from '@/assets/settings-icons/alipay-qr.png'
 const theme = useThemeStore()
 const settings = useSettingsStore()
 const plugins = usePluginStore()
+const memoryStore = useAiMemoryStore()
 const router = useRouter()
+const route = useRoute()
 
 function backToEditor() {
   router.push('/editor')
 }
 
-type SectionKey = 'appearance' | 'ai' | 'shortcuts' | 'plugins' | 'about'
+const SECTION_KEYS = ['appearance', 'ai', 'memory', 'shortcuts', 'plugins', 'about'] as const
+type SectionKey = (typeof SECTION_KEYS)[number]
 const activeSection = ref<SectionKey>('appearance')
 
 const navItems: { key: SectionKey; label: string; icon: typeof Sun | string; isImg?: boolean }[] = [
   { key: 'appearance', label: '外观', icon: Sun },
   { key: 'ai', label: 'AI 配置', icon: uusharkIcon, isImg: true },
+  { key: 'memory', label: '记忆', icon: Brain },
   { key: 'shortcuts', label: '快捷键', icon: Keyboard },
   { key: 'plugins', label: '插件', icon: Puzzle },
   { key: 'about', label: '关于', icon: Info },
 ]
+
+/** 支持 /settings?section=memory 深链到指定设置分区 */
+function isSectionKey(value: string): value is SectionKey {
+  return (SECTION_KEYS as readonly string[]).includes(value)
+}
+
+/** AI 配置页内的记忆摘要 */
+const memorySummary = computed(() =>
+  memoryStore.loaded
+    ? `已保存 ${memoryStore.stats.total} 条记忆 · ${memoryStore.enabled ? '已启用' : '已关闭'}`
+    : '记忆数据加载中…',
+)
 
 const PROVIDER_BRAND: Record<
   ProviderPreset | 'custom',
@@ -274,6 +292,11 @@ async function testConnection() {
 
 onMounted(() => {
   settings.load()
+  void memoryStore.load()
+  const section = route.query.section
+  if (typeof section === 'string' && isSectionKey(section)) {
+    activeSection.value = section
+  }
 })
 
 /**
@@ -774,14 +797,35 @@ async function reloadPlugins() {
               <Brain :size="16" class="subsection-icon" />
               <h3 class="subsection-title">记忆管理</h3>
             </header>
-            <div class="placeholder-card">
-              <div class="placeholder-icon">
-                <Brain :size="32" />
+            <div class="memory-summary-card">
+              <div class="memory-summary-icon">
+                <Brain :size="20" />
               </div>
-              <div class="placeholder-text">敬请期待</div>
-              <div class="placeholder-hint">AI 将记住你的偏好和历史对话，提供更个性化的回答。</div>
+              <div class="memory-summary-info">
+                <div class="memory-summary-title">{{ memorySummary }}</div>
+                <div class="memory-summary-hint">
+                  AI 会记住你的偏好与常用信息，用于个性化后续回答；数据仅保存在本机。
+                </div>
+              </div>
+              <button type="button" class="btn btn-ghost" @click="activeSection = 'memory'">
+                管理记忆
+              </button>
             </div>
           </div>
+        </section>
+
+        <!-- AI 记忆 -->
+        <section v-show="activeSection === 'memory'" class="section section-wide">
+          <header class="section-header">
+            <h2 class="section-title">
+              <Brain :size="18" class="section-icon" />
+              AI 记忆
+            </h2>
+          </header>
+          <p class="section-desc">
+            AI 会记住你的偏好与常用信息，数据仅保存在本机，可随时查看、修改或关闭。
+          </p>
+          <MemoryManager />
         </section>
 
         <!-- 快捷键 -->
@@ -1180,6 +1224,9 @@ async function reloadPlugins() {
 }
 .section {
   max-width: 720px;
+}
+.section-wide {
+  max-width: 880px;
 }
 .section-header {
   display: flex;
@@ -1668,6 +1715,43 @@ async function reloadPlugins() {
   font-size: 14px;
   font-weight: 600;
   color: var(--foreground);
+}
+
+/* ===== 记忆摘要卡片 ===== */
+.memory-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.memory-summary-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--primary);
+}
+.memory-summary-info {
+  flex: 1;
+  min-width: 0;
+}
+.memory-summary-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+.memory-summary-hint {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
 }
 
 .placeholder-card {

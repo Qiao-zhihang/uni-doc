@@ -672,7 +672,15 @@ export function parseInlineMarkdown(text: string, depth = 0): { text: string; ma
           const startPos = plain.length
           const contentStart = i + trigger.length
           const endPos = text.indexOf(end, contentStart)
-          if (endPos !== -1) {
+          // 内容为空的配对一律不成立(行内代码除外:`` 是合法的空 code span)。
+          //
+          // 否则未闭合的 `**text` 会被这样吃掉:第一个 `*` 在 i 处匹配上 `**` 失败后,
+          // 轮到单字符 `*` 规则,它在 i+1 处找到第二个 `*` 作为闭合 → 产出 start===end
+          // 的零宽 italic mark;该 mark 随后被 marks.ts 的 buildEvents 按
+          // `start >= end` 丢弃 —— 净效果是两个星号凭空消失,而其它未闭合写法
+          // (`` `code ``、`~~x`、`[a](b`…)都原样保留,行为不一致。
+          const isEmptyContent = endPos === contentStart
+          if (endPos !== -1 && (!isEmptyContent || end === '`')) {
             // 对 _/__ 的闭合端也做边界检查
             if (end === '_' || end === '__') {
               const endLeftChar = text[endPos - 1]

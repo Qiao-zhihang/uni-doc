@@ -164,15 +164,25 @@ export function renderMarkdown(md: string): string {
       continue
     }
 
-    // GFM 表格：当前行含 |，下一行是分隔行（| --- | --- | 或 ---|---|---）
-    const tableSep = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/
-    if (line.includes('|') && i + 1 < lines.length && tableSep.test(lines[i + 1])) {
+    // GFM 表格：当前行含 |，下一行是分隔行（| - | / --- | --- / | :---: | 等）
+    // 分隔行横线数量按 GFM 只要求 ≥1（此前写成 {2,}，单横线的表格在流式阶段不渲染）；
+    // 单列表格的分隔行通常带首尾竖线（`| --- |`），裸 `---` 会先被上面的分割线分支吃掉，
+    // 所以额外要求分隔行本身含 |，避免把分割线误判成单列表格。
+    const tableSep = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/
+    if (
+      line.includes('|') &&
+      i + 1 < lines.length &&
+      lines[i + 1].includes('|') &&
+      tableSep.test(lines[i + 1])
+    ) {
       closeList()
       closeQuote()
       const headerCells = splitTableRow(line)
       const aligns = parseAligns(lines[i + 1])
       const bodyRows: string[][] = []
       i += 2
+      // GFM 表格的数据行以「含 |」为准;单列表格后续行可能不带竖线,但流式渲染器
+      // 是轻量近似实现,保持原有边界(遇到不含 | 的行即结束),避免误吞后面的段落。
       while (i < lines.length && lines[i].includes('|') && lines[i].trim() !== '') {
         bodyRows.push(splitTableRow(lines[i]))
         i++

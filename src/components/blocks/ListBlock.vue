@@ -55,6 +55,11 @@ function syncText() {
   items.forEach((item, idx) => {
     const el = itemRefs.value[idx]
     if (!el) return
+    // 重写 innerText/innerHTML 会把 caret 重置到偏移 0。
+    // renderTick 每次 commit 都会涨,而本组件的 renderTick 监听没有 selfUpdate 守卫
+    // (见下方 watch),若不停手,「在一个列表项里打字」会让该项甚至其它项的 caret 跳位。
+    // 正在编辑的项跳过重写,内容与 caret 都留在原处。
+    if (el.contains(document.activeElement)) return
     if (isSelected.value) {
       const source = marksToSource(item.text, item.marks)
       el.innerText = source
@@ -199,6 +204,8 @@ function focusItemAtStart(idx: number) {
 }
 
 function onItemKeydown(e: KeyboardEvent, idx: number) {
+  // IME 组合输入期间让位:输入法用 Enter 上屏候选词,否则会误建列表项(详见 ParagraphBlock)
+  if (e.isComposing || isComposing.value) return
   if (e.key === 'Tab') {
     // 列表的缩进/反缩进尚未实现(useContentEditable.onTabKey 的 'indent' 分支为空)。
     // 必须传 'indent':否则兜底分支会把两个字面空格 execCommand 进 item 文本,

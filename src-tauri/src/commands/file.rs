@@ -114,3 +114,25 @@ pub fn save_file_dialog(
         None => Ok(None),
     }
 }
+
+#[tauri::command]
+pub fn open_file_dialog(
+    app: tauri::AppHandle,
+    title: String,
+    filters: Vec<FileFilter>,
+) -> Result<Option<String>, String> {
+    let mut dialog = app.dialog().file();
+    dialog = dialog.set_title(&title);
+    for f in filters {
+        let exts: Vec<&str> = f.extensions.iter().map(|s| s.as_str()).collect();
+        dialog = dialog.add_filter(&f.name, &exts);
+    }
+    let file_path = dialog.blocking_pick_file();
+    match file_path {
+        Some(fp) => {
+            let path = fp.simplified();
+            Ok(Some(path.to_string()))
+        }
+        None => Ok(None),
+    }
+}

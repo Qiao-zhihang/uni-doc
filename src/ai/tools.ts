@@ -7,7 +7,7 @@
  *   - executeTool(tools, name, args): 按 name 查找并执行,统一错误处理
  */
 
-import type { ToolDefinition, ToolResult, MemoryCategory } from './types'
+import type { ToolDefinition, ToolResult } from './types'
 import type { BlockType, ListType } from '@/core/blocks/types'
 import type { Block } from '@/core/blocks/types'
 import { createBlock } from '@/core/blocks/factory'
@@ -24,6 +24,12 @@ import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 import { useAiMemoryStore } from '@/stores/aiMemory'
 import { searchAndFormatMemories, listAllMemories } from './memory'
+import {
+  MAX_FACT_CONTENT_LENGTH,
+  normalizeCategory,
+  normalizeImportance,
+  normalizeTagList,
+} from './memoryCore'
 import type { Reminder } from '@/stores/reminder'
 
 type DocumentStore = ReturnType<typeof useDocumentStore>
@@ -713,16 +719,19 @@ export function createTools(
     },
   ]
 
-  if (memory) {
+  if (memory && memory.loaded && memory.settings.enabled !== false) {
     tools.push(
       {
         name: 'save_memory',
         description:
-          '将重要信息保存到全局记忆中,供下次对话自动引用。适用于:用户提到个人信息、项目背景、偏好习惯、重要决策等。',
+          '将重要信息保存到全局记忆中,供下次对话自动引用。适用于:用户提到个人信息、项目背景、偏好习惯、重要决策等。保存前会自动查重。',
         parameters: {
           type: 'object',
           properties: {
-            content: { type: 'string', description: '要保存的记忆内容(简洁描述事实)' },
+            content: {
+              type: 'string',
+              description: `要保存的记忆内容(简洁描述事实,最多 ${MAX_FACT_CONTENT_LENGTH} 字)`,
+            },
             category: {
               type: 'string',
               enum: ['personal', 'project', 'knowledge', 'preference', 'other'],
@@ -742,12 +751,31 @@ export function createTools(
           required: ['content'],
         },
         execute: (args) => {
-          const content = String(args.content ?? '')
+          const content = String(args.content ?? '').trim()
           if (!content) return { ok: false, error: 'content 不能为空' }
-          const category = (args.category as MemoryCategory) ?? 'knowledge'
-          const tags = Array.isArray(args.tags) ? (args.tags as string[]) : []
-          const importance = typeof args.importance === 'number' ? args.importance : 0.5
-          const fact = memory.addFact(content, category, tags, 'agent', importance)
+          if (content.length > MAX_FACT_CONTENT_LENGTH) {
+            return {
+              ok: false,
+              error: `content 过长（最多 ${MAX_FACT_CONTENT_LENGTH} 字），请精简后再保存`,
+            }
+          }
+          const category = normalizeCategory(args.category)
+          const tags = Array.isArray(args.tags) ? normalizeTagList(args.tags) : []
+          const importance = normalizeImportance(args.importance)
+          const existing = memory.findSimilarFact(content)
+          if (existing) {
+            return {
+              ok: true,
+              data: {
+                duplicateOf: existing.id,
+                category: existing.category,
+                content: existing.content,
+              },
+            }
+          }
+          const fact = memory.addFact(content, category, tags, 'agent', importance, {
+            origin: 'agent',
+          })
           return { ok: true, data: { id: fact.id, category, content } }
         },
       },

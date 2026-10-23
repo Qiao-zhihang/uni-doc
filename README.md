@@ -1,9 +1,9 @@
 ---
 title: unidoc - 通用文档说明
 author: Qiao-zhihang
-version: 4.1.0
+version: 4.2.0
 created_at: "2026-07-17T14:32:43.322Z"
-updated_at: "2026-10-04T09:09:14.629Z"
+updated_at: "2026-10-23T12:14:46.001Z"
 ---
 ## 🇺🇸 English Version
 
@@ -52,7 +52,7 @@ The assistant **UU鲨** is wired into the editor and the vault through a proprie
 - **Manages your vault** — list directories, read, search and create files, switch tabs, resolve image paths.
 - **Web search** — the provider's native search (Qwen) or the built-in `web_search` tool (Bing, top 10 results).
 - **Vision** — attach up to 3 images per message to ask about screenshots and diagrams.
-- **Memory** — a long-term user profile plus extracted facts, scored by keyword, tag, recency, importance and access count, then injected per question. Written by the assistant (`save_memory`) and by end-of-conversation extraction.
+- **Memory** — a long-term user profile plus extracted facts, scored by keyword, tag, recency, importance and access count, then injected per question. Written by the assistant (`save_memory`), by end-of-conversation extraction or by hand, and managed in the **Memory** section of Settings: browse, search, filter and sort facts; add / edit / pin / disable / delete with undo; clear all; export or import JSON (merge or replace preview); set injection limits; turn memory or auto-extraction off at any time.
 - **Reminders** — one-off, daily, weekly or interval reminders created through conversation, checked every second and delivered as a system notification plus an in-app message; pause, resume or delete them in the Reminders page.
 - **Multi-profile models** — six provider presets (OpenAI, DeepSeek, Qwen, Zhipu, Ollama, custom), each with a real capability probe (vision / function calling / native search).
 - **Floating or split-pane** — the AI window can float over the editor or dock as a split pane; replies stream in, can be stopped mid-way, and show live tool-call status.
@@ -76,7 +76,7 @@ Each vault can carry plugins in `<vault>/.unidoc/plugins/<id>/` (a `manifest.jso
 
 #### 7. Verifiable by Design
 
-The repository ships a **zero-dependency regression harness** (`scripts/ai-render-tests/run.mjs`) with 100+ assertions covering the Markdown parser, the serializer round-trip and the AI reply renderer — plus a hand-checkable fixture set in [`测试/`](./测试/) used for manual acceptance and round-trip regression. No test framework needs to be installed.
+The repository ships a **zero-dependency regression harness** (`scripts/ai-render-tests/run.mjs`) with 200+ assertions covering the Markdown parser, the serializer round-trip and the AI reply renderer — plus a hand-checkable fixture set in [`测试/`](./测试/) used for manual acceptance and round-trip regression. No test framework needs to be installed.
 
 ### Feature Matrix
 
@@ -88,10 +88,10 @@ The repository ships a **zero-dependency regression harness** (`scripts/ai-rende
 | **Files** | Multi-vault manager, folder tree, create / rename / delete / copy path, `[[wikilink]]` jump with autocomplete, plain `.md` on disk, YAML front-matter |
 | **Presentation** | `---page---` pagination, full-screen mode with keyboard paging and progress bar, optional version history with replay and revert |
 | **Export** | HTML export (styled / semantic / print, light or dark, images kept or inlined as base64) and Markdown save |
-| **AI** | 24-tool agent, vault editing, file search, web search, vision, memory, reminders, six provider presets, streaming, rich Markdown replies |
+| **AI** | 24-tool agent, vault editing, file search, web search, vision, memory with a full management UI (search / edit / pin / disable / export / import), reminders, six provider presets, streaming, rich Markdown replies |
 | **Themes** | Light / dark themes driven by CSS variables, persisted locally, follows the system on first run |
 | **Security** | Content Security Policy, scoped asset protocol, 74-tag / 28-attribute HTML whitelist, URL protocol allowlist, `asset://`-based image loading in the editor, vault-confined write paths in the Rust backend |
-| **Quality** | 100+ automated assertions, zero-dependency runner, manual fixture set, strict TypeScript build gate |
+| **Quality** | 200+ automated assertions, zero-dependency runner, manual fixture set, strict TypeScript build gate |
 
 ### Keyboard Shortcuts
 
@@ -118,7 +118,7 @@ The repository ships a **zero-dependency regression harness** (`scripts/ai-rende
 | **Markdown parsing** | `mdast-util-from-markdown` + a custom inline parser and Markdown serializer |
 | **Formula / Diagram** | KaTeX · Mermaid |
 | **AI integration** | OpenAI-compatible `chat/completions` with SSE streaming, 6 provider presets, 24 tools, JSON persistence in `~/.unidoc/` |
-| **Desktop shell** | Tauri v2 (Rust 1.77.2+), 33 backend commands, plugins: dialog, fs, notification, log |
+| **Desktop shell** | Tauri v2 (Rust 1.77.2+), 35 backend commands, plugins: dialog, fs, notification, log |
 | **Rendering engine** | System WebView (WebView2 / WKWebView / WebKitGTK) |
 | **Icons** | lucide-vue-next |
 | **Packaging** | MSI / NSIS installers (`npm run tauri build`) |
@@ -165,6 +165,7 @@ The runner bundles the pure-function test cases with the project's own `esbuild`
 - the Markdown parser and serializer are **round-trip stable** (repeated save/reopen does not grow the file);
 - inline code stays literal, tables keep their escaping, and `\`-escapes survive;
 - the AI reply renderer handles images / math / diagrams / footnotes and neutralises injected HTML;
+- the AI memory engine migrates older schema versions non-destructively, ranks / searches facts with time decay, cleans up low-value entries, dedupes similar facts, and round-trips JSON export / import;
 - every fixture in `测试/` renders without throwing and round-trips identically.
 
 For manual acceptance, open the documents in [`测试/`](./测试/) and follow the "预期 / expected" notes in each section.
@@ -187,7 +188,7 @@ We prefer an honest list over marketing claims:
 **AI**
 
 - **Tool calls are not sandboxed at the code level.** The confirmation policy for risky operations (rewriting a whole document, deleting several blocks, overwriting an existing file) lives in the system prompt — review large edits before accepting them.
-- **Memory has no management UI yet**: it is written by the assistant and by automatic extraction; the Settings section is a "coming soon" placeholder.
+- **Memory extraction is heuristic**: end-of-conversation extraction relies on keyword and pattern rules, so a stored fact may be imprecise or missing — review and correct entries in the Settings memory editor (edit, pin or delete them). Retrieval is keyword-scored rather than semantic, and similar entries are merged only when you run **Merge duplicates**.
 - **Browser (web) mode is limited**: no vault/file tools and no web search — those need the desktop shell.
 
 **Platform**
@@ -261,7 +262,7 @@ For the list of open source software used by this project and their licenses, pl
 - **管理你的仓库** —— 列目录、读文件、搜索文件、新建笔记、切换标签页、解析图片路径。
 - **联网搜索** —— 提供商原生联网(通义千问)或内置 `web_search` 工具(Bing,最多 10 条结果)。
 - **图片理解** —— 每条消息最多附 3 张图片,可用于提问截图与示意图。
-- **长期记忆** —— 用户画像 + 抽取的事实,按关键词、标签、时间衰减、重要度与访问次数打分,按问题检索后注入上下文;由助手(`save_memory`)与会话结束时的自动抽取写入。
+- **长期记忆** —— 用户画像 + 抽取的事实,按关键词、标签、时间衰减、重要度与访问次数打分,按问题检索后注入上下文;由助手(`save_memory`)、会话结束时的自动抽取或手动写入,并可在设置页的**记忆管理**中浏览 / 搜索 / 筛选排序、增删改查(置顶、停用、删除可撤销、清空)、JSON 导出导入(合并或替换),以及调整注入上限、随时关闭记忆或自动提取。
 - **提醒** —— 通过对话创建一次性 / 每天 / 每周 / 间隔提醒,每秒检查到期,触发系统通知并写入会话消息;可在提醒页暂停、恢复、删除。
 - **多配置模型** —— 6 种 Provider 预设(OpenAI、DeepSeek、通义千问、智谱、Ollama、自定义),并用真实探针检测模型能力(vision / function calling / 原生联网)。
 - **浮窗或分屏** —— AI 面板可浮在编辑器上,也可作为右侧分屏停靠;回答流式输出、可随时停止,并实时显示工具调用状态。
@@ -285,7 +286,7 @@ For the list of open source software used by this project and their licenses, pl
 
 #### 7. 可验证
 
-仓库自带**零依赖回归测试台**(`scripts/ai-render-tests/run.mjs`),100+ 条断言覆盖 Markdown 解析、序列化往返与 AI 回答渲染;另有 [`测试/`](./测试/) 目录提供可手工核对的验收用例与往返回归用例。无需安装任何测试框架。
+仓库自带**零依赖回归测试台**(`scripts/ai-render-tests/run.mjs`),200+ 条断言覆盖 Markdown 解析、序列化往返与 AI 回答渲染;另有 [`测试/`](./测试/) 目录提供可手工核对的验收用例与往返回归用例。无需安装任何测试框架。
 
 ### 功能矩阵
 
@@ -297,10 +298,10 @@ For the list of open source software used by this project and their licenses, pl
 | **文件** | 多仓库管理、目录树、新建 / 重命名 / 删除 / 复制路径、`[[wikilink]]` 跳转与补全、磁盘上就是纯 `.md`、YAML front-matter |
 | **演示** | `---page---` 分页、全屏演示(键盘翻页 + 进度条)、可选的版本历史与回放、回退到指定版本 |
 | **导出** | HTML 导出(样式化 / 语义化 / 打印三种形态,亮暗主题,图片保留或内联为 base64)与 Markdown 保存 |
-| **AI** | 24 个工具的 Agent、文档编辑、文件搜索、联网搜索、图片理解、长期记忆、提醒、6 种 Provider 预设、流式输出、富文本回答 |
+| **AI** | 24 个工具的 Agent、文档编辑、文件搜索、联网搜索、图片理解、可完整管理的长期记忆(搜索 / 编辑 / 置顶 / 停用 / 导出 / 导入)、提醒、6 种 Provider 预设、流式输出、富文本回答 |
 | **主题** | 基于 CSS 变量的明暗主题,本地持久化,首次启动跟随系统 |
 | **安全** | 内容安全策略(CSP)、asset 协议作用域、74 标签 / 28 属性 HTML 白名单、URL 协议白名单、编辑器内 `asset://` 图片加载、Rust 后端写入限制在仓库内 |
-| **质量** | 100+ 条自动断言、零依赖运行器、手测用例集、严格 TypeScript 构建门禁 |
+| **质量** | 200+ 条自动断言、零依赖运行器、手测用例集、严格 TypeScript 构建门禁 |
 
 ### 快捷键
 
@@ -324,10 +325,10 @@ For the list of open source software used by this project and their licenses, pl
 | **前端框架** | Vue 3 + TypeScript + Vite |
 | **状态管理** | Pinia |
 | **路由** | vue-router(hash 模式) |
-| **Markdown 解析** | `mdast-util-from-markdown` + 自研行内解析器与序列化器 |
+| **Markdown 解析** | `mdast-util-from-markdown` + `micromark-extension-gfm-table`(GFM 表格扩展)+ 自研行内解析器与序列化器 |
 | **公式 / 图表** | KaTeX · Mermaid |
 | **AI 接入** | OpenAI 兼容 `chat/completions`,SSE 流式,6 种 Provider 预设,24 个工具,JSON 存放于 `~/.unidoc/` |
-| **桌面框架** | Tauri v2(Rust 1.77.2+),33 个后端命令,插件:dialog、fs、notification、log |
+| **桌面框架** | Tauri v2(Rust 1.77.2+),35 个后端命令,插件:dialog、fs、notification、log |
 | **渲染引擎** | 系统 WebView(WebView2 / WKWebView / WebKitGTK) |
 | **图标** | lucide-vue-next |
 | **打包** | MSI / NSIS 安装包(`npm run tauri build`) |
@@ -373,7 +374,9 @@ node scripts/ai-render-tests/run.mjs
 
 - Markdown 解析与序列化是**往返稳定**的(反复保存、重开不会让文件变大);
 - 行内代码保持字面量、表格转义正确、反斜杠转义不丢失;
+- GFM 表格的各种合法写法(单横线分隔、省略首尾竖线、表格打断段落、列表/引用内表格)都能识别为表格,且首次保存后归一化为标准写法;
 - AI 回答渲染器正确处理图片 / 公式 / 图表 / 脚注,并中和注入的 HTML;
+- AI 记忆引擎能无损迁移旧版数据,按时间衰减对事实检索排序、清理低价值条目、合并相近条目,并保证 JSON 导出导入往返;
 - `测试/` 下每个用例文件渲染不抛异常,且往返结果恒等。
 
 手工验收:打开 [`测试/`](./测试/) 下的文档,按各节标注的「预期」逐项核对。
@@ -396,7 +399,7 @@ node scripts/ai-render-tests/run.mjs
 **AI**
 
 - **工具调用没有代码层的沙箱与审批**:高风险操作(整篇替换、批量删除、覆盖已有文件)的确认策略写在系统提示词里,大规模改动请在接受前复核;
-- **记忆尚无管理界面**:由助手与自动抽取写入,设置页该区块仍是"敬请期待"占位;
+- **记忆抽取是启发式的**:会话结束时的自动提取依赖关键词与模式规则,可能记偏或漏记,请在设置页的「记忆管理」中复核、修改或删除;检索按关键词打分而非语义,相近条目需手动触发「合并重复」;
 - **浏览器(Web)模式受限**:没有仓库/文件工具,也没有联网搜索,这些需要桌面外壳。
 
 **平台**

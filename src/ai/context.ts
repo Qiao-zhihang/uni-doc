@@ -11,7 +11,7 @@ import type { Block } from '@/core/blocks/types'
 import { ref, watch, onUnmounted, type Ref } from 'vue'
 import { useDocumentStore } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
-import { buildMemoryInject } from './memory'
+import { buildMemoryInject, isMemoryEnabled } from './memory'
 
 /** 将文本截断到 max 字符,超出时追加省略号 */
 function truncate(text: string, max: number): string {
@@ -361,8 +361,9 @@ export function buildSystemPrompt(
   lines.push('')
 
   // ===== 记忆 =====
-  const memoryInject = buildMemoryInject(userInput)
-  if (memoryInject) {
+  // 记忆开关关闭时，既不注入画像/事实，也不提示模型使用 save_memory
+  if (isMemoryEnabled()) {
+    const memoryInject = buildMemoryInject(userInput)
     lines.push('# 用户记忆')
     lines.push('以下是关于用户的记忆,自然运用:')
     lines.push('- 画像信息全局稳定,可直接引用')
@@ -370,8 +371,10 @@ export function buildSystemPrompt(
     lines.push('- 记忆与用户当前说法矛盾时,以用户当前为准')
     lines.push('- **何时主动 save_memory:** 用户明确说"记住..."、分享个人信息/项目背景/偏好、做出重要决策时')
     lines.push('')
-    lines.push(memoryInject)
-    lines.push('')
+    if (memoryInject) {
+      lines.push(memoryInject)
+      lines.push('')
+    }
   }
 
   // ===== 联网搜索 =====

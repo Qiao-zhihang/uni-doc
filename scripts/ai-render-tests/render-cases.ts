@@ -12,6 +12,7 @@
  */
 
 import { renderBubbleMarkdown, stripInternalMarkers } from '@/ai/renderBubble'
+import { renderMarkdown as renderStreaming } from '@/ai/markdown'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Mark } from '@/core/blocks/types'
@@ -26,6 +27,22 @@ import {
   parseFrontmatter,
   serializeMarkdown,
 } from '@/core/serializer/markdown'
+import {
+  cleanupFacts,
+  createMemoryExport,
+  evictOverflow,
+  extractHeuristicCandidates,
+  findDuplicateGroups,
+  findDuplicateOf,
+  MAX_FACTS,
+  mergeFactGroup,
+  normalizeFactText,
+  normalizeMemory,
+  parseMemoryExport,
+  rankFacts,
+  tokenizeQuery,
+} from '@/ai/memoryCore'
+import type { MemoryFact } from '@/ai/types'
 
 let passed = 0
 const failures: string[] = []
@@ -818,6 +835,543 @@ group('16. 测试文档集(测试/*.md)')
       cyc.map((s) => s.length).join(' → '),
     )
   }
+}
+
+// ===================== 17. 表格识别(GFM 兼容) =====================
+group('17. 表格识别(GFM 兼容)')
+{
+  /** 取第一个 table block 的 content(找不到返回 undefined) */
+  const tableContent = (md: string): any => {
+    const table = deserializeMarkdown(md).find((b) => b.type === 'table')
+    return table?.content
+  }
+  const cells = (row: any[]): string => row.map((c) => c.text).join('|')
+  const normalize = (md: string): [string, string] => {
+    const first = serializeMarkdown(deserializeMarkdown(md))
+    const second = serializeMarkdown(deserializeMarkdown(first))
+    return [first, second]
+  }
+
+  // 本次回归的原始样本:分隔行首列只有一个 `-`(截图那份学习计划文档)
+  const screenshot = [
+    '| # | 目标 | 落位 | 日耗时 |',
+    '| - | -------- | ------------------------------------ | -------- |',
+    '| 1 | 英语大量阅读 | 课堂隐藏阅读 + 晚自习② | 60min+ |',
+    '| 2 | 词汇汇总 | 体育课(周一移至晚间) | 15min |',
+  ].join('\n')
+
+  const shot = tableContent(screenshot)
+  check(
+    '单横线分隔行识别为表格',
+    !!shot && cells(shot.headers) === '#|目标|落位|日耗时',
+    JSON.stringify(shot?.headers),
+  )
+  check(
+    '单横线表格数据行完整',
+    !!shot &&
+      shot.rows.length === 2 &&
+      cells(shot.rows[1]) === '2|词汇汇总|体育课(周一移至晚间)|15min',
+    JSON.stringify(shot?.rows),
+  )
+
+  // 其他 GFM 合法写法(此前全部退化成带 | 的段落)
+  check('双横线分隔行', !!tableContent('| a | b |\n| -- | -- |\n| 1 | 2 |'))
+  check('无首尾竖线', !!tableContent('a | b\n--- | ---\n1 | 2'))
+  check('首尾竖线不一致', !!tableContent('| a | b |\n| --- | --- |\n1 | 2'))
+  check('单列表格', !!tableContent('| only |\n| --- |\n| 1 |'))
+
+  const aligned = tableContent('| a | b | c |\n| :- | :-: | -: |\n| 1 | 2 | 3 |')
+  check(
+    '对齐方式(:- / :-: / -:)',
+    !!aligned && aligned.aligns.join(',') === 'left,center,right',
+    JSON.stringify(aligned?.aligns),
+  )
+
+  // GFM:表格可以打断段落
+  const interrupted = deserializeMarkdown('计划如下:\n| a | b |\n| --- | --- |\n| 1 | 2 |')
+  check(
+    '表格可打断段落',
+    interrupted.some((b) => b.type === 'paragraph') && interrupted.some((b) => b.type === 'table'),
+    interrupted.map((b) => b.type).join(','),
+  )
+
+  // 容器内表格
+  const inList = deserializeMarkdown('- 说明\n  | a | b |\n  | --- | --- |\n  | 1 | 2 |')
+  const listBlock = inList.find((b) => b.type === 'list') as any
+  check(
+    '列表项内表格',
+    !!listBlock && !!listBlock.content.items[0].children?.some((c: any) => c.type === 'table'),
+    JSON.stringify(inList.map((b) => b.type)),
+  )
+  const inQuote = deserializeMarkdown('> | a | b |\n> | --- | --- |\n> | 1 | 2 |')
+  const quoteBlock = inQuote.find((b) => b.type === 'quote') as any
+  check(
+    '引用内表格',
+    !!quoteBlock && !!quoteBlock.content.blocks?.some((c: any) => c.type === 'table'),
+    JSON.stringify(inQuote.map((b) => b.type)),
+  )
+
+  // 单元格转义:行内 `\|` 还原为字面管道
+  const escaped = tableContent('| a | b |\n| --- | --- |\n| x \\| y | 2 |')
+  check(
+    '单元格内 \\| 还原为字面管道',
+    !!escaped && escaped.rows[0][0].text === 'x | y',
+    JSON.stringify(escaped?.rows?.[0]),
+  )
+
+  // GFM 行列数规则:多出的列截断、缺少的列补空
+  check(
+    '数据行多出的列被截断',
+    tableContent('| a | b |\n| --- | --- |\n| 1 | 2 | 3 |')?.rows[0].length === 2,
+  )
+  const padded = tableContent('| a | b |\n| --- | --- |\n| 1 |')
+  check(
+    '数据行缺少的列补空',
+    !!padded && padded.rows[0].length === 2 && padded.rows[0][1].text === '',
+    JSON.stringify(padded?.rows),
+  )
+
+  // 渲染层(编辑器与 AI 气泡共用 deserializeMarkdown)
+  expect('AI 气泡渲染单横线表格', render(screenshot), [
+    '<table class="md-table">',
+    '<th class="md-th">#</th>',
+    '60min+',
+  ])
+
+  // 落盘归一化:非标准写法首次保存变为标准 GFM,之后往返稳定
+  const [shot1, shot2] = normalize(screenshot)
+  check(
+    '单横线表格保存后归一化为标准 GFM',
+    /^\| # \| 目标 \| 落位 \| 日耗时 \|$/m.test(shot1) &&
+      /\| :--- \| :--- \| :--- \| :--- \|/.test(shot1),
+    JSON.stringify(shot1),
+  )
+  check('归一化后往返稳定', shot1 === shot2, JSON.stringify(shot2))
+
+  // 旧启发式兜底仍然生效(GFM 认为列数不一致不是表格,历史文件继续按表格显示)
+  const mismatchMd = '| a | b |\n| --- |\n| 1 | 2 |'
+  const mismatch = tableContent(mismatchMd)
+  check('列数不一致的历史写法仍按表格兜底', !!mismatch && mismatch.headers.length === 2)
+  const [, mismatch2] = normalize(mismatchMd)
+  const mismatch3 = serializeMarkdown(deserializeMarkdown(mismatch2))
+  check('兜底表格往返收敛', mismatch2 === mismatch3, JSON.stringify(mismatch3))
+
+  // 手工验收文件里的 9 张非标准写法表格必须全部解析成 table(含列表/引用内的嵌套表)
+  const countTables = (blocks: any[]): number =>
+    blocks.reduce((sum, b) => {
+      if (b.type === 'table') return sum + 1
+      const nested =
+        b.type === 'list'
+          ? (b.content.items ?? []).flatMap((item: any) => item.children ?? [])
+          : b.type === 'quote'
+            ? (b.content.blocks ?? [])
+            : []
+      return sum + countTables(nested)
+    }, 0)
+  const fixtureTables = countTables(
+    deserializeMarkdown(parseFrontmatter(readFileSync('测试/06-表格导入兼容性.md', 'utf8')).body),
+  )
+  check('手工用例 06 的 9 张非标准表格全部识别', fixtureTables === 9, String(fixtureTables))
+
+  // 流式渲染器(AI 回复进行中)也要认单横线/单列表格
+  const streamed = renderStreaming('| # | 目标 |\n| - | --- |\n| 1 | 英语 |')
+  check(
+    '流式渲染器:单横线表格',
+    streamed.includes('<table class="md-table">') && streamed.includes('英语'),
+    streamed.slice(0, 200),
+  )
+  const streamedSingle = renderStreaming('| only |\n| --- |\n| 1 |')
+  check(
+    '流式渲染器:单列表格',
+    streamedSingle.includes('<table class="md-table">'),
+    streamedSingle.slice(0, 200),
+  )
+  // 分隔行不含 | 的裸 `---` 必须仍按分割线处理,不能被误判成单列表格
+  check(
+    '流式渲染器:裸 --- 仍是分割线',
+    renderStreaming('a | b\n---').includes('<hr class="md-hr">'),
+    renderStreaming('a | b\n---').slice(0, 200),
+  )
+}
+
+// ===================== 18. AI 记忆纯函数 =====================
+group('18. AI 记忆纯函数')
+{
+  const NOW = 1_760_000_000_000
+  const DAY = 86_400_000
+  let factSeq = 0
+
+  const makeFact = (partial: Partial<MemoryFact> = {}): MemoryFact => {
+    factSeq++
+    return {
+      id: `f${factSeq}`,
+      category: 'knowledge',
+      content: `记忆条目 ${factSeq}`,
+      tags: [],
+      source: 'agent',
+      createdAt: NOW,
+      lastAccessedAt: NOW,
+      accessCount: 0,
+      confidence: 1,
+      importance: 0.5,
+      updatedAt: NOW,
+      pinned: false,
+      enabled: true,
+      origin: 'agent',
+      ...partial,
+    }
+  }
+  const throws = (fn: () => unknown): boolean => {
+    try {
+      fn()
+      return false
+    } catch {
+      return true
+    }
+  }
+
+  // ---- 分词 ----
+  const tokensCn = tokenizeQuery('我喜欢用Vue写代码')
+  check('中文 tokenize 生成 bigram', tokensCn.includes('喜欢') && tokensCn.includes('代码'))
+  check('中英混合 tokenize 保留英文词', tokensCn.includes('vue'))
+  check('空查询返回空分词', tokenizeQuery('   ').length === 0)
+  check('重复关键词去重', tokenizeQuery('vue vue').length === 1)
+
+  // ---- 检索排序 ----
+  const vueFact = makeFact({
+    id: 'vue-fact',
+    content: '我用 Vue 写前端代码',
+    tags: ['Vue'],
+    importance: 0.4,
+  })
+  const reactFact = makeFact({
+    id: 'react-fact',
+    content: '我用 React 写前端代码',
+    tags: ['React'],
+    importance: 0.4,
+  })
+  const cityFact = makeFact({ id: 'city-fact', content: '我住在北京', importance: 0.9 })
+  const ranked = rankFacts([reactFact, cityFact, vueFact], '推荐一下 Vue 的写法', NOW)
+  check('关键词命中优先于高重要度无关项', ranked[0]?.id === 'vue-fact')
+  check('空查询按重要度排序', rankFacts([vueFact, cityFact], '', NOW)[0]?.id === 'city-fact')
+  check(
+    'maxResults 限制条数',
+    rankFacts([vueFact, reactFact, cityFact], '', NOW, { maxResults: 2 }).length === 2,
+  )
+
+  const projectFact = makeFact({
+    id: 'project-fact',
+    content: '我的项目叫 Alpha，是一个文档编辑器',
+    tags: ['项目'],
+  })
+  const weatherFact = makeFact({ id: 'weather-fact', content: '今天天气不错' })
+  const rankedCn = rankFacts([weatherFact, projectFact], '项目 Alpha 的最新进展如何', NOW)
+  check('中文查询通过 bigram 召回相关记忆', rankedCn[0]?.id === 'project-fact')
+
+  const pinnedFact = makeFact({
+    id: 'pinned-fact',
+    content: '与查询无关的置顶记忆',
+    importance: 0,
+    pinned: true,
+  })
+  check(
+    '置顶记忆在无关查询中仍排前',
+    rankFacts([weatherFact, pinnedFact], '完全无关 abc', NOW)[0]?.id === 'pinned-fact',
+  )
+
+  const disabledFact = makeFact({
+    id: 'disabled-fact',
+    content: 'Vue 被停用的记忆',
+    enabled: false,
+  })
+  check(
+    '停用记忆不参与检索',
+    !rankFacts([disabledFact, vueFact], 'Vue', NOW).some((fact) => fact.id === 'disabled-fact'),
+  )
+
+  // ---- 迁移与校验 ----
+  const migrated = normalizeMemory(
+    {
+      version: 1,
+      profile: { name: '乔一峰' },
+      facts: [
+        {
+          id: 'legacy-1',
+          category: 'personal',
+          content: '我叫乔一峰',
+          tags: ['姓名'],
+          source: 'auto-extract',
+          createdAt: NOW - 1000,
+        },
+      ],
+      updatedAt: NOW,
+    },
+    { now: NOW, idFactory: () => 'gen-1' },
+  )
+  const migratedFact = migrated.memory.facts[0]
+  check('v1 迁移到 v2 并补齐设置默认值', migrated.migrated && migrated.memory.version === 2)
+  check(
+    '迁移补齐设置默认值',
+    migrated.memory.settings.enabled === true &&
+      migrated.memory.settings.autoExtract === true &&
+      migrated.memory.settings.maxInjectFacts === 5 &&
+      migrated.memory.settings.maxFactChars === 500 &&
+      migrated.memory.settings.autoCleanup === true,
+  )
+  check(
+    '迁移补齐事实新字段',
+    migratedFact.updatedAt === NOW - 1000 && migratedFact.enabled === true,
+  )
+  check('迁移保留来源语义', migratedFact.origin === 'auto-extract')
+  check('画像在迁移中保留', migrated.memory.profile.name === '乔一峰')
+
+  const v2Data = normalizeMemory({ version: 2, facts: [] }, { now: NOW })
+  check('v2 数据不标记迁移', v2Data.migrated === false && v2Data.memory.version === 2)
+
+  const droppedFact = normalizeMemory(
+    { version: 1, facts: [{ content: '' }, { content: '有效记忆' }] },
+    { now: NOW },
+  )
+  check('丢弃空内容事实', droppedFact.memory.facts.length === 1 && droppedFact.dropped === 1)
+
+  let idSeq = 0
+  const duplicateIds = normalizeMemory(
+    {
+      version: 1,
+      facts: [
+        { id: 'dup', content: '第一条' },
+        { id: 'dup', content: '第二条' },
+      ],
+    },
+    { now: NOW, idFactory: () => `gen-${++idSeq}` },
+  )
+  check(
+    '重复 id 被重新生成',
+    duplicateIds.memory.facts[0].id === 'dup' && duplicateIds.memory.facts[1].id === 'gen-1',
+  )
+
+  const extraField = normalizeMemory(
+    { version: 1, facts: [{ id: 'e1', content: '带扩展字段', extraField: 'keep-me' }] },
+    { now: NOW },
+  )
+  check(
+    '迁移保留未知字段',
+    (extraField.memory.facts[0] as unknown as Record<string, unknown>).extraField === 'keep-me',
+  )
+
+  const clamped = normalizeMemory(
+    {
+      version: 2,
+      facts: [],
+      settings: { enabled: 'no', maxInjectFacts: 99, maxFactChars: 5 },
+    },
+    { now: NOW },
+  )
+  check(
+    '设置越界值被收敛',
+    clamped.memory.settings.enabled === true &&
+      clamped.memory.settings.maxInjectFacts === 10 &&
+      clamped.memory.settings.maxFactChars === 100,
+  )
+  check(
+    '非法记忆数据抛错',
+    throws(() => normalizeMemory(null)),
+  )
+
+  // ---- 清理 ----
+  const oldLow = makeFact({
+    id: 'old-low',
+    createdAt: NOW - 400 * DAY,
+    lastAccessedAt: NOW - 400 * DAY,
+    importance: 0.1,
+  })
+  const oldPinned = makeFact({
+    id: 'old-pinned',
+    createdAt: NOW - 400 * DAY,
+    lastAccessedAt: NOW - 400 * DAY,
+    importance: 0.1,
+    pinned: true,
+  })
+  const stale = makeFact({
+    id: 'stale',
+    createdAt: NOW - 10 * DAY,
+    lastAccessedAt: NOW - 200 * DAY,
+    importance: 0.1,
+  })
+  const fresh = makeFact({
+    id: 'fresh',
+    createdAt: NOW - 2 * DAY,
+    lastAccessedAt: NOW - 2 * DAY,
+    importance: 0.6,
+  })
+  const cleanupResult = cleanupFacts([oldLow, oldPinned, stale, fresh], NOW, MAX_FACTS)
+  check(
+    '清理删除长期未用的低价值记忆',
+    cleanupResult.removed.some((fact) => fact.id === 'old-low'),
+  )
+  check(
+    '清理不删除置顶记忆',
+    cleanupResult.kept.some((fact) => fact.id === 'old-pinned'),
+  )
+  check(
+    '清理删除长期未访问的低重要度记忆',
+    cleanupResult.removed.some((fact) => fact.id === 'stale'),
+  )
+  check(
+    '清理保留近期记忆',
+    cleanupResult.kept.some((fact) => fact.id === 'fresh'),
+  )
+
+  const many = Array.from({ length: MAX_FACTS + 5 }, (_, index) =>
+    makeFact({ id: `many-${index}`, content: `容量测试 ${index}` }),
+  )
+  many[0] = { ...many[0], pinned: true, importance: 0.001 }
+  const trimmed = cleanupFacts(many, NOW, MAX_FACTS)
+  check('超出容量时淘汰非置顶项', trimmed.kept.length === MAX_FACTS && trimmed.removed.length === 5)
+  check(
+    '容量淘汰保护置顶项',
+    trimmed.kept.some((fact) => fact.id === 'many-0'),
+  )
+
+  const evicted = evictOverflow(
+    [
+      makeFact({ id: 'low', importance: 0.1 }),
+      makeFact({ id: 'mid', importance: 0.5 }),
+      makeFact({ id: 'high', importance: 0.9 }),
+    ],
+    2,
+    NOW,
+  )
+  check(
+    '容量淘汰移除最低价值项',
+    evicted.removed.length === 1 && evicted.removed[0].id === 'low' && evicted.kept.length === 2,
+  )
+  const evictedPinned = evictOverflow(
+    [
+      makeFact({ id: 'pinned-low', importance: 0.01, pinned: true }),
+      makeFact({ id: 'mid2', importance: 0.5 }),
+      makeFact({ id: 'high2', importance: 0.9 }),
+    ],
+    2,
+    NOW,
+  )
+  check(
+    '容量淘汰不删除置顶项',
+    evictedPinned.kept.some((fact) => fact.id === 'pinned-low'),
+  )
+
+  // ---- 去重与合并 ----
+  const dupA = makeFact({
+    id: 'dup-a',
+    content: '我喜欢用 Vue 写代码',
+    tags: ['vue'],
+    importance: 0.4,
+    accessCount: 2,
+    createdAt: NOW - 2000,
+    updatedAt: NOW - 2000,
+    lastAccessedAt: NOW - 1000,
+  })
+  const dupB = makeFact({
+    id: 'dup-b',
+    content: '我喜欢用Vue写代码，常用 Vue3',
+    tags: ['前端'],
+    importance: 0.8,
+    accessCount: 3,
+    createdAt: NOW - 3000,
+    updatedAt: NOW - 100,
+    lastAccessedAt: NOW - 500,
+    pinned: true,
+    source: 'manual',
+    origin: 'manual',
+  })
+  const otherFact = makeFact({ id: 'other-fact', content: '我住在北京' })
+  check(
+    '相同/包含文本被判为重复',
+    findDuplicateOf([dupA, otherFact], '我喜欢用Vue写代码!')?.id === 'dup-a',
+  )
+  check('不相关内容不判重复', findDuplicateOf([otherFact], '你喜欢什么') === null)
+  check('文本规范化去除空格标点', normalizeFactText('喜欢 Vue!') === normalizeFactText('喜欢vue'))
+  const dupGroups = findDuplicateGroups([dupA, dupB, otherFact])
+  check('重复分组检测', dupGroups.length === 1 && dupGroups[0].duplicateIds.length === 1)
+  const merged = mergeFactGroup([dupA, dupB])
+  check('合并保留信息最全内容', merged.content === dupB.content)
+  check('合并标签取并集', merged.tags.includes('vue') && merged.tags.includes('前端'))
+  check('合并重要度取最大', merged.importance === 0.8)
+  check('合并访问次数求和', merged.accessCount === 5)
+  check('合并置顶与来源优先级', merged.pinned === true && merged.origin === 'manual')
+  check('合并创建时间取最早', merged.createdAt === NOW - 3000)
+
+  // ---- 导入导出 ----
+  const baseMemory = normalizeMemory(
+    {
+      version: 1,
+      profile: { name: '测试' },
+      facts: [
+        {
+          id: 'x',
+          category: 'preference',
+          content: '喜欢Vue',
+          tags: ['vue'],
+          createdAt: NOW - 10,
+          source: 'agent',
+        },
+      ],
+    },
+    { now: NOW, idFactory: () => 'gen-x' },
+  ).memory
+  const envelope = createMemoryExport(baseMemory, NOW)
+  const parsedEnvelope = parseMemoryExport(JSON.parse(JSON.stringify(envelope)), { now: NOW })
+  check('导出信封格式正确', envelope.format === 'unidoc-ai-memory' && envelope.formatVersion === 1)
+  check(
+    '导出/导入往返保持内容',
+    parsedEnvelope.wasEnvelope &&
+      parsedEnvelope.memory.facts.length === 1 &&
+      parsedEnvelope.memory.facts[0].content === '喜欢Vue',
+  )
+  check(
+    '兼容直接导出的记忆 JSON',
+    parseMemoryExport(baseMemory, { now: NOW }).wasEnvelope === false,
+  )
+  check(
+    '拒绝未来格式版本',
+    throws(() =>
+      parseMemoryExport({ format: 'unidoc-ai-memory', formatVersion: 99, memory: baseMemory }),
+    ),
+  )
+  check(
+    '拒绝其他格式',
+    throws(() => parseMemoryExport({ format: 'other', formatVersion: 1, memory: baseMemory })),
+  )
+  check(
+    '拒绝非法导入数据',
+    throws(() => parseMemoryExport(null)),
+  )
+
+  // ---- 启发式抽取 ----
+  const extName = extractHeuristicCandidates(['我叫小明，是一名设计师'])
+  check('画像提取姓名', extName.profile?.name === '小明')
+  check('「我是学生」不再误抽为姓名', extractHeuristicCandidates(['我是学生']).profile === null)
+  const extPref = extractHeuristicCandidates(['我喜欢用 Vue 写代码'])
+  check(
+    '偏好候选提取',
+    extPref.candidates.some(
+      (candidate) => candidate.category === 'preference' && candidate.content.includes('Vue'),
+    ),
+  )
+  const extProject = extractHeuristicCandidates(['我的项目是 Alpha'])
+  check(
+    '项目候选提取',
+    extProject.candidates.some(
+      (candidate) => candidate.category === 'project' && candidate.content.includes('Alpha'),
+    ),
+  )
+  check('无用户消息时不产生候选', extractHeuristicCandidates([]).candidates.length === 0)
+  check(
+    '候选事实长度受限',
+    extractHeuristicCandidates(['我喜欢用'.concat('很长'.repeat(300))]).candidates.every(
+      (candidate) => candidate.content.length <= 500,
+    ),
+  )
 }
 
 // ===================== 汇总 =====================

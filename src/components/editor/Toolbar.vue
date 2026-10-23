@@ -14,7 +14,9 @@ import {
   Image,
   Table,
   Code,
-  SeparatorHorizontal,
+  Quote,
+  Minus,
+  ScissorsLineDashed,
   Undo2,
   Redo2,
   Eye,
@@ -350,15 +352,15 @@ async function handleExport() {
           代码块
         </button>
         <button class="menu-item" @click="insertAfter('quote')">
-          <SeparatorHorizontal :size="14" />
+          <Quote :size="14" />
           引用
         </button>
         <button class="menu-item" @click="insertAfter('divider')">
-          <SeparatorHorizontal :size="14" />
+          <Minus :size="14" />
           分割线
         </button>
         <button class="menu-item" @click="insertAfter('page_break')">
-          <SeparatorHorizontal :size="14" />
+          <ScissorsLineDashed :size="14" />
           分页符
         </button>
       </div>

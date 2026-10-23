@@ -178,6 +178,13 @@ function isCursorAtEnd(): boolean {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  /*
+   * IME 组合输入期间必须完全让位。
+   * 中文/日文输入法用 Enter「上屏」候选词,此时 keydown 带 isComposing=true 送达;
+   * 若不拦截,下面的 Enter 分支会照常 preventDefault 并拆块 —— 表现为「打中文按回车
+   * 直接把段落劈成两半」。isComposing 标志只覆盖 onInput/onBlur,拦不住按键。
+   */
+  if (e.isComposing || isComposing.value) return
   // Tab 键:插入空格(防止焦点跳出编辑器)
   if (e.key === 'Tab') {
     onTabKey(e)
